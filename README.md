@@ -24,7 +24,7 @@ Whether you are reviewing either one of those papers you should be aware of the 
 5. Scikit-Learn 0.24.2 
 6. Keras 2.5.0
 7. TensorFlow 2.5.0
-8. The SOLETE dataset -> https://figshare.com/s/19c47623082dfb2d2083
+8. The SOLETE dataset -> https://figshare.com/s/eaa054b017a5312247a5
 9. Functions.py -> A script that will be added to this git uppon publication of the related papers.
 
 # How to use
