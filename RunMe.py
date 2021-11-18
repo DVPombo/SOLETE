@@ -73,7 +73,7 @@ def import_PV_WT_data():
 
 
 #%% Import Data
-DATA=pd.read_hdf('SYSLAB715_Solete_Pombo.h5')
+DATA=pd.read_hdf('Solete_short.h5')
 PVinfo, WTinfo = import_PV_WT_data()
 
 

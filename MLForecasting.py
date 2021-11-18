@@ -137,7 +137,8 @@ Control_Var['CNN_LSTM'] = CNN_LSTM
 del RF, SVM, LSTM, CNN, CNN_LSTM
 
 #%% Import Data
-DATA=pd.read_hdf('SYSLAB715_Solete_Pombo.h5')
+#DATA=pd.read_hdf('Solete_Pombo.h5')
+DATA=pd.read_hdf('Solete_short.h5')
 PVinfo, WTinfo = import_PV_WT_data()
 
 #%% Expand Dataset
