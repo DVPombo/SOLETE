@@ -24,7 +24,7 @@ Whether you are reviewing either one of those papers you should be aware of the 
 5. Scikit-Learn 0.24.2 
 6. Keras 2.5.0
 7. TensorFlow 2.5.0
-8. The SOLETE dataset -> https://figshare.com/s/eaa054b017a5312247a5
+8. The SOLETE dataset -> https://data.dtu.dk/articles/dataset/The_SOLETE_dataset/17040767
 9. Functions.py -> A script that will be added to this git uppon publication of the related papers.
 
 # How to use
@@ -38,9 +38,16 @@ Whether you are reviewing either one of those papers you should be aware of the 
 You can of course use your own dataset, you will have to adapt things here and there, but you will be able to reuse most of the code.
 
 # How to cite this:
-- under construction -
+@article{Vazquez Pombo2022,
+author = "Daniel Vazquez Pombo",
+title = "{The SOLETE platform}",
+year = "2022",
+month = "Jan, ",
+url = "https://data.dtu.dk/articles/software/The_SOLETE_platform/17040626",
+doi = "10.11583/DTU.17040626"
+}
 
 # References
-[1] D.V. Pombo, H.W. Bindner, S.V. Spataru, P. Sørensen, P. Bacher, Increasing the Accuracy of Hourly Multi-Output Solar Power Forecast with Physics-Informed Machine Learning, Solar Energy. In Press.
+[1] D.V. Pombo, H.W. Bindner, S.V. Spataru, P. Sørensen, P. Bacher, Increasing the Accuracy of Hourly Multi-Output Solar Power Forecast with Physics-Informed Machine Learning, Sensors. In Press.
 
-[2] D.V. Pombo, O.G. Gehrke, H.W. Bindner, Solete, a 15-month long holistic dataset including:  meteorology, co-located wind and solar PV power from Denmark with hourly resolution, Data in Brief. In Press.
+[2] D.V. Pombo, O.G. Gehrke, H.W. Bindner, Solete, a 15-month long holistic dataset including:  meteorology, co-located wind and solar PV power from Denmark with various resolutions, Data in Brief. Under Review.
