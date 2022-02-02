@@ -16,11 +16,6 @@ The lincensing of this work is pretty chill, just give credit: https://creativec
 
 Dependencies: Python 3.8.10, and Pandas 1.2.4
 """
-import sys
-sys.path.append(r'C:\Users\dvapo\Documents\Python Scripts\Modules')
-import DVP as dvp
-dvp.clear_clc()
-
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -76,7 +71,7 @@ def import_PV_WT_data():
 
 
 #%% Import Data
-# DATA=pd.read_hdf('Solete_short.h5')
+# DATA=pd.read_hdf('SOLETE_short.h5')
 # DATA=pd.read_hdf('SOLETE_Pombo_5min.h5')
 DATA=pd.read_hdf('SOLETE_Pombo_60min.h5')
 PVinfo, WTinfo = import_PV_WT_data()
