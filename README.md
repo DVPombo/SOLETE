@@ -6,7 +6,7 @@ ORCID: https://orcid.org/0000-0001-5664-9421
 
 This repository used to be complementary material to a series of papers covering Solar PV power forecasting [1, 2] and its twin "Data in Brief" article [3]. The objective is to increase the transparency of [1, 2, 3, 4], which is one of the main limitations of Machine Learning in general.
 However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
-I included a number of functions that can be used by beginers to kickstart their projects with solar power, machine learning, forecasting, or simply python.
+I included a number of functions that can be used by beginners to kickstart their projects with solar power, machine learning, forecasting, or simply python.
 
 Long Live Open Science!
 
