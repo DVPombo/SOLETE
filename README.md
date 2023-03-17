@@ -17,19 +17,37 @@ This work was developed under the PhD thesis Energy Management Systems for Isola
 5. Scikit-Learn 1.1.2 
 6. Keras 2.10.0
 7. TensorFlow 2.10.0
-8. The SOLETE dataset [1] -> https://doi.org/10.11583/DTU.17040767 
+8. CoolProp 6.4.3   
+9. The SOLETE dataset [1] -> https://doi.org/10.11583/DTU.17040767 
 
 # How to use
 1. Store the SOLETE dataset in the same folder as the scripts from this repository 
-2. Open the **RunMe.py** file. This allows you to load SOLETE and sneak  a peek at its contents.
+2. Open the **RunMe.py** file. This allows you to load SOLETE and sneak a peek at its contents.
 3. Open the  **MLForecasting.py** file. This allows you to configure Random Forest (RF), Support Vector Machine (SVM), and three kinds of Artificial Neuronal Networks: Convolutional Neuronal Network (CNN), Long-Short Term Memory (LSTM), and a Hybrid (CNN-LSTM).
    - The file itself contains notes explaining how to use it.
-   - You can basically replicate the studies from [2, 3, 4] and build on top.
+   - The main objective is to introduce the SOLETE dataset and help people learning basics of time series forecasting based on Machine Learning
+   - You can basically replicate most of the methodology from [2, 3, 4] and build on top.
+   - I included some error messages to debug what I expect are the most common errors when running stuff.
+   - Let me know if you like it or what needs to be fixed.
 4. Have Fun!
 
 You can of course use your own dataset, you will have to adapt things here and there, but you will be able to reuse most of the code.
 
 # How to cite this:
+Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:
+
+@article{pombo2022solete,
+  title={SOLETE, a 15-month long holistic dataset including: Meteorology, co-located wind and solar PV power from Denmark with various resolutions},
+  author={Pombo, Daniel Vazquez and Gehrke, Oliver and Bindner, Henrik W},
+  journal={Data in Brief},
+  volume={42},
+  pages={108046},
+  year={2022},
+  publisher={Elsevier}
+}
+
+
+Nontheless, here is the citation for the git itself:
 D. V. Pombo, The SOLETE platform (March, 2023).doi:10.11583/DTU.17040626.URL https://data.dtu.dk/articles/software/TheSOLETEplatform/17040626
 
 @article{SOLETE2021Code,

@@ -39,14 +39,15 @@ Using SOLETE for the first time:
     1- Put all the files in the same folder and click run. If you get the message "Done!" in the console that is it.
     2- If it didn't work:
         a) Check the dependencies: 
-            Python 3.8.10
-            Pandas 1.2.4
-            Numpy 1.19.5
-            Matplotlib 3.4.2
-            Scikit-Learn 0.24.2
-            Keras 2.5.0
-            TensorFlow 2.5.0
-            Coolprop xxxxx
+            -Python 3.9.12 
+            -Pandas 1.5.0 
+            -Numpy 1.23.1
+            -Matplotlib 3.6.0
+            -Scikit-Learn 1.1.2 
+            -Keras 2.10.0
+            -TensorFlow 2.10.0
+            -CoolProp 6.4.3   
+            -The SOLETE dataset [1] -> https://doi.org/10.11583/DTU.17040767 
         b) If that didn't solve it... You have a problem my friend ¯\_(ツ)_/¯ 
     
 How to use the second and subsequent times:
