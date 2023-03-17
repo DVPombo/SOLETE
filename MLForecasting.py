@@ -1,22 +1,41 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 17 14:35:08 2021
+Latest edit March 2023
 
-@author: Daniel Vázquez Pombo
-email: dvapo@elektro.dtu.dk
+author: Daniel Vázquez Pombo
+email: daniel.vazquez.pombo@gmail.com
 LinkedIn: https://www.linkedin.com/in/dvp/
 ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo
 
-The purpose of this script is to give you a running example of the methodology presented in:
-    [1] D.V. Pombo, H.W. Bindner, S.V. Spataru, P. Sørensen, P. Bacher, 
-    Increasing the Accuracy of Hourly Multi-Output Solar Power Forecast with 
-    Physics-Informed Machine Learning, Solar Energy. In Press.
+The purpose of this script is to give you a running example importing the dataset
+from [1] and the physics-informed methodology described in [2, 3, 4]:
     
+    [1] Pombo, D. V., Gehrke, O., & Bindner, H. W. (2022). SOLETE, a 15-month  
+    long holistic dataset including: Meteorology, co-located wind and solar PV
+    power from Denmark with various resolutions. Data in Brief, 42, 108046.
+        
+    [2] Pombo, D. V., Bindner, H. W., Spataru, S. V., Sørensen, P. E., & Bacher, P. 
+    (2022). Increasing the accuracy of hourly multi-output solar power forecast  
+    with physics-informed machine learning. Sensors, 22(3), 749.
+    
+    [3] Pombo, D. V., Bacher, P., Ziras, C., Bindner, H. W., Spataru, S. V., & 
+    Sørensen, P. E. (2022). Benchmarking physics-informed machine learning-based 
+    short term PV-power forecasting tools. Energy Reports, 8, 6512-6520.
+    
+    [4] Pombo, D. V., Rincón, M. J., Bacher, P., Bindner, H. W., Spataru, S. V., 
+    & Sørensen, P. E. (2022). Assessing stacked physics-informed machine learning 
+    models for co-located wind–solar power forecasting. Sustainable Energy, Grids 
+    and Networks, 32, 100943.
+
 It should run without errors simply by placing all the files in the same location.
-We have checked the hdf5 file (the actual dataset) compatibility with both Python and R. 
+We have checked the hdf5 file (the actual dataset) compatibility with Mathlab, Python and R. 
+If you encounter any troubles using it with other software let me know and I will see what I can do.
+
 The lincensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
 
-How to use the first time:
+
+Using SOLETE for the first time:
     1- Put all the files in the same folder and click run. If you get the message "Done!" in the console that is it.
     2- If it didn't work:
         a) Check the dependencies: 
@@ -27,49 +46,59 @@ How to use the first time:
             Scikit-Learn 0.24.2
             Keras 2.5.0
             TensorFlow 2.5.0
+            Coolprop xxxxx
         b) If that didn't solve it... You have a problem my friend ¯\_(ツ)_/¯ 
     
 How to use the second and subsequent times:
     1- Go to section: "Control the Script"
-        In the dictionary called Control_Var you can modify different values, like the horizon to forecast,
-        the division between training, validation and testing, what is the metric to be predicted, which 
-        should be used as extrinsic features, etc.
+        In the dictionary called Control_Var you can modify different values, like the
+        horizon to forecast, the division between training, validation and testing, what
+        is the metric to be predicted, which should be used as extrinsic features, etc.
     2- Go to section: Define Machine Learning Configuration and Hyperparameters
-        You can use those dictionaries to define different topologies for the 5 ML methods covered in [1]
-        However, be careful with ANN, they have a particular shape, you cant control each layer's position
-        from there. But you can edit that yourself.
-    3- After setting those parameters just run it. Take into account the size of the data, it might take a while.
-    4- If you found this useful, and want to send some kudos, do so.
+        Use those dictionaries to define different topologies for the 5 ML methods 
+        covered in references [1,2,3]. However, be careful with ANN, they have a 
+        particular shape, you can't control each layer's position from there. 
+        But you can edit that yourself.
+    3- After setting those parameters just run it. Take into account the size of 
+    the data, it might take a while for the algorithm to finish.
+    4- Now that you have some time to spare while it runs: 
+        a) Drink some water, you are probably not hydrated enough.
+        b) If you found SOLETE useful, and want to send some kudos, do so.
 
 DISCLAIMERS:
-1- I was using a regular PC only for coding, models were run in an HPC.
+1- Regarding papers, I was using a regular PC only for coding, models were run in an HPC.
+    This means that this is obviously not the exact code I used for those. Only the dataset
+    is identical. So don't expect being able to obtain the exact same results directly.
 2- There are better ways to configure the ML-models, have fun playing with it.
-3- SVM will take for ever if run in this way for the whole set. An alternative formulation is -> https://stackoverflow.com/questions/31681373/making-svm-run-faster-in-python     
+3- SVM will take for ever if run in this way for the whole set. An alternative programming 
+    based on this -> https://stackoverflow.com/questions/31681373/making-svm-run-faster-in-python    
+    was employed in when researching what ended up becoming [4]. 
 4- I put together the dataset and this scripts in one day, so do not expect them to be pretty or 100% error free.
 """
 
-import pandas as pd
-from Functions import import_PV_WT_data, ExpandSOLETE, TimePeriods, PrepareMLmodel, TestMLmodel, get_results, post_process
-
-
+from Functions import import_SOLETE_data, import_PV_WT_data, TimePeriods  
+from Functions import PrepareMLmodel, TestMLmodel, get_results, post_process
 
 #%% Control The Script:
 
 Control_Var = {
     '_description_' : 'Holds all the variables that define the behaviour of the algoritm',
+    'resolution' : '60min', #either 60min or 5min
+    'SOLETE_builvsimport': 'Import', # Takes 'Build' or 'Import'. The first expands the dataset, the second imports a existing expansion
+    'SOLETE_save': True, # saves the built SOLETE. Only works if SOLETE_builvsload=='Build' 
     'trainVSimport' : True, #True - trains the ML model, False - imports the model
     'saveMLmodel' : True, #saves the trained model if True, but also trainVSimport must be True, otherwise does nothing.
     'Train_Val_Test' : [70, 20, 10], #train validation test division of the available DATA
     'IntrinsicFeature' : 'P_Solar[kW]', #feature to be predicted
     'PossibleFeatures': ['TEMPERATURE[degC]', 'HUMIDITY[%]', 'WIND_SPEED[m1s]', 'WIND_DIR[deg]',
                         'GHI[kW1m2]', 'POA Irr[kW1m2]', 'P_Gaia[kW]', 'P_Solar[kW]', 'Pressure[mbar]', 
-                        'Pac', 'Pdc','TempModule', 'TempCell', 'HoursOfDay', 'MeanPrevH', 
-                        'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
+                        'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 'HoursOfDay', 
+                        'MeanPrevH', 'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
                         ],
-    'MLtype' : 'CNN', #RF SVM LSTM CNN CNN_LSTM
+    'MLtype' : 'CNN', # RF SVM LSTM CNN CNN_LSTM
     'H' : 24, #horizon length in number of samples
     # 'Features_IDs' : pd.DataFrame(Control_Var['PossibleFeatures'], columns = ['Features']),
-    'PRE' : 12, #previous samples to be used in the predictor
+    'PRE' : 0, #previous samples to be used in the predictor
     }  
 
 #%% Define Machine Learning Configuration and Hyperparameters
@@ -137,13 +166,9 @@ Control_Var['CNN_LSTM'] = CNN_LSTM
 del RF, SVM, LSTM, CNN, CNN_LSTM
 
 #%% Import Data
-DATA=pd.read_hdf('SOLETE_short.h5')
-# DATA=pd.read_hdf('SOLETE_Pombo_5min.h5')
-# DATA=pd.read_hdf('SOLETE_Pombo_60min.h5')
-PVinfo, WTinfo = import_PV_WT_data()
 
-#%% Expand Dataset
-ExpandSOLETE(DATA, [PVinfo, WTinfo], Control_Var)
+PVinfo, WTinfo = import_PV_WT_data()
+DATA=import_SOLETE_data(Control_Var, PVinfo, WTinfo)
 
 #%% Generate Time Periods
 ML_DATA, Scaler = TimePeriods(DATA, Control_Var) 
@@ -155,6 +180,8 @@ results = get_results(Control_Var, DATA, ML_DATA, predictions)
 
 #%% Post-Processing
 post_process(Control_Var, results, DATA)
+
+
 
 
 

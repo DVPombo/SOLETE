@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 17 14:35:08 2021
+Latest edit March 2023
 
-@author: Daniel Vázquez Pombo
-email: dvapo@elektro.dtu.dk
+author: Daniel Vázquez Pombo
+email: daniel.vazquez.pombo@gmail.com
 LinkedIn: https://www.linkedin.com/in/dvp/
 ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo
 
-The purpose of this script is to give you, dear user, a gentle hand and, hopefully, kick start your work with the Solete dataset.
-It should run without errors simply by placing all the files in the same location.
-This file only contains functions called by the rest of the scripts.
+The purpose of this script is to collect all functions called by the rest of the scripts.
 
 The lincensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
 
@@ -38,6 +37,77 @@ from keras.layers import Flatten
 from keras.layers import Conv1D
 from keras.layers import MaxPooling1D
 from keras.models import load_model
+
+from CoolProp.HumidAirProp import HAPropsSI
+import sys
+import warnings
+warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+#yep, bad practice, see function get_results to understand why is this here :) 
+
+def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
+    """
+    Imports a version of SOLETE depending of the input resolution
+
+    Parameters
+    ----------
+    resolution : str
+        string describing the desired resolution of the dataset.
+        For now it takes either 1h or 5min
+    Returns
+    -------
+    df : DataFrame
+        The one, the only, the almighty SOLETE dataset
+    """
+    
+    print("___The SOLETE Platform___\n")
+    if Control_Var['resolution'] != '5min' and  Control_Var['resolution'] != '60min':    
+        error_msg(key = "resolution")
+    else:
+        name = 'SOLETE_Pombo_'+ Control_Var['resolution'] +'.h5' 
+        name_import = name[:-3]+'_Expanded.h5'
+        
+    
+    if Control_Var["SOLETE_builvsimport"]=='Build':
+        
+        df=pd.read_hdf(name) #import the Raw SOLETE based on the selected resolution
+        print("SOLETE was imported:")
+        print("    -resolution: ", Control_Var['resolution'])
+        print("    -version: Original. \n")
+        
+        Control_Var['OriginalFeatures']=list(df.columns)
+        
+        print("SOLETE was imported with a resolution of: ", Control_Var['resolution'], "\n")
+        
+        ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
+        
+        if Control_Var["SOLETE_save"]==True:
+            df.to_hdf(name_import, 'name', mode='w')
+            
+    elif Control_Var["SOLETE_builvsimport"]=='Import':
+        
+        try:
+            df=pd.read_hdf(name_import)
+        except FileNotFoundError:
+            error_msg(key = "missing_expanded_SOLETE")
+        
+        print("SOLETE was imported:")
+        print("    -resolution: ", Control_Var['resolution'])
+        print("    -version: Expanded. ")
+        
+        for col in Control_Var['PossibleFeatures']: #if the possiblefeature includes
+        #something that was not in the import file, execution is killed with an error message
+            if col not in df.columns: 
+                error_msg(key = "missing_feature_expanded_SOLETE")
+        
+        for col in df.columns: #the undesired columns are removed
+        #undersired columns are those within the imported file not appearing in Control_Var['PossibleFeatures']
+            if col not in Control_Var['PossibleFeatures']: 
+                df = df.drop(col, axis=1)
+                print("Dropped col: ", col)           
+        
+        print("\n")
+        
+    return df
 
 def import_PV_WT_data():
     """
@@ -69,6 +139,11 @@ def import_PV_WT_data():
         'eff_%' : [[0, 85.5, 90.2, 90.9, 91.8, 92, 92.3, 94, 94.4, 94.8, 95.6, 96, 97.3, 97.7, 98, 98.1, 98.05, 98],
                    [0, 85.5, 90.2, 90.9, 91.8, 92, 92.3, 94, 94.4, 94.8, 95.6, 96, 97.3, 97.7, 98, 98.1, 98.05, 98]],
        "index": ['A','B'], #A and B refer to each channel of the inverter, which has connected a different string.
+       "L": 10, # array characteristic length
+       "W": 1.5, # array width
+       "d": 0.1, # array thickness
+       "k_r": 350, # PV conductive resistance W/(m*K)
+       # "": ,
         }
     
     WT={
@@ -103,23 +178,39 @@ def ExpandSOLETE(data, info, Control_Var):
     
     Returns
     -------
-    Adds columns to data with new metrics. Some from the PV performance model [1], others from potentially useful metrics.
+    Adds columns to data with new metrics. Some from the PV performance model [2, 3, 4], 
+    others from potentially useful metrics.
 
     """
-    ncol=len(data.columns)       
+    # ncol=len(data.columns)   
+    list_expansion=Control_Var['OriginalFeatures'].copy()
+    all_expansions=Control_Var['PossibleFeatures'].copy()
+    
         
     print("Expanding SOLETE with King's PV Performance Model")
     data['Pac'], data['Pdc'], data['TempModule'], data['TempCell'] = PV_Performance_Model(data, info[0])
-    print("Cleaning noise and curtailment from active power production")
+    list_expansion.append('Pac')
+    list_expansion.append('Pdc')
+    list_expansion.append('TempModule')
+    list_expansion.append('TempCell')
+    
+    print("    Cleaning noise and curtailment from active power production")
     data['P_Solar[kW]'] =  np.where(data['Pac'] >= 1.5*data['P_Solar[kW]'],
                                     data['Pac'], data['P_Solar[kW]'])
-    print("Smoothing zeros")
+    print("    Smoothing zeros")
     data['P_Solar[kW]'] =  np.where(data['P_Solar[kW]'] <= 0.001,
                                       0, data['P_Solar[kW]'])
     data['Pac'] =  np.where(data['Pac'] <= 0.001,
                                       0, data['Pac'])
     
-    print("\nAdding new Types with codes: " + str(Control_Var['PossibleFeatures']))
+    if 'TempModule_RP' in Control_Var['PossibleFeatures']: #advanced thermodynamic model
+        data['TempModule_RP'] = Rincon_Pombo_ThermodynamicModel(data, info[0])
+        list_expansion.append('TempModule_RP')
+    
+    for expansion in list_expansion: #this is than simply to print a nice statement about which types are added
+        if expansion in all_expansions: all_expansions.remove(expansion)
+    
+    print("\nAdding new Types with codes: " + str(all_expansions))
     
     
     if 'HoursOfDay' in Control_Var['PossibleFeatures']: #time of the day hours
@@ -134,13 +225,13 @@ def ExpandSOLETE(data, info, Control_Var):
         data['StdWindSpeedPrevH'] =  data['WIND_SPEED[m1s]'].rolling(Control_Var['H']).std()
     
 
-    print("\nSOLETE has been successfully expanded from:", ncol, "to:", len(data.columns), "features.\n\n")
+    print("\nSOLETE has been successfully expanded from:", len(Control_Var['OriginalFeatures']), "to:", len(data.columns), "features.\n\n")
     
     
     pass
 
 
-def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]'):
+def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]', coltemp='TEMPERATURE[degC]',colwindspeed='WIND_SPEED[m1s]'):
     """
     Parameters
     ----------
@@ -157,7 +248,7 @@ def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]'):
     Returns
     -------
     DataFrames
-        Pac, Pdc, Tm, and Tc. [1]
+        Pac, Pdc, Tm, and Tc. 
 
     """
     
@@ -182,7 +273,7 @@ def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]'):
     
     for pv in DATA_PV.index:
         #Temperature Module
-        Results['Tm_' + pv] = data['TEMPERATURE[degC]'] + data[colirra]*1000 *np.exp(DATA_PV.loc[pv,'a']+DATA_PV.loc[pv,'b']*data['WIND_SPEED[m1s]']) 
+        Results['Tm_' + pv] = data[coltemp] + data[colirra]*1000 *np.exp(DATA_PV.loc[pv,'a']+DATA_PV.loc[pv,'b']*data[colwindspeed]) 
         #Temperature Cell
         Results['Tc_' + pv] = Results['Tm_' + pv] + data[colirra]*1000/PVinfo["Estc"] * DATA_PV.loc[pv,'D_T']
         #power produced in one single pannel
@@ -200,6 +291,158 @@ def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]'):
         
     return Results[['Pac_A', 'Pac_B']].sum(axis=1)/1000, Results[['Pmp_array_A', 'Pmp_array_B']].sum(axis=1)/1000, Results[['Tm_A', 'Tm_B']].mean(axis=1), Results[['Tc_A', 'Tc_B']].mean(axis=1)
 
+def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
+    """
+    This function implements section 4.4 from [4]. That is, an advanced thermodynamic 
+    performance model for photovoltaic pannels. All credit for the coding goes to my
+    good friend Mario Javier Rincón Pérez (mjrp@mpe.au.dk). I simply adapted it to fit
+    in the SOLETE platform. If you are into fluid and thermodynamics reach out to him.
+    
+    Note that this function is not very pythonee, which makes it slow. 
+    Could it be that it was originally coded in Matlab and then poorly ported? Maybe. 
+    Will there be a future release making it faster? Maybe.
+
+    Parameters
+    ----------
+    data : DataFrame
+            Variable including all the data from the Solete dataset
+    verbose : int, optional
+        The default is 0.
+        If a 1 is fed, the iterations are shown. 
+
+    Returns
+    -------
+    df : DataFrame
+        Temperature of the modules according to the Rincón-Pombo method [4].
+
+    """
+
+    print("")    
+    print("Expanding SOLETE with the Rincon-Pombo thermodynamic model")    
+    print("    This is going to take a while be patient.")    
+    # Hardcoded INPUTS
+    g = 9.81  # gravity m/s^2
+    psi = 0.1  # Gradient limiter factor
+    gradLimiter = 5  # max gradT allowed without limiter applied
+    # PV cells
+    # E_STC = 1000  # Solar irradiance W/m^2
+    E_POA = data['POA Irr[kW1m2]'] * 1000  # Solar irradiance W/m^2
+    # E_POA = data['GHI[kW/m2]'] * E_STC
+    epsilon = 0.3  # radiative emissivity (glass)
+    SB = 5.670374419e-8  # stefan boltzmann constant
+    reflectitivy = 0.6  # light that is reflected by the module to the atmoshpere \reflactance
+    transmittance = 0.1  # these three sum  \tau trasmittance
+    absorption = 1 - reflectitivy - transmittance  # \alpha absorptance
+    IRratio = 0.53  # Infra Red light factor = contributes to heating
+        
+    # Air
+    R = 8.31432e3  # ideal gas constant
+    R_a = 285.9  # dry air gas constant
+    R_w = 461.5  # water vapour constant
+    T = 273.15 + data['TEMPERATURE[degC]']  # dry bulb temperature K
+    p = data['Pressure[mbar]'] * 100  # pressure Pa
+    
+    # Initial variables declaration
+    Nu = 0
+    T_plot = np.array([])
+    T_PV = 273.15 + data['TempModule'][0]  # initialise temperature of PV cell
+    A = pv["L"] * pv["W"]  # PV area
+    
+    gradT = np.array([])
+    index = 0
+    
+    for i in range(len(data)):  
+        # RADIATION
+        if T_PV >= T[i]:
+            q_epsilon = -epsilon * SB * A * (T_PV ** 4 - T[i] ** 4)
+        else:
+            q_epsilon = 0
+    
+        q_absorbed = E_POA[i] * A * IRratio * absorption
+        # CONVECTION
+        # Thermophysical properties of air and fluid mechanics variables
+        rho_a = p[i] / (R_a * T[i])  # density of dry air
+        if data['HUMIDITY[%]'][i] > 1:
+            data['HUMIDITY[%]'][i] = 1.0
+    
+    
+        rho = rho_a * (1 + data['HUMIDITY[%]'][i]) / (1 + R_w / R_a * data['HUMIDITY[%]'][i])  # density of mixture
+        mu = HAPropsSI('mu', 'P', p[i], 'T', T[i], 'R', data['HUMIDITY[%]'][i])  # dynamic viscosity
+        cp = HAPropsSI('cp_ha', 'P', p[i], 'T', T[i], 'R', data['HUMIDITY[%]'][i])  # specific heat per unit of humid air
+        k = HAPropsSI('k', 'P', p[i], 'T', T[i], 'R', data['HUMIDITY[%]'][i])  # thermal conductivity
+        nu = mu / rho
+        beta = 1 / T[i]  # thermal expansion coefficient for ideal gases
+    
+        # Nusslet number correlations for humidity changes
+        Re = rho * abs(data['WIND_SPEED[m1s]'][i]) * pv["L"] / mu  # Reynolds number
+        Pr = cp * mu / k  # Prandtl number
+        Gr = g * beta * abs((T_PV - T[i])) * (A / (2 * pv["W"] + 2 * pv["L"])) ** 3 / nu ** 2  # Grashof number
+        Ra = Gr * Pr  # Rayleigh number
+        hx = np.array([])
+        for x in np.linspace(0, pv["L"], num=100): #PVdiscretisation
+            Rex = rho * abs(data['WIND_SPEED[m1s]'][i]) * x / mu
+            if Rex <= 1e5:  # Laminar, similarity solutions
+                if Pr < 0.6:
+                    print('Correlation does not satisfy')
+                Nux = 0.453 * Rex ** (1 / 2) * Pr ** (1 / 3)
+                Nu = 0.680 * Re ** (1 / 2) * Pr ** (1 / 3)
+            elif Rex > 1e5:  # Turbulent, empirical correlations
+                Nux = 0.0308 * Rex ** (4 / 5) * Pr ** (1 / 3)
+                Nu = (0.037 * Re ** (4 / 5) - 871) * Pr ** (1 / 3)
+    
+            if x == 0:
+                hx = np.append(hx, 0)
+            else:
+                hx = np.append(hx, Nux * k / x)
+    
+        h = np.mean(hx)  # mean convective heat transfer coefficient (W/m^2/K)
+    
+        if 1e4 < Ra < 1e7 and Re < 1e3:  # Natural convection, empirical correlations
+            Nu = 0.54 * Ra ** (1 / 4)
+            h = Nu * k / pv["L"]  # mean convective heat transfer coefficient from correlations (W/m^2/K)
+    
+        elif 1e7 < Ra < 1e11 and Re < 1e3:  # Natural convection, empirical correlations
+            Nu = 0.15 * Ra ** (1 / 3)
+            h = Nu * k / pv["L"]  # mean convective heat transfer coefficient from correlations (W/m^2/K)
+    
+        if h == 0:  # numerical solution for problems in convection or inputs
+            h = 1e-16
+            R = pv["d"] / (pv["k_r"] * A * 2)  # Thermal resistance of the system
+        else:
+            R = 1 / (h * A) + pv["d"] / (pv["k_r"] * A * 2)  # Thermal resistance of the system
+    
+        q_convection = h * A * (T[i] - T_PV)
+       
+        # Heat balance
+        q = (q_absorbed + q_convection + q_epsilon)
+        T_PV = T_PV + q * R
+    
+        if i == 0:
+            gradT = np.append(gradT, 0)
+        else:
+            gradT = np.append(gradT, T_PV - T_plot[-1])
+            if abs(gradT[-1]) >= gradLimiter:  # Gradient limiter function
+                T_PV = T_plot[-1] + psi * gradT[-1]
+                T_plot[-1] = T_PV
+                gradT[-1] = T_PV - T_plot[-1]
+    
+        T_plot = np.append(T_plot, T_PV)
+    
+        if i % 500 == 0: #output progress every 500 samples
+            msg='    Progress: ' + str(round(index/len(data)*100)) + ' %'
+            sys.stdout.write('\r'+msg)
+
+    
+        index = index + 1
+    
+    df = T_plot - 273.15
+    
+    msg='    Progress: ' + str(100) + ' %'
+    sys.stdout.write('\r'+msg)    
+    print("")
+    
+    
+    return df
 
 def TimePeriods(data, control):
     """
@@ -676,6 +919,11 @@ def get_results(control, data, ml_data, predictions):
     """
     Builds a DataFrame with the results. It is a very inefficient function.
     Each set of three columns corresponds to one set of predictions, observations and timestamps.
+    
+    Note: This is a shitty way of implementing this for several reasons, for instance it results 
+    in a PerformanceWarning due to the DataFrame RESULTS being fragmented due to using inser too 
+    many times. However, and even worse than that is the fact that RESULTS is an horizontal 
+    DataFrame rather than a vertical one, which is a big nono. I may fix it in a future release.
 
     Parameters
     ----------
@@ -701,6 +949,7 @@ def get_results(control, data, ml_data, predictions):
         RESULTS['Forecasted_' + str(i)] = np.insert(predictions[i], 0, np.nan, axis=0) #retrieves predictions and adds a nan in the t0
         RESULTS['Observed_' + str(i)] = np.insert(ml_data['Y_TEST_abs'].iloc[i].values, 0, data.loc[t0][control["IntrinsicFeature"]], axis=0) 
         RESULTS['Time_' + str(i)] = pd.date_range(start=t0, periods = control["H"]+1, freq = '3600s' )
+        1+1
     print("...Done")
     
     #Save the results
@@ -777,96 +1026,55 @@ def post_process(control, RESULTS, data):
     
     return RMSE
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def error_msg(key):
+    """
+    This function collects error messages to help you fix common errors I imagined
+    could occur while using the default SOLETE.
+
+    Parameters
+    ----------
+    key : str
+        Keyword that selects which error message
+
+    Returns
+    -------
+    Kills the execution and prints an error message.
+
+    """
+    
+    if key == "resolution":
+        print("ERROR: You have selected a resolution that is not available.\n")
+        print("Worry not, it is easy to fix:")
+        print("     1-Go to the code section: Control The Script")
+        print("     2-Edit the dict Control_Var[resolution]")
+        print("     Available options: 5min or 1h")
+    
+    elif key == "missing_expanded_SOLETE":
+        print("ERROR: You have selected Import a expanded SOLETE dataset.")
+        print("Unfortunately, you don't have such a file in the current directory")
+        print("The most likely error is that you have never run the Build and Save option for the selected resolution\n")
+        print("Worry not, it is easy to fix:")
+        print("     1-Go to the code section: Control The Script")
+        print("     2-Edit the dict Control_Var[SOLETE_builvsimport] select Build")
+        print("     3-Edit the dict Control_Var[SOLETE_save] select True")
+        print("     4-Run it once like this (no need to train any ML model)")
+        print("     5-Revert Control_Var[SOLETE_builvsimport] back to Import")
+        print("It should be fixed now.\n\n\n")        
+    
+    elif key == "missing_feature_expanded_SOLETE":
+        print("ERROR: You have imported a version of the expanded SOLETE dataset, which does not include one of the features you would like to employ.")
+        print("The most likely error is that you have never run the Build and Save option including the desired feature\n")
+        print("Worry not, it is easy to fix:")
+        print("     1-Go to the code section: Control The Script")
+        print("     2-Edit the dict Control_Var[SOLETE_builvsimport] select Build")
+        print("     3-Edit the dict Control_Var[SOLETE_save] select True")
+        print("     4-Run it once like this (no need to train any ML model)")
+        print("     5-Revert Control_Var[SOLETE_builvsimport] back to Import")
+        print("It should be fixed now, try to import again.\n\n\n")        
+        
+        
+    sys.exit("Did I do that? ¯\_(ツ)_/¯ \n\n\nCheck at the top for hints on what went wrong!!!")
+    pass
 
 
 
