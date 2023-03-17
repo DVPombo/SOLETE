@@ -15,8 +15,6 @@ We have checked the hdf5 file (the actual dataset) compatibility with Mathlab, P
 If you encounter any troubles using it with other software let me know and I will see what I can do.
 
 The lincensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
-
-Dependencies: Python 3.8.10, and Pandas 1.2.4
 """
 
 import pandas as pd

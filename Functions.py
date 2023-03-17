@@ -11,8 +11,6 @@ ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo
 The purpose of this script is to collect all functions called by the rest of the scripts.
 
 The lincensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
-
-Dependencies: Python 3.8.10, and Pandas 1.2.4
 """
 
 import pandas as pd
@@ -46,18 +44,25 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
 def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
     """
-    Imports a version of SOLETE depending of the input resolution
+    Imports different versions of SOLETE depending on the inputs:
+        -resolution -SOLETE_builvsimport
+    if built it has the option to save the expanded dataset
 
     Parameters
     ----------
-    resolution : str
-        string describing the desired resolution of the dataset.
-        For now it takes either 1h or 5min
+    Control_Var : dict
+        Holds information regarding what to do
+    PVinfo : dict
+        Holds data regarding the PV string in SYSLAB 715
+    WTinfo : dict
+        Holds data regarding the Gaia wind turbine
+
     Returns
     -------
     df : DataFrame
         The one, the only, the almighty SOLETE dataset
-    """
+
+    """    
     
     print("___The SOLETE Platform___\n")
     if Control_Var['resolution'] != '5min' and  Control_Var['resolution'] != '60min':    
@@ -233,6 +238,8 @@ def ExpandSOLETE(data, info, Control_Var):
 
 def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]', coltemp='TEMPERATURE[degC]',colwindspeed='WIND_SPEED[m1s]'):
     """
+    This function implements King's PV performance model. More info in [2].
+    
     Parameters
     ----------
     data : DataFrame
@@ -240,10 +247,16 @@ def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]', coltemp='TEMPER
     PVinfo : dict
         A bunch of parameters extracted from the datasheet and other supporting documents
         Check function: import_PV_WT_data for further details
-    colirra : string
-        holds Epoa, that is the irradiance in the plane of the array.
+    colirra : string, optional
+        holds Epoa, that is the irradiance in the plane of the array in kW/m2
         If you reuse this code, make sure you are feeding Epoa and not GHI
         The default is 'POA Irr[kW1m2]'.
+    coltemp : string, optional
+        holds the ambient temperature in Celsius.
+        The default is 'TEMPERATURE[degC]'.
+    colwindspeed : string, optional 
+        holds the wind speed in m/sec
+        The default is'WIND_SPEED[m1s]'
 
     Returns
     -------
@@ -461,6 +474,10 @@ def TimePeriods(data, control):
     dik : dict of DataFrames
         cotains the train and testing sets for RF and SVM
         or the train, validation and testing for ANN
+        
+    Scaler : dict
+        data of the scaling method applied to the data. This must be inverted
+        afterwards in oder functions.
         
     Arguments
     ---------
@@ -933,12 +950,12 @@ def get_results(control, data, ml_data, predictions):
         SOLETE dataset
     ml_data : dict of dataframes
         ML_DATA, the sets cointaining training, validation and testing.
-    predictions : TYPE
-        DESCRIPTION.
+    predictions : DataFrame
+        Predicted values
 
     Returns
     -------
-    RESULTS : dataframe
+    RESULTS : DataFrame
         Predicted values.
 
     """
@@ -949,7 +966,6 @@ def get_results(control, data, ml_data, predictions):
         RESULTS['Forecasted_' + str(i)] = np.insert(predictions[i], 0, np.nan, axis=0) #retrieves predictions and adds a nan in the t0
         RESULTS['Observed_' + str(i)] = np.insert(ml_data['Y_TEST_abs'].iloc[i].values, 0, data.loc[t0][control["IntrinsicFeature"]], axis=0) 
         RESULTS['Time_' + str(i)] = pd.date_range(start=t0, periods = control["H"]+1, freq = '3600s' )
-        1+1
     print("...Done")
     
     #Save the results
@@ -1034,11 +1050,11 @@ def error_msg(key):
     Parameters
     ----------
     key : str
-        Keyword that selects which error message
+        Keyword that selects error messages
 
     Returns
     -------
-    Kills the execution and prints an error message.
+    Kills the execution and prints an error message and help to solve it.
 
     """
     
@@ -1074,6 +1090,7 @@ def error_msg(key):
         
         
     sys.exit("Did I do that? ¯\_(ツ)_/¯ \n\n\nCheck at the top for hints on what went wrong!!!")
+    #yes, that was a reference to good old Steve Urkel
     pass
 
 

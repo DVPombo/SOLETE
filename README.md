@@ -4,10 +4,15 @@ LinkedIn: https://www.linkedin.com/in/dvp/<br/>
 ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo   
 ORCID: https://orcid.org/0000-0001-5664-9421
 
-This repository is complementary material to a series of papers covering Solar PV power forecasting [1, 2] and its twin "Data in Brief" article [3]. The objective is to increase the transparency of [1, 2], which is one of the main limitations of Machine Learning in general.
-In addition, I included a number of functions that can be use by begginers to kickstart their projects in time series forecasting with different machine learning methods.
+This repository used to be complementary material to a series of papers covering Solar PV power forecasting [1, 2] and its twin "Data in Brief" article [3]. The objective is to increase the transparency of [1, 2, 3, 4], which is one of the main limitations of Machine Learning in general.
+However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
+I included a number of functions that can be used by beginers to kickstart their projects with solar power, machine learning, forecasting, or simply python.
 
-This work was developed under the PhD thesis Energy Management Systems for Isolated Hybrid Power Systems at the Technical University of Denmark (DTU).
+Long Live Open Science!
+
+The papers were developed under the PhD thesis Operation and Planning of Isolated Hybrid Power Systems at the Technical University of Denmark (DTU).
+Version v1.0 was released during the PhD thus, Copyright 2021 Technical University of Denmark.
+Version v2.0 was released months after finalising my employment at DTU, therefore, Copyright belongs to me (yeah baby!).
 
 # Dependencies
 1. Python 3.9.12 

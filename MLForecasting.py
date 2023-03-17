@@ -39,14 +39,10 @@ Using SOLETE for the first time:
     1- Put all the files in the same folder and click run. If you get the message "Done!" in the console that is it.
     2- If it didn't work:
         a) Check the dependencies: 
-            -Python 3.9.12 
-            -Pandas 1.5.0 
-            -Numpy 1.23.1
-            -Matplotlib 3.6.0
-            -Scikit-Learn 1.1.2 
-            -Keras 2.10.0
-            -TensorFlow 2.10.0
-            -CoolProp 6.4.3   
+            -Python 3.9.12          -Pandas 1.5.0 
+            -Numpy 1.23.1           -Matplotlib 3.6.0
+            -Scikit-Learn 1.1.      -Keras 2.10.0
+            -TensorFlow 2.10.0      -CoolProp 6.4.3   
             -The SOLETE dataset [1] -> https://doi.org/10.11583/DTU.17040767 
         b) If that didn't solve it... You have a problem my friend ¯\_(ツ)_/¯ 
     
@@ -55,6 +51,10 @@ How to use the second and subsequent times:
         In the dictionary called Control_Var you can modify different values, like the
         horizon to forecast, the division between training, validation and testing, what
         is the metric to be predicted, which should be used as extrinsic features, etc.
+               
+        Modify "SOLETE_builvsimport" from "Build" to "Import". This avoid expanding the dataset
+        all the time and simply imports last built version. However, note that each version is
+        exclusive of a resolution. By default that is set to 60min, you can try 5min as well.
     2- Go to section: Define Machine Learning Configuration and Hyperparameters
         Use those dictionaries to define different topologies for the 5 ML methods 
         covered in references [1,2,3]. However, be careful with ANN, they have a 
@@ -66,15 +66,30 @@ How to use the second and subsequent times:
         a) Drink some water, you are probably not hydrated enough.
         b) If you found SOLETE useful, and want to send some kudos, do so.
 
+General comments:
+    -Note that 'TempModule_RP' is commented out within 'PossibleFeatures'. This makes the 
+    algorithm expand the dataset with a new thermodynamic model for the panels that gives
+    you another panel temperature estimation. This is commented out because its code is 
+    poorly optimized and takes some time to run. I strongly recomend you to run the builder
+    once with all the possible expansions, save it and then simply import it afterwards.
+    -Why does the original SOLETE dataset not include all these features? Because part of
+    the point of this code is to show you how I did it. Also, it makes no sense for me to 
+    upload a much larger file to a repository when you can pull it and obtain everything 
+    you need.
+    -What to do if you are not able to obtain the exact same results as we presented in
+    the papers? Well you can cry, you can lift your fist in the air and scream hateful
+    words addressed to my mother. Or you can realise that there is more to those papers
+    than what I share here (an HPC for once). So pick up books and papers and keep working.
+    
 DISCLAIMERS:
 1- Regarding papers, I was using a regular PC only for coding, models were run in an HPC.
     This means that this is obviously not the exact code I used for those. Only the dataset
-    is identical. So don't expect being able to obtain the exact same results directly.
+    is identical. So don't expect to obtain the exact same results directly.
 2- There are better ways to configure the ML-models, have fun playing with it.
 3- SVM will take for ever if run in this way for the whole set. An alternative programming 
     based on this -> https://stackoverflow.com/questions/31681373/making-svm-run-faster-in-python    
     was employed in when researching what ended up becoming [4]. 
-4- I put together the dataset and this scripts in one day, so do not expect them to be pretty or 100% error free.
+4- I put together the dataset and this scripts in a couple of days, so do not expect them to be pretty or 100% error free.
 """
 
 from Functions import import_SOLETE_data, import_PV_WT_data, TimePeriods  
@@ -85,7 +100,7 @@ from Functions import PrepareMLmodel, TestMLmodel, get_results, post_process
 Control_Var = {
     '_description_' : 'Holds all the variables that define the behaviour of the algoritm',
     'resolution' : '60min', #either 60min or 5min
-    'SOLETE_builvsimport': 'Import', # Takes 'Build' or 'Import'. The first expands the dataset, the second imports a existing expansion
+    'SOLETE_builvsimport': 'Build', # Takes 'Build' or 'Import'. The first expands the dataset, the second imports a existing expansion
     'SOLETE_save': True, # saves the built SOLETE. Only works if SOLETE_builvsload=='Build' 
     'trainVSimport' : True, #True - trains the ML model, False - imports the model
     'saveMLmodel' : True, #saves the trained model if True, but also trainVSimport must be True, otherwise does nothing.
@@ -93,12 +108,11 @@ Control_Var = {
     'IntrinsicFeature' : 'P_Solar[kW]', #feature to be predicted
     'PossibleFeatures': ['TEMPERATURE[degC]', 'HUMIDITY[%]', 'WIND_SPEED[m1s]', 'WIND_DIR[deg]',
                         'GHI[kW1m2]', 'POA Irr[kW1m2]', 'P_Gaia[kW]', 'P_Solar[kW]', 'Pressure[mbar]', 
-                        'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 'HoursOfDay', 
-                        'MeanPrevH', 'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
+                        'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 
+                        'HoursOfDay', 'MeanPrevH', 'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
                         ],
     'MLtype' : 'CNN', # RF SVM LSTM CNN CNN_LSTM
     'H' : 24, #horizon length in number of samples
-    # 'Features_IDs' : pd.DataFrame(Control_Var['PossibleFeatures'], columns = ['Features']),
     'PRE' : 0, #previous samples to be used in the predictor
     }  
 
