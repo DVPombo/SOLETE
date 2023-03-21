@@ -1,0 +1,24 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: The SOLETE Platform
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Daniel
+    family-names: Vazquez Pombo
+    email: daniel.vazquez.pombo@gmail.com
+    orcid: 'https://orcid.org/0000-0001-5664-9421'
+identifiers:
+  - type: doi
+    value: 10.11583/DTU.17040626
+    description: Repository's DOI
+  - type: url
+    value: 'https://doi.org/10.11583/DTU.17040626'
+    description: Link to DOI
+repository-code: 'https://github.com/DVPombo/SOLETE'
+license: MIT
+date-released: '2023-04-03'

@@ -23,6 +23,8 @@ from Functions import import_PV_WT_data
 
 #%% Import Data
 # DATA=pd.read_hdf('SOLETE_short.h5')
+# DATA=pd.read_hdf('SOLETE_Pombo_1sec.h5')
+# DATA=pd.read_hdf('SOLETE_Pombo_1min.h5')
 # DATA=pd.read_hdf('SOLETE_Pombo_5min.h5')
 DATA=pd.read_hdf('SOLETE_Pombo_60min.h5')
 PVinfo, WTinfo = import_PV_WT_data()
