@@ -51,20 +51,19 @@ Methods, materials and software:
 100% Python, although we might release something for Matlab soon.
 _______________________________________________________________
 How to cite:
-Pombo, Daniel Vazquez (2023): The SOLETE platform. GitHub. Dataset. https://doi.org/10.11583/DTU.17040767
+Pombo, Daniel Vazquez. (2023). The SOLETE Platform [Computer software]. https://github.com/DVPombo/SOLETE https://doi.org/10.11583/DTU.17040626
 
--version 3
-@misc{Pombo2023SOLETEplatform,
-author = "Daniel Vazquez Pombo",
-title = "{The SOLETE Platform}", 
-year = "2023",
-month = "Mar",
-url = "https://doi.org/10.11583/DTU.17040626",
-doi = "10.11583/DTU.17040626",
-note = {Retrieved from: \url{https://doi.org/10.11583/DTU.17040626}, {DOI}: {https://doi.org/10.11583/DTU.17040626}},
+@software{Vazquez_Pombo_The_SOLETE_Platform_2023,
+author = {Pombo, Daniel Vazquez },
+license = {MIT},
+month = {4},
+title = {{The SOLETE Platform}},
+url = {https://github.com/DVPombo/SOLETE},
+year = {2023}
+note = {{DOI}: {https://doi.org/10.11583/DTU.17040626}},
 }
 
-You can also refer to [1]
+Alternatively, you can refer to [1], or use GitHub's built in citation tool from the repository's main page.
 _______________________________________________________________
 References:
 [1] Pombo, D. V., Gehrke, O., & Bindner, H. W. (2022). SOLETE, a 15-month  

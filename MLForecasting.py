@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 17 14:35:08 2021
-Latest edit March 2023
+Latest edit April 2023
 
 author: Daniel Vázquez Pombo
 email: daniel.vazquez.pombo@gmail.com
@@ -29,10 +29,10 @@ from [1] and the physics-informed methodology described in [2, 3, 4]:
     and Networks, 32, 100943.
 
 It should run without errors simply by placing all the files in the same location.
-We have checked the hdf5 file (the actual dataset) compatibility with Mathlab, Python and R. 
+We have checked the hdf5 file (the actual dataset) compatibility with Matlab, Python and R.
 If you encounter any troubles using it with other software let me know and I will see what I can do.
 
-The lincensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
+The licensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
 
 
 Using SOLETE for the first time:

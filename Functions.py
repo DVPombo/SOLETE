@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 17 14:35:08 2021
-Latest edit March 2023
+Latest edit April 2023
 
 author: Daniel Vázquez Pombo
 email: daniel.vazquez.pombo@gmail.com
@@ -10,7 +10,7 @@ ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo
 
 The purpose of this script is to collect all functions called by the rest of the scripts.
 
-The lincensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
+The licensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
 """
 
 import pandas as pd

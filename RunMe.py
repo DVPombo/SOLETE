@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 17 14:35:08 2021
-Latest edit March 2023
+Latest edit April 2023
 
 author: Daniel Vázquez Pombo
 email: daniel.vazquez.pombo@gmail.com
@@ -14,7 +14,7 @@ It should run without errors simply by placing all the files in the same locatio
 We have checked the hdf5 file (the actual dataset) compatibility with Mathlab, Python and R. 
 If you encounter any troubles using it with other software let me know and I will see what I can do.
 
-The lincensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
+The licensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
 """
 
 import pandas as pd
@@ -23,7 +23,7 @@ from Functions import import_PV_WT_data
 
 #%% Import Data
 # DATA=pd.read_hdf('SOLETE_short.h5')
-# DATA=pd.read_hdf('SOLETE_Pombo_1sec.h5')
+# DATA=pd.read_hdf('SOLETE_Pombo_1sec.h5') #WARNING, this file is huge, consider only reading a piece of it.
 # DATA=pd.read_hdf('SOLETE_Pombo_1min.h5')
 # DATA=pd.read_hdf('SOLETE_Pombo_5min.h5')
 DATA=pd.read_hdf('SOLETE_Pombo_60min.h5')
@@ -66,6 +66,6 @@ Thank you for using the SOLETE dataset. Have fun with it, share it, spread the w
 Remember that there is an Open Access paper describing the data: https://doi.org/10.1016/j.dib.2022.108046
 
 Also, I would like to mention again that the field data comes from Risø. Google it.
-It is a fantastic research facility in Denmark, where I had the priviledge of pursuing
+It is a fantastic research facility in Denmark, where I had the privilege of pursuing
 my PhD in the Technical University of Denmark (DTU).
 """

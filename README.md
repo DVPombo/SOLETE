@@ -38,6 +38,8 @@ Version v2.0 was released months after finalising my employment at DTU, therefor
 
 You can of course use your own dataset, you will have to adapt things here and there, but you will be able to reuse most of the code.
 
+Note that the latest version of the SOLETE dataset includes a 1sec resolution version. The file is quite large, which might meant that you PC is not able to open it. Please consider only reading part of it if you really want to play with that resolution. Alternatively, drop it in an HPC and enjoy yourself. :D 
+
 # How to cite this:
 Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:
 
