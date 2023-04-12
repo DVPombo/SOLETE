@@ -4,7 +4,7 @@ LinkedIn: https://www.linkedin.com/in/dvp/<br/>
 ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo   
 ORCID: https://orcid.org/0000-0001-5664-9421
 
-This repository used to be complementary material to its twin "Data in Brief" article [3]y, and a series of papers covering Solar PV power forecasting [2, 3, 4]. The objective is to increase the transparency of my work, which is one of the main limitations of Machine Learning in general.
+This repository used to be complementary material to its twin "Data in Brief" article [1], and a series of papers covering Solar PV power forecasting [2, 3, 4]. The objective is to increase the transparency of my work, which is one of the main limitations of Machine Learning in general.
 However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
 I included a number of functions that can be used by beginners to kickstart their projects with solar power, machine learning, forecasting, or simply python.
 
