@@ -43,7 +43,7 @@ Note that the latest version of the SOLETE dataset includes a 1sec resolution ve
 ### Notes for _MATLAB_ users ###
 I have been reached out by several people complaining that hdf5 can't be imported in MATLAB. That is not true, they weren't doing properly. Nevertheless, worry not dear user. Your peers have asked and I answer:
 1. Open the file **RunMe_matlab.m** in MATLAB and hit F5. That will import SOLETE as a _table_.
-2. Alternatively, you can still run the Python scripts from MATLAB, which I find a bit weird... but hey! You do you baby!
+2. Alternatively, you can run the Python scripts from MATLAB, which I find a bit weird... but hey! You do you baby!
 
 *I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
 
