@@ -40,6 +40,13 @@ You can of course use your own dataset, you will have to adapt things here and t
 
 Note that the latest version of the SOLETE dataset includes a 1sec resolution version. The file is quite large, which might meant that you PC is not able to open it. Please consider only reading part of it if you really want to play with that resolution. Alternatively, drop it in an HPC and enjoy yourself. :D 
 
+### Notes for _MATLAB_ users ###
+I have been reached out by several people complaining that hdf5 can't be imported in MATLAB. That is not true, they weren't doing properly. Nevertheless, worry not dear user. Your peers have asked and I answer:
+1. Open the file **RunMe_matlab.m** in MATLAB and hit F5. That will import SOLETE as a _table_.
+2. Alternatively, you can still run the Python scripts from MATLAB, which I find a bit weird... but hey! You do you baby!
+
+*I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
+
 # How to cite this:
 Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:
 
