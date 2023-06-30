@@ -52,6 +52,17 @@ SOLETE = array2table(h5read(FILE, '/DATA/block0_values')', 'VariableNames', ...
     h5read(FILE, '/DATA/block0_items'));
 SOLETE.TIMESTAMP = h5read(FILE, '/DATA/axis1');
 
+SOLETE = sortrows(SOLETE,size(SOLETE,2)); %This sorts the matrix based on timestamp
+%In some cases Matlab messes with SOLETE's order.
+
+SOLETE.Datetime = datetime(SOLETE.Timestamp./1e9,'ConvertFrom','posixtime',...
+                                            'Format', 'yyyy-MM-dd HH:mm:ss');
+%this last function is optional, you only need it if you want to convert 
+%the timestamps into formated datetime values
+
+%Lines 55 and 58 were submitted by Jon Martinez-Rico.
+%We all heil Jon and bow to his neverending knowledge.
+
 %Note that the TIMESTAMPS are in epoch time. The first one should be:
 % -> GMT: Friday, June 1, 2018 00:00:00
 
