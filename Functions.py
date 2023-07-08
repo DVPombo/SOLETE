@@ -65,7 +65,8 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
     """    
     
     print("___The SOLETE Platform___\n")
-    if Control_Var['resolution'] != '5min' and  Control_Var['resolution'] != '60min':    
+    
+    if Control_Var['resolution'] not in ['1sec', '1min', '5min', '60min']:            
         error_msg(key = "resolution")
     else:
         name = 'SOLETE_Pombo_'+ Control_Var['resolution'] +'.h5' 

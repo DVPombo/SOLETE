@@ -99,7 +99,7 @@ from Functions import PrepareMLmodel, TestMLmodel, get_results, post_process
 
 Control_Var = {
     '_description_' : 'Holds all the variables that define the behaviour of the algoritm',
-    'resolution' : '60min', #either 60min or 5min
+    'resolution' : '60min', #either 1sec, 1min, 5min or 60min
     'SOLETE_builvsimport': 'Build', # Takes 'Build' or 'Import'. The first expands the dataset, the second imports a existing expansion
     'SOLETE_save': True, # saves the built SOLETE. Only works if SOLETE_builvsload=='Build' 
     'trainVSimport' : True, #True - trains the ML model, False - imports the model
