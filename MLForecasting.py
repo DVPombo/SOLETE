@@ -92,7 +92,7 @@ DISCLAIMERS:
 4- I put together the dataset and this scripts in a couple of days, so do not expect them to be pretty or 100% error free.
 """
 
-from Functions import import_SOLETE_data, import_PV_WT_data, TimePeriods  
+from Functions import import_SOLETE_data, import_PV_WT_data, TimePeriods, PreProcessDataset  
 from Functions import PrepareMLmodel, TestMLmodel, get_results, post_process
 
 #%% Control The Script:
@@ -105,15 +105,17 @@ Control_Var = {
     'trainVSimport' : True, #True - trains the ML model, False - imports the model
     'saveMLmodel' : True, #saves the trained model if True, but also trainVSimport must be True, otherwise does nothing.
     'Train_Val_Test' : [70, 20, 10], #train validation test division of the available DATA
+    'Scaler': 'MinMax01', #scaling technique, choose: 'MinMax01', 'MinMax11' 'Standard' see notes in PreProcessDataset()
     'IntrinsicFeature' : 'P_Solar[kW]', #feature to be predicted
-    'PossibleFeatures': ['TEMPERATURE[degC]', 'HUMIDITY[%]', 'WIND_SPEED[m1s]', 'WIND_DIR[deg]',
-                        'GHI[kW1m2]', 'POA Irr[kW1m2]', 'P_Gaia[kW]', 'P_Solar[kW]', 'Pressure[mbar]', 
-                        'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 
-                        'HoursOfDay', 'MeanPrevH', 'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
-                        ],
+    'PossibleFeatures': ['POA Irr[kW1m2]', 'P_Solar[kW]','HoursOfDay',],
+    # 'PossibleFeatures': ['TEMPERATURE[degC]', 'HUMIDITY[%]', 'WIND_SPEED[m1s]', 'WIND_DIR[deg]',
+    #                     'GHI[kW1m2]', 'POA Irr[kW1m2]', 'P_Gaia[kW]', 'P_Solar[kW]', 'Pressure[mbar]', 
+    #                     'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 
+    #                     'HoursOfDay', 'MeanPrevH', 'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
+    #                     ],
     'MLtype' : 'CNN', # RF SVM LSTM CNN CNN_LSTM
-    'H' : 24, #horizon length in number of samples
-    'PRE' : 0, #previous samples to be used in the predictor
+    'H' : 10, #horizon length in number of samples
+    'PRE' : 5, #previous samples to be used in the predictor
     }  
 
 #%% Define Machine Learning Configuration and Hyperparameters
@@ -186,6 +188,7 @@ PVinfo, WTinfo = import_PV_WT_data()
 DATA=import_SOLETE_data(Control_Var, PVinfo, WTinfo)
 
 #%% Generate Time Periods
+ML_DATA, Scaler = PreProcessDataset(DATA, Control_Var) 
 ML_DATA, Scaler = TimePeriods(DATA, Control_Var) 
 
 #%% Train, Evaluate, Test

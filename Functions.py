@@ -22,7 +22,7 @@ import datetime
 import joblib
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.multioutput import MultiOutputRegressor
@@ -457,6 +457,159 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
     
     
     return df
+
+def PreProcessDataset(data, control):
+    """
+    A function that will split the time series to input and output for training 
+    of the forecast problem with supervised learning
+
+    Parameters
+    ----------
+    data : DataFrame
+        Variable including all the data from the Solete dataset
+    control : dict
+        Control_Var.
+
+    Returns
+    -------
+    dik : dict of DataFrames
+        cotains the train and testing sets for RF and SVM
+        or the train, validation and testing for ANN
+        
+    Scaler : dict
+        data of the scaling method applied to the data. This must be inverted
+        afterwards in oder functions.
+        
+    Arguments
+    ---------
+        n_in: Number of lag observations as input (X).
+        n_out: Number of observations as output (y).
+        base: Is the basic variable that will be shifted back and forward in time, e.g. Pestimated
+        additions: are the other variables that will tag along base to complete the dataset
+        train_val_test = division of timestamps in the three blocks
+
+    """
+
+    base=control["IntrinsicFeature"]
+    additions= control["PossibleFeatures"].copy()
+    n_var_out = len(additions)
+    additions.remove(base)
+    
+    
+    n_var_in = len(additions) #number of variables going into the model
+    n_var_out = n_var_out - len(additions) #number of variables as output to the model
+    H=control["H"] #number of samples of each test, corresponds to time
+    PRE = control["PRE"] #number of previous samples
+    train_val_test = control['Train_Val_Test']
+    
+    # PRE=0
+    
+    train_val_test = control['Train_Val_Test']
+            
+    X = data[additions] 
+    Y = pd.DataFrame(data[base])
+        
+    
+    if control['Scaler'] == 'MinMax01':
+        #scales from 0 to 1 each feature independently
+        Xscaler = MinMaxScaler(feature_range=(0, 1)) #initialise the scaler 
+        Yscaler = MinMaxScaler(feature_range=(0, 1)) #initialise the scaler 
+    elif control['Scaler'] == 'MinMax11':
+        #scales from -1 to 1 each feature independently
+        Xscaler = MinMaxScaler(feature_range=(-1, 1)) #initialise the scaler 
+        Yscaler = MinMaxScaler(feature_range=(-1, 1)) #initialise the scaler 
+    elif control['Scaler'] == 'Standard':
+        #Standardize features by removing the mean and scaling to unit variance
+        #might behave badly if each features does look like standard normally distributed data: Gaussian with zero mean and unit variance.
+        Xscaler = StandardScaler() #initialise the scaler 
+        Yscaler = StandardScaler() #initialise the scaler 
+    
+    if control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
+        
+        #we do this in order to build 3D vectors of shapes
+        X.reset_index(inplace=True) #(samples, PRE+1, n_variables_in) 
+        Y.reset_index(inplace=True) #(samples, H, n_variables_predicted)
+        
+        #with this loop we append nans in the rows we need to complete the last H
+        for i in range(0,int(np.ceil(X.shape[0]/(PRE+1))*(PRE+1))-X.shape[0]):
+            X = pd.concat([X, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
+            X = X.drop(0, axis=1) 
+        
+        #the same must happen to Y
+        for i in range(0,int(np.ceil(Y.shape[0]/H)*H)-Y.shape[0]):
+            Y = pd.concat([Y, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
+            Y = Y.drop(0, axis=1) 
+        
+        #this is unnecesary since the reshape makes you lose the index anyway
+        X.set_index('index',inplace=True) 
+        Y.set_index('index',inplace=True)
+        
+        #change the shape into 3D vectors 
+        X=X.values.reshape(int(X.shape[0]/(PRE+1)), PRE+1, n_var_in) #(samples, PRE+1, n_variables_in)
+        Y=Y.values.reshape(int(Y.shape[0]/H), H, n_var_out) #(samples, H, n_variables_predicted)
+        
+        
+        #TODO: de aqui para abajo no corre. Más allá de eso el reshaping de X e Y tiene más miga ya que el número de samples
+        #tiene que ser igual y coherente. Jaleito guapo. Toca pensar como montar tanto X como Y. Y quizás salga fácil con la
+        #fcn de machine learning mastery para timeseries más el reshape que ya está hecho ahora. Para la X no lo tengo tan claro.
+        #buenas noches y buena suerte :D
+        
+        #split dataset into training, validation, and testing sets. This is done with the 3D vectors in order to
+        #apply shuffle why not lossing the temporal correlations (include 'Time' in possible features to see how it works)
+        X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST = train_test_split(X, Y, train_size=train_val_test[0]/100, shuffle=True, random_state=None)
+        
+        del X, Y
+        
+        X_VAL, X_TEST, Y_VAL, Y_TEST = train_test_split(X_VAL_TEST, Y_VAL_TEST, train_size=train_val_test[1]/(100-train_val_test[0]), shuffle=True, random_state=None)
+            
+        del X_VAL_TEST, Y_VAL_TEST
+        
+        #undoing the reshape into the suffled sets to be able to use the scaler function
+        X_TRAIN=X_TRAIN.reshape(int(X_TRAIN.shape[0]*X_TRAIN.shape[1]), n_var_in)
+        X_VAL=X_VAL.reshape(int(X_VAL.shape[0]*X_VAL.shape[1]), n_var_in)
+        X_TEST=X_TEST.reshape(int(X_TEST.shape[0]*X_TEST.shape[1]), n_var_in)
+        
+        Y_TRAIN=Y_TRAIN.reshape(int(Y_TRAIN.shape[0]*Y_TRAIN.shape[1]), n_var_out)
+        Y_VAL=Y_VAL.reshape(int(Y_VAL.shape[0]*Y_VAL.shape[1]), n_var_out)
+        Y_TEST=Y_TEST.reshape(int(Y_TEST.shape[0]*Y_TEST.shape[1]), n_var_out)
+        
+        #apply the scaler
+        X_TRAIN = Xscaler.fit_transform(X_TRAIN)
+        X_VAL = Xscaler.transform(X_VAL)
+        X_TEST = Xscaler.transform(X_TEST)
+        
+        Y_TRAIN = Yscaler.fit_transform(Y_TRAIN)
+        Y_VAL = Yscaler.transform(Y_VAL)
+        Y_TEST = Yscaler.transform(Y_TEST)
+        
+        #redo the reshape so that they end being 3D vectors since the ML models take them like this
+        X_TRAIN=X_TRAIN.reshape(int(X_TRAIN.shape[0]/H), H, n_var_in)
+        X_VAL=X_VAL.reshape(int(X_VAL.shape[0]/H), H, n_var_in)
+        X_TEST=X_TEST.reshape(int(X_TEST.shape[0]/H), H, n_var_in)
+        
+        Y_TRAIN=Y_TRAIN.reshape(int(Y_TRAIN.shape[0]/H), H, n_var_out)
+        Y_VAL=Y_VAL.reshape(int(Y_VAL.shape[0]/H), H, n_var_out)
+        Y_TEST=Y_TEST.reshape(int(Y_TEST.shape[0]/H), H, n_var_out)
+        
+        
+        Scaler = {
+                  'X_data' : Xscaler,
+                  'Y_data' : Yscaler,
+                  }
+       
+        ML_DATA = {
+            "X_TRAIN": X_TRAIN,
+            "X_VAL": X_VAL,
+            "X_TEST": X_TEST,
+            "Y_TRAIN": Y_TRAIN,
+            "Y_VAL": Y_VAL,
+            "Y_TEST": Y_TEST,
+            }
+            
+    else:
+        print("\n\n\n WARNING: Your ML method is not supported by the 'TimePeriods' function.\n\n")
+    
+    return ML_DATA, Scaler
 
 def TimePeriods(data, control):
     """
