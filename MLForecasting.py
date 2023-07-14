@@ -188,7 +188,7 @@ PVinfo, WTinfo = import_PV_WT_data()
 DATA=import_SOLETE_data(Control_Var, PVinfo, WTinfo)
 
 #%% Generate Time Periods
-ML_DATA, Scaler = PreProcessDataset(DATA, Control_Var) 
+#ML_DATA, Scaler = PreProcessDataset(DATA, Control_Var)
 ML_DATA, Scaler = TimePeriods(DATA, Control_Var) 
 
 #%% Train, Evaluate, Test
