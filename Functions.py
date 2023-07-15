@@ -553,6 +553,10 @@ def PreProcessDataset(data, control):
         #tiene que ser igual y coherente. Jaleito guapo. Toca pensar como montar tanto X como Y. Y quizás salga fácil con la
         #fcn de machine learning mastery para timeseries más el reshape que ya está hecho ahora. Para la X no lo tengo tan claro.
         #buenas noches y buena suerte :D
+        #Dormi mal y se me ocurrio lo siguiente. Pillar Y, aplicar timeseries como en machinelearning mastery (samples, h),
+        #eso se puede reshape en (samples, H, n_variables_predicted) creo
+        #en el caso de X, o si Y tiene más de una variable. Creo que habría que dividir dicha función en una dataframe por variable
+        #repetir el proceso y luego concat las matrices.
         
         #split dataset into training, validation, and testing sets. This is done with the 3D vectors in order to
         #apply shuffle why not lossing the temporal correlations (include 'Time' in possible features to see how it works)
