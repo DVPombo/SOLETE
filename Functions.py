@@ -557,6 +557,14 @@ def PreProcessDataset(data, control):
         #eso se puede reshape en (samples, H, n_variables_predicted) creo
         #en el caso de X, o si Y tiene más de una variable. Creo que habría que dividir dicha función en una dataframe por variable
         #repetir el proceso y luego concat las matrices.
+
+        #TODO parece que el proceso para Y seria: timeseries, ravel (aplana el vector), reshape(samples, H, 1),
+        # #para X: split per column, timeseries, ravel (aplana el vector), reshape(samples, H, 1) np.concatenate([X1, X2], -1)
+        #problema, el numero de samples va a cambiar!
+        #en este momento hay que drop matrices enteras recorriendo el eje -1 si hay algún nan desde el principio
+        #entonces reconcilias el primer valor de Y encontrandolo en X
+        #luego recorres el eje -1 desde el final para reconciliar el primer valor de Y de la ultima matriz sin nans. Ese tiene que aparecer
+        #como ultimo valor presente del X
         
         #split dataset into training, validation, and testing sets. This is done with the 3D vectors in order to
         #apply shuffle why not lossing the temporal correlations (include 'Time' in possible features to see how it works)
