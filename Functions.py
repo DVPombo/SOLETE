@@ -568,16 +568,16 @@ def PreProcessDataset(data, control):
         # concatenate all arrays by the number of variables
         X = pd.concat([X_dict[x] for x in X_dict], axis=1)
         Y = pd.concat([Y_dict[x] for x in Y_dict], axis=1)
+        
+        #contact the arrays in order to remove al rows with nans
+        XY=pd.concat([X,Y], axis=1)
+        XY=XY.dropna(axis=0, how='any')
 
-        # X = X.dropna(axis=0, how='any') #TODO must apply this after joining both X and Y into XY
-        # Y = Y.dropna(axis=0, how='any')
-        shapeX = X.shape
-        shapeY = Y.shape
-
-
-        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(X, Y, test_size=train_val_test[-1] / 100, shuffle=False,
-                                                            random_state=None)
         del X, Y
+
+        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(XY[XY.columns[0:PRE+1]], XY[XY.columns[PRE+1:]], test_size=train_val_test[-1] / 100, shuffle=False,
+                                                            random_state=None)
+        del XY
 
         # apply the scaler
         X_TRAIN = Xscaler.fit_transform(X_TRAIN)
@@ -1166,6 +1166,7 @@ def TestMLmodel(control, data, ml, scaler):
 
     if control['MLtype'] in ['RF', "SVM"]:
         predictions=ml.predict(data['X_TEST'])
+        persistence = generate_persistence(meas=data["X_TEST"][:,-1,], hor=control['H'])
             
     elif control['MLtype'] in ["LSTM", "CNN", "CNN_LSTM"]: 
         features= control["PossibleFeatures"].copy()
@@ -1174,10 +1175,11 @@ def TestMLmodel(control, data, ml, scaler):
         # test_data = data['X_TEST'].values.reshape(len(data['X_TEST'].index), control["PRE"]+1, len(features))
         test_data = data['X_TEST']
         predictions = ml.predict(test_data)
+        persistence = generate_persistence(meas=data["X_TEST"][:,-1,0], hor=control['H'])
     
     print("...Done!\n")
     
-    persistence = generate_persistence(meas=data["X_TEST"][:,-1,0], hor=control['H'])
+    
     
     print("Building Results dictionary of Dataframes...")
     Results={

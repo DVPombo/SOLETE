@@ -123,7 +123,7 @@ Control_Var = {
 # edit this dictionaries to tailor-made the ML model that you want 
 
 RF = {'_description_' : 'Holds the values related to Random Forest',
-        'n_trees' : 1, #number of trees
+        'n_trees' : 100, #number of trees
         'random_state' : 32, #initialization number, can be removed for random seed generation
         }
 
@@ -150,7 +150,7 @@ LSTM = {'_description_' : 'Holds the values related to LSTM ANN design',
 
 CNN = {'_description_' : 'Holds the values related to LSTM NN design',
         'n_batch' : 16, #see note in LSTM
-        'epo_num' : 1, #see note in LSTM
+        'epo_num' : 5, #see note in LSTM
         'filters' : 32, #number of nodes per layer, usually top layers have higher values
         'kernel_size' : 2, #size of the filter used to extract features
         'pool_size' : 3, #down sampling feature maps in order to gain robustness to changes
