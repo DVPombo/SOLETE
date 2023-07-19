@@ -26,6 +26,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.multioutput import MultiOutputRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 from keras.models import Sequential
 from keras.layers import LSTM
@@ -493,11 +494,15 @@ def PreProcessDataset(data, control):
     base=control["IntrinsicFeature"]
     additions= control["PossibleFeatures"].copy()
     n_var_out = len(additions)
-    additions.remove(base)
+    # additions.remove(base)
     
     
     n_var_in = len(additions) #number of variables going into the model
-    n_var_out = n_var_out - len(additions) #number of variables as output to the model
+    # n_var_out = len(base) #number of variables as output to the model
+    if type(base) == str:
+        n_var_out = 1
+    else:
+        n_var_out = len(base)
     H=control["H"] #number of samples of each test, corresponds to time
     PRE = control["PRE"] #number of previous samples
     train_val_test = control['Train_Val_Test']
@@ -523,56 +528,133 @@ def PreProcessDataset(data, control):
         #might behave badly if each features does look like standard normally distributed data: Gaussian with zero mean and unit variance.
         Xscaler = StandardScaler() #initialise the scaler 
         Yscaler = StandardScaler() #initialise the scaler 
-    
-    if control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
+
+    if control['MLtype'] in ['RF', 'SVM']:
+        # we do this in order to build 3D vectors of shapes
+        X.reset_index(inplace=True)  # (samples, PRE+1, n_variables_in)
+        Y.reset_index(inplace=True)  # (samples, H, n_variables_predicted)
+
+        # with this loop we append nans in the rows we need to complete the first PRE
+        for i in range(0, int(np.ceil(X.shape[0] / (PRE + 1)) * (PRE + 1)) - X.shape[0]):
+            X = pd.concat([X, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
+            X = X.drop(0, axis=1)
+
+        # with this loop we append nans in the rows we need to complete the last H
+        for i in range(0, int(np.ceil(Y.shape[0] / H) * H) - Y.shape[0]):
+            Y = pd.concat([Y, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
+            Y = Y.drop(0, axis=1)
+
+        # either do this or drop the index column
+        X.set_index('index', inplace=True)
+        Y.set_index('index', inplace=True)
+
+        X_dict = {}
+        Y_dict = {}
+        for col in X.columns:
+            X_dict[col] = X[col]
+            X_dict[col] = series_to_forecast(X_dict[col], PRE, 0, dropnan=False)
+            # X_dict[col] = np.ravel(X_dict[col])
+            # X_dict[col] = X_dict[col].reshape(int(X.shape[0]), PRE + 1, n_var_out)  # (samples, PRE+1, n_variables_in)
+
+        for col in Y.columns:
+            Y_dict[col] = Y[col]
+            Y_dict[col] = series_to_forecast(Y_dict[col], 0, H, dropnan=False).drop(col + '_(t)', axis=1)
+            # Y_dict[col] = np.ravel(Y_dict[col])
+            # Y_dict[col] = Y_dict[col].reshape(int(Y.shape[0]), H, n_var_out)  # (samples, H, n_variables_predicted)
+
+        A = X.copy()  # TODO borrame esta
+        AA = Y.copy()
+
+        # concatenate all arrays by the number of variables
+        X = pd.concat([X_dict[x] for x in X_dict], axis=1)
+        Y = pd.concat([Y_dict[x] for x in Y_dict], axis=1)
+
+        # X = X.dropna(axis=0, how='any') #TODO must apply this after joining both X and Y into XY
+        # Y = Y.dropna(axis=0, how='any')
+        shapeX = X.shape
+        shapeY = Y.shape
+
+
+        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(X, Y, test_size=train_val_test[-1] / 100, shuffle=False,
+                                                            random_state=None)
+        del X, Y
+
+        # apply the scaler
+        X_TRAIN = Xscaler.fit_transform(X_TRAIN)
+        X_TEST = Xscaler.transform(X_TEST)
+
+        Y_TRAIN = Yscaler.fit_transform(Y_TRAIN)
+        Y_TEST = Yscaler.transform(Y_TEST)
+
+        #TODO #here is missing to drop the nans. Best option is probably to join XY, drop nan on the rows, and divide again
+        #that can be done if we record the shape of X and then say something like X=XY[oldshape] Y=XY[therest]
+
+        Scaler = {
+            'X_data': Xscaler,
+            'Y_data': Yscaler,
+        }
+
+        ML_DATA = {
+            "X_TRAIN": X_TRAIN,
+            "X_TEST": X_TEST,
+            "Y_TRAIN": Y_TRAIN,
+            "Y_TEST": Y_TEST,
+        }
+
+    elif control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
         
         #we do this in order to build 3D vectors of shapes
-        X.reset_index(inplace=True) #(samples, PRE+1, n_variables_in) 
+        X.reset_index(inplace=True) #(samples, PRE+1, n_variables_in)
         Y.reset_index(inplace=True) #(samples, H, n_variables_predicted)
-        
-        #with this loop we append nans in the rows we need to complete the last H
+
+        #with this loop we append nans in the rows we need to complete the first PRE
         for i in range(0,int(np.ceil(X.shape[0]/(PRE+1))*(PRE+1))-X.shape[0]):
             X = pd.concat([X, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
-            X = X.drop(0, axis=1) 
-        
-        #the same must happen to Y
+            X = X.drop(0, axis=1)
+
+        #with this loop we append nans in the rows we need to complete the last H
         for i in range(0,int(np.ceil(Y.shape[0]/H)*H)-Y.shape[0]):
             Y = pd.concat([Y, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
-            Y = Y.drop(0, axis=1) 
-        
-        #this is unnecesary since the reshape makes you lose the index anyway
-        X.set_index('index',inplace=True) 
-        Y.set_index('index',inplace=True)
-        
-        #change the shape into 3D vectors 
-        X=X.values.reshape(int(X.shape[0]/(PRE+1)), PRE+1, n_var_in) #(samples, PRE+1, n_variables_in)
-        Y=Y.values.reshape(int(Y.shape[0]/H), H, n_var_out) #(samples, H, n_variables_predicted)
-        
-        
-        #TODO: de aqui para abajo no corre. Más allá de eso el reshaping de X e Y tiene más miga ya que el número de samples
-        #tiene que ser igual y coherente. Jaleito guapo. Toca pensar como montar tanto X como Y. Y quizás salga fácil con la
-        #fcn de machine learning mastery para timeseries más el reshape que ya está hecho ahora. Para la X no lo tengo tan claro.
-        #buenas noches y buena suerte :D
-        #Dormi mal y se me ocurrio lo siguiente. Pillar Y, aplicar timeseries como en machinelearning mastery (samples, h),
-        #eso se puede reshape en (samples, H, n_variables_predicted) creo
-        #en el caso de X, o si Y tiene más de una variable. Creo que habría que dividir dicha función en una dataframe por variable
-        #repetir el proceso y luego concat las matrices.
+            Y = Y.drop(0, axis=1)
 
-        #TODO parece que el proceso para Y seria: timeseries, ravel (aplana el vector), reshape(samples, H, 1),
-        # #para X: split per column, timeseries, ravel (aplana el vector), reshape(samples, H, 1) np.concatenate([X1, X2], -1)
-        #problema, el numero de samples va a cambiar!
-        #en este momento hay que drop matrices enteras recorriendo el eje -1 si hay algún nan desde el principio
-        #entonces reconcilias el primer valor de Y encontrandolo en X
-        #luego recorres el eje -1 desde el final para reconciliar el primer valor de Y de la ultima matriz sin nans. Ese tiene que aparecer
-        #como ultimo valor presente del X
-        
-        #split dataset into training, validation, and testing sets. This is done with the 3D vectors in order to
-        #apply shuffle why not lossing the temporal correlations (include 'Time' in possible features to see how it works)
-        X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST = train_test_split(X, Y, train_size=train_val_test[0]/100, shuffle=True, random_state=None)
+        #either do this or drop the index column
+        X.set_index('index',inplace=True)
+        Y.set_index('index',inplace=True)
+
+        X_dict = {}
+        Y_dict = {}
+        for col in X.columns:
+            X_dict[col] = X[col]
+            X_dict[col] = series_to_forecast(X_dict[col], PRE, 0, dropnan=False)
+            X_dict[col] = np.ravel(X_dict[col])
+            X_dict[col] = X_dict[col].reshape(int(X.shape[0]), PRE+1, n_var_out)  # (samples, PRE+1, n_variables_in)
+
+        for col in Y.columns:
+            Y_dict[col] = Y[col]
+            Y_dict[col] = series_to_forecast(Y_dict[col], 0, H, dropnan=False).drop(col + '_(t)', axis=1)
+            Y_dict[col] = np.ravel(Y_dict[col])
+            Y_dict[col] = Y_dict[col].reshape(int(Y.shape[0]), H, n_var_out)  # (samples, H, n_variables_predicted)
+
+        A=X.copy() #TODO borrame esta
+        AA=Y.copy()
+
+        #concatenate all arrays by the number of variables
+        X = np.concatenate([X_dict[x] for x in X_dict], 2)
+        Y = np.concatenate([Y_dict[x] for x in Y_dict], 2)
+
+        X= X[PRE:-PRE-1,:,:]
+        Y = Y[PRE:-PRE - 1, :, :]
+
+        X = X[0:-(H), :, :]
+        Y=Y[0:-(H-PRE)-1,:,:]
+        shapeX = X.shape
+        shapeY = Y.shape
+
+        X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST = train_test_split(X, Y, train_size=train_val_test[0]/100, shuffle=False, random_state=None)
         
         del X, Y
         
-        X_VAL, X_TEST, Y_VAL, Y_TEST = train_test_split(X_VAL_TEST, Y_VAL_TEST, train_size=train_val_test[1]/(100-train_val_test[0]), shuffle=True, random_state=None)
+        X_VAL, X_TEST, Y_VAL, Y_TEST = train_test_split(X_VAL_TEST, Y_VAL_TEST, train_size=train_val_test[1]/(100-train_val_test[0]), shuffle=False, random_state=None)
             
         del X_VAL_TEST, Y_VAL_TEST
         
@@ -595,9 +677,9 @@ def PreProcessDataset(data, control):
         Y_TEST = Yscaler.transform(Y_TEST)
         
         #redo the reshape so that they end being 3D vectors since the ML models take them like this
-        X_TRAIN=X_TRAIN.reshape(int(X_TRAIN.shape[0]/H), H, n_var_in)
-        X_VAL=X_VAL.reshape(int(X_VAL.shape[0]/H), H, n_var_in)
-        X_TEST=X_TEST.reshape(int(X_TEST.shape[0]/H), H, n_var_in)
+        X_TRAIN=X_TRAIN.reshape(int(X_TRAIN.shape[0]/(PRE+1)), PRE+1, n_var_in)
+        X_VAL=X_VAL.reshape(int(X_VAL.shape[0]/(PRE+1)), PRE+1, n_var_in)
+        X_TEST=X_TEST.reshape(int(X_TEST.shape[0]/(PRE+1)), PRE+1, n_var_in)
         
         Y_TRAIN=Y_TRAIN.reshape(int(Y_TRAIN.shape[0]/H), H, n_var_out)
         Y_VAL=Y_VAL.reshape(int(Y_VAL.shape[0]/H), H, n_var_out)
@@ -619,7 +701,7 @@ def PreProcessDataset(data, control):
             }
             
     else:
-        print("\n\n\n WARNING: Your ML method is not supported by the 'TimePeriods' function.\n\n")
+        print("\n\n\n WARNING: Your ML method is not supported by the 'PreProcessDataset' function.\n\n")
     
     return ML_DATA, Scaler
 
@@ -968,11 +1050,11 @@ def train_CNN(data, control):
     features= control["PossibleFeatures"].copy()
     features.remove(control["IntrinsicFeature"])
     
-    train_data = data['X_TRAIN'].values.reshape(len(data['X_TRAIN'].index), pre+1, len(features))
-    validation_data = data['X_VAL'].values.reshape(len(data['X_VAL'].index), pre+1, len(features))
+    train_data = data['X_TRAIN']#.values.reshape(len(data['X_TRAIN'].index), pre+1, len(features))
+    validation_data = data['X_VAL']#.values.reshape(len(data['X_VAL'].index), pre+1, len(features))
     
-    train_target = data['Y_TRAIN'].values.reshape(len(data['Y_TRAIN'].index),hor)
-    validation_target = data['Y_VAL'].values.reshape(len(data['Y_VAL'].index),hor)
+    train_target = data['Y_TRAIN']#.values.reshape(len(data['Y_TRAIN'].index),hor)
+    validation_target = data['Y_VAL']#.values.reshape(len(data['Y_VAL'].index),hor)
     
     ##### Designing Neuronal Network #######
     ML = Sequential() #initialize
@@ -1089,60 +1171,51 @@ def TestMLmodel(control, data, ml, scaler):
         features= control["PossibleFeatures"].copy()
         features.remove(control["IntrinsicFeature"])
         
-        test_data = data['X_TEST'].values.reshape(len(data['X_TEST'].index), control["PRE"]+1, len(features))
+        # test_data = data['X_TEST'].values.reshape(len(data['X_TEST'].index), control["PRE"]+1, len(features))
+        test_data = data['X_TEST']
         predictions = ml.predict(test_data)
     
-        predictions = scaler['Y_data'].inverse_transform(predictions)
-
-    print("...Done")
-    return predictions
-
-
-def get_results(control, data, ml_data, predictions):
-    """
-    Builds a DataFrame with the results. It is a very inefficient function.
-    Each set of three columns corresponds to one set of predictions, observations and timestamps.
+    print("...Done!\n")
     
-    Note: This is a shitty way of implementing this for several reasons, for instance it results 
-    in a PerformanceWarning due to the DataFrame RESULTS being fragmented due to using inser too 
-    many times. However, and even worse than that is the fact that RESULTS is an horizontal 
-    DataFrame rather than a vertical one, which is a big nono. I may fix it in a future release.
-
-    Parameters
-    ----------
-    control : dict
-        Control_Var
-    data : DataFrame
-        SOLETE dataset
-    ml_data : dict of dataframes
-        ML_DATA, the sets cointaining training, validation and testing.
-    predictions : DataFrame
-        Predicted values
-
-    Returns
-    -------
-    RESULTS : DataFrame
-        Predicted values.
-
-    """
-    print("Building Results Dataframe...")
-    RESULTS=pd.DataFrame([], index=range(0,control["H"]+1))
-    for i in range(0,len(ml_data['X_TEST'].index)):
-        t0 = ml_data['Y_TEST_abs'].index[i]-datetime.timedelta(seconds=3600)
-        RESULTS['Forecasted_' + str(i)] = np.insert(predictions[i], 0, np.nan, axis=0) #retrieves predictions and adds a nan in the t0
-        RESULTS['Observed_' + str(i)] = np.insert(ml_data['Y_TEST_abs'].iloc[i].values, 0, data.loc[t0][control["IntrinsicFeature"]], axis=0) 
-        RESULTS['Time_' + str(i)] = pd.date_range(start=t0, periods = control["H"]+1, freq = '3600s' )
-    print("...Done")
+    persistence = generate_persistence(meas=data["X_TEST"][:,-1,0], hor=control['H'])
+    
+    print("Building Results dictionary of Dataframes...")
+    Results={
+        "Forecasted": pd.DataFrame(scaler['Y_data'].inverse_transform(predictions)),
+        "Observed": pd.DataFrame(scaler['Y_data'].inverse_transform(data["Y_TEST"].reshape(predictions.shape))),
+        "Persistence": pd.DataFrame(scaler['Y_data'].inverse_transform(persistence)),
+        #"Persistence24": #Variant of persistence with 24 hours previous instead of latest available value
+        }
+        
+    print("...Done\n")
     
     #Save the results
     filename = "Results_" + control['MLtype'] + ".h5"
     print("Saving Results as: ", filename)
-    RESULTS.to_hdf(filename, index = True, mode= 'w', key = 'DATA')
+    
+    i=0 #counter to check first iteration
+    for key in Results.keys():
+        if i == 0:
+            Results[key].to_hdf(filename, index = True, mode= 'w', key = key)
+            i=i+1
+        else:
+            Results[key].to_hdf(filename, index = True, mode= 'a', key = key)
+        
     print("...Done")
+    
+    return Results
 
-    return RESULTS
+def generate_persistence(meas, hor):
+    meas = meas.reshape(len(meas),1) #it is neccessary to reshape otherwise 
+    #it doesnt allow to concatenate on the columns axis
+    df = meas.copy()
+    for i in range(1, hor): #it starts in 1 because it has the first copy already inside
+        df = np.concatenate((df, meas), axis=1)
+    
+    return df
 
-def post_process(control, RESULTS, data):
+
+def post_process(control, RESULTS):
     """
     Computes errors and plots RMSE.
 
@@ -1163,41 +1236,33 @@ def post_process(control, RESULTS, data):
     """
     
     print("Post-processing results...")
-    ERROR =pd.DataFrame([], index=RESULTS.index[1:], columns = range(0,int(len(RESULTS.columns)/3)))
-    Persistence = pd.DataFrame([], index=ERROR.index)
-    Persistence24 = pd.DataFrame([], index=ERROR.index)
-    RMSE =pd.DataFrame([], index=ERROR.index)
-        
-    for i in range(0,int(len(RESULTS.columns)/3)-1):
-        valor = data.loc[(RESULTS.loc[0,'Time_'+str(i)]-datetime.timedelta(hours=24)), control["IntrinsicFeature"]]
-        
-        for t,v in zip(RESULTS.loc[1:,'Time_'+str(i)].index, RESULTS.loc[1:,'Time_'+str(i)]):
-                        
-            if RESULTS.loc[t,'Time_'+str(i)].hour not in range(7,19):# and RESULTS.loc[t,'Observed_'+str(i)] == 0:
-                RESULTS.loc[t,'Observed_'+str(i)] = np.nan
-                
-        
-        Persistence[i] =  RESULTS.loc[1:,'Observed_'+str(i)] - RESULTS.loc[0,'Observed_'+str(i)]
-        ERROR[i] = RESULTS['Observed_'+str(i)]-RESULTS['Forecasted_'+str(i)]
-        
-        
-        Persistence24[i] = RESULTS.loc[1:,'Observed_'+str(i)] - valor
     
-    print("Computing RMSE...")
-    RMSE = np.sqrt((ERROR**2).mean(axis=1)).to_frame(name='Forecaster')
-    RMSE['Persistence'] = np.sqrt((Persistence**2).mean(axis=1))
-    RMSE['Persistence24'] = np.sqrt((Persistence24**2).mean(axis=1))
+    RESULTS["Residual"]=RESULTS["Observed"] - RESULTS["Forecasted"] 
     
+    #raw values gives us the value per horizon time step
+    rmse = pd.DataFrame(mean_squared_error(RESULTS["Observed"], RESULTS["Forecasted"], squared=False, multioutput='raw_values'), columns=["Forecaster"])
+    mae = pd.DataFrame(mean_absolute_error(RESULTS["Observed"], RESULTS["Forecasted"], multioutput='raw_values'), columns=["Forecaster"])
+    mse = pd.DataFrame(mean_squared_error(RESULTS["Observed"], RESULTS["Forecasted"], squared=True, multioutput='raw_values'), columns=["Forecaster"])
+    
+    for error in ["Persistence"]: #["Persistence", "Persistence24"]
+        rmse[error] = mean_squared_error(RESULTS["Observed"], RESULTS[error], squared=False, multioutput='raw_values')
+        mae[error] = mean_absolute_error(RESULTS["Observed"], RESULTS[error], multioutput='raw_values')
+        mse[error] = mean_squared_error(RESULTS["Observed"], RESULTS[error], squared=True, multioutput='raw_values')
+    
+        
+    ymin = min([rmse.min().min()*1.1, 0])
+    ymax = max([rmse.max().max()*1.1, 0])
+        
     fig = plt.figure()
-    plt.plot(RMSE)
+    plt.plot(rmse)
     plt.grid()
-    plt.xlim((RMSE.index[0], RMSE.index[-1]))
-    plt.ylim((0, max(RMSE.max())*1.1)) 
+    plt.xlim((rmse.index[0], rmse.index[-1]))
+    plt.ylim(ymin, ymax) 
     plt.ylabel( "RMSE" )
     plt.xlabel( "Time Horizon" )
-    plt.title("Avgs: For=" + str(round(RMSE.Forecaster.mean(), 3)) + " Per = " + str(round(RMSE.Persistence.mean(), 3))\
-              +" Per24 = "+ str(round(RMSE.Persistence24.mean(), 3)))
-    plt.legend(RMSE.columns)
+    plt.title("RMSE=" + str(round(rmse.mean()[0], 3)) + " MAE = " + str(round(mae.mean()[0], 3))\
+              +" MSE = "+ str(round(mse.mean()[0], 3)))
+    plt.legend(rmse.columns)
     
     filename = "RMSE_" + control["MLtype"]
     print("Saving RMSE plot as: ", filename)
@@ -1205,8 +1270,16 @@ def post_process(control, RESULTS, data):
     print("...Done")
     
     print("\n\nThe End!")
+        
+    analysis ={'_description_' : 'Holds different statistics related to prediction accuracy',
+            'RMSE' : rmse, #root mean squared error
+            'MAE' : mae, #mean absolute error     
+            'MSE' : mse, #mean squared error
+            }
     
-    return RMSE
+    return analysis
+
+
 
 def error_msg(key):
     """
@@ -1258,6 +1331,11 @@ def error_msg(key):
     sys.exit("Did I do that? ¯\_(ツ)_/¯ \n\n\nCheck at the top for hints on what went wrong!!!")
     #yes, that was a reference to good old Steve Urkel
     pass
+
+
+
+
+
 
 
 

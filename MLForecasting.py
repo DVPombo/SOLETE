@@ -93,7 +93,7 @@ DISCLAIMERS:
 """
 
 from Functions import import_SOLETE_data, import_PV_WT_data, TimePeriods, PreProcessDataset  
-from Functions import PrepareMLmodel, TestMLmodel, get_results, post_process
+from Functions import PrepareMLmodel, TestMLmodel, post_process
 
 #%% Control The Script:
 
@@ -106,8 +106,9 @@ Control_Var = {
     'saveMLmodel' : True, #saves the trained model if True, but also trainVSimport must be True, otherwise does nothing.
     'Train_Val_Test' : [70, 20, 10], #train validation test division of the available DATA
     'Scaler': 'MinMax01', #scaling technique, choose: 'MinMax01', 'MinMax11' 'Standard' see notes in PreProcessDataset()
-    'IntrinsicFeature' : 'P_Solar[kW]', #feature to be predicted
-    'PossibleFeatures': ['POA Irr[kW1m2]', 'P_Solar[kW]','HoursOfDay',],
+    # 'IntrinsicFeature' : 'P_Solar[kW]', #feature to be predicted
+    'IntrinsicFeature' : 'HoursOfDay', #feature to be predicted
+    'PossibleFeatures': ['HoursOfDay',],
     # 'PossibleFeatures': ['TEMPERATURE[degC]', 'HUMIDITY[%]', 'WIND_SPEED[m1s]', 'WIND_DIR[deg]',
     #                     'GHI[kW1m2]', 'POA Irr[kW1m2]', 'P_Gaia[kW]', 'P_Solar[kW]', 'Pressure[mbar]', 
     #                     'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 
@@ -149,7 +150,7 @@ LSTM = {'_description_' : 'Holds the values related to LSTM ANN design',
 
 CNN = {'_description_' : 'Holds the values related to LSTM NN design',
         'n_batch' : 16, #see note in LSTM
-        'epo_num' : 3, #see note in LSTM
+        'epo_num' : 1, #see note in LSTM
         'filters' : 32, #number of nodes per layer, usually top layers have higher values
         'kernel_size' : 2, #size of the filter used to extract features
         'pool_size' : 3, #down sampling feature maps in order to gain robustness to changes
@@ -188,16 +189,15 @@ PVinfo, WTinfo = import_PV_WT_data()
 DATA=import_SOLETE_data(Control_Var, PVinfo, WTinfo)
 
 #%% Generate Time Periods
-#ML_DATA, Scaler = PreProcessDataset(DATA, Control_Var)
-ML_DATA, Scaler = TimePeriods(DATA, Control_Var) 
+ML_DATA, Scaler = PreProcessDataset(DATA, Control_Var)
+# ML_DATA, Scaler = TimePeriods(DATA, Control_Var) 
 
 #%% Train, Evaluate, Test
 ML = PrepareMLmodel(Control_Var, ML_DATA) #train or import model
-predictions = TestMLmodel(Control_Var, ML_DATA, ML, Scaler)
-results = get_results(Control_Var, DATA, ML_DATA, predictions)
+results = TestMLmodel(Control_Var, ML_DATA, ML, Scaler)
 
 #%% Post-Processing
-post_process(Control_Var, results, DATA)
+analysis = post_process(Control_Var, results)
 
 
 
