@@ -85,4 +85,9 @@ doi = "10.11583/DTU.17040626"
     
     [4] Pombo, D. V., Rincón, M. J., Bacher, P., Bindner, H. W., Spataru, S. V., & Sørensen, P. E. (2022). Assessing stacked physics-informed machine learning models for co-located wind–solar power forecasting. Sustainable Energy, Grids and Networks, 32, 100943.
 
+# Corrigendum
+Versions of the SOLETE Platform up to and including v2.3 contained two major bugs.
+1. When spliting the data in training, validation, and testing sets. 
+2. In the postprocessing of results, when calculating RMSE. 
 
+I can only apologize for these mistakes, which have been corrected in versions v3.0 and upwards 
