@@ -106,6 +106,7 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
             if col not in df.columns: 
                 error_msg(key = "missing_feature_expanded_SOLETE")
         
+        print("")
         for col in df.columns: #the undesired columns are removed
         #undersired columns are those within the imported file not appearing in Control_Var['PossibleFeatures']
             if col not in Control_Var['PossibleFeatures']: 
@@ -461,60 +462,58 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
 
 def PreProcessDataset(data, control):
     """
-    A function that will split the time series to input and output for training 
-    of the forecast problem with supervised learning
+    A function that does two things:
+        1-It adapts the time series to a forecasting problem with supervised 
+        learning. This is done by dividing the main dataset into training, 
+        validation, and testing subsets.
+        2-Summons and trains a scaler according to user input. This scaler helps
+        the learning process as it keeps all values within the same range.
 
     Parameters
     ----------
     data : DataFrame
-        Variable including all the data from the Solete dataset
+        Variable including all the data from the SOLETE dataset
     control : dict
         Control_Var.
 
     Returns
     -------
-    dik : dict of DataFrames
+    ML_DATA : dict of DataFrames
         cotains the train and testing sets for RF and SVM
-        or the train, validation and testing for ANN
+        or the train, validation and testing sets for ANN
         
     Scaler : dict
-        data of the scaling method applied to the data. This must be inverted
-        afterwards in oder functions.
+        data of the scaling method applied to the data. This scaler is used 
+        later by other functions in order to undo the transformation, thus 
+        recovering the actual values.
         
     Arguments
     ---------
-        n_in: Number of lag observations as input (X).
-        n_out: Number of observations as output (y).
-        base: Is the basic variable that will be shifted back and forward in time, e.g. Pestimated
+        n_var_in: Number of variables going into the ML model
+        n_var_out: Number of variables predicted/outputed by the ML model
+        base: Is the basic or intrinsic variable that will be shifted back and forward in time.
         additions: are the other variables that will tag along base to complete the dataset
         train_val_test = division of timestamps in the three blocks
 
     """
-
+    #we define this dummy variables simply to ease the reading of the code
     base=control["IntrinsicFeature"]
-    additions= control["PossibleFeatures"].copy()
-    n_var_out = len(additions)
-    # additions.remove(base)
-    
-    
-    n_var_in = len(additions) #number of variables going into the model
-    # n_var_out = len(base) #number of variables as output to the model
+    additions= control["PossibleFeatures"]
+    H=control["H"] #number of samples of each test, corresponds to time
+    PRE = control["PRE"] #number of previous samples
+    train_val_test = control['Train_Val_Test'] #spliting ratio of the dataset
+    n_var_in = len(additions) #number of variables going into the model    
+    n_var_out = len(additions) #number of variables predicted by the model
+
     if type(base) == str:
         n_var_out = 1
     else:
         n_var_out = len(base)
-    H=control["H"] #number of samples of each test, corresponds to time
-    PRE = control["PRE"] #number of previous samples
-    train_val_test = control['Train_Val_Test']
+         
+    X = data[additions] #input data
+    Y = pd.DataFrame(data[base]) #output data
     
-    # PRE=0
-    
-    train_val_test = control['Train_Val_Test']
-            
-    X = data[additions] 
-    Y = pd.DataFrame(data[base])
-        
-    
+    #Scaler selection        
     if control['Scaler'] == 'MinMax01':
         #scales from 0 to 1 each feature independently
         Xscaler = MinMaxScaler(feature_range=(0, 1)) #initialise the scaler 
@@ -525,70 +524,76 @@ def PreProcessDataset(data, control):
         Yscaler = MinMaxScaler(feature_range=(-1, 1)) #initialise the scaler 
     elif control['Scaler'] == 'Standard':
         #Standardize features by removing the mean and scaling to unit variance
-        #might behave badly if each features does look like standard normally distributed data: Gaussian with zero mean and unit variance.
+        #might behave badly if each features does look like standard normally 
+        #distributed data: Gaussian with zero mean and unit variance.
         Xscaler = StandardScaler() #initialise the scaler 
         Yscaler = StandardScaler() #initialise the scaler 
 
-    if control['MLtype'] in ['RF', 'SVM']:
-        # we do this in order to build 3D vectors of shapes
-        X.reset_index(inplace=True)  # (samples, PRE+1, n_variables_in)
-        Y.reset_index(inplace=True)  # (samples, H, n_variables_predicted)
+    X.reset_index(inplace=True)  # (samples, PRE+1, n_var_in)
+    Y.reset_index(inplace=True)  # (samples, H, n_var_out)
 
-        # with this loop we append nans in the rows we need to complete the first PRE
-        for i in range(0, int(np.ceil(X.shape[0] / (PRE + 1)) * (PRE + 1)) - X.shape[0]):
-            X = pd.concat([X, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
-            X = X.drop(0, axis=1)
+    # with this loop we append nans in the rows we need to complete the first PRE
+    for i in range(0, int(np.ceil(X.shape[0] / (PRE + 1)) * (PRE + 1)) - X.shape[0]):
+        X = pd.concat([X, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
+        X = X.drop(0, axis=1)
 
-        # with this loop we append nans in the rows we need to complete the last H
-        for i in range(0, int(np.ceil(Y.shape[0] / H) * H) - Y.shape[0]):
-            Y = pd.concat([Y, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
-            Y = Y.drop(0, axis=1)
+    # with this loop we append nans in the rows we need to complete the last H
+    for i in range(0, int(np.ceil(Y.shape[0] / H) * H) - Y.shape[0]):
+        Y = pd.concat([Y, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
+        Y = Y.drop(0, axis=1)
 
-        # either do this or drop the index column
-        X.set_index('index', inplace=True)
-        Y.set_index('index', inplace=True)
-
-        X_dict = {}
-        Y_dict = {}
-        for col in X.columns:
-            X_dict[col] = X[col]
-            X_dict[col] = series_to_forecast(X_dict[col], PRE, 0, dropnan=False)
-            # X_dict[col] = np.ravel(X_dict[col])
-            # X_dict[col] = X_dict[col].reshape(int(X.shape[0]), PRE + 1, n_var_out)  # (samples, PRE+1, n_variables_in)
-
-        for col in Y.columns:
-            Y_dict[col] = Y[col]
-            Y_dict[col] = series_to_forecast(Y_dict[col], 0, H, dropnan=False).drop(col + '_(t)', axis=1)
-            # Y_dict[col] = np.ravel(Y_dict[col])
-            # Y_dict[col] = Y_dict[col].reshape(int(Y.shape[0]), H, n_var_out)  # (samples, H, n_variables_predicted)
-
-        A = X.copy()  # TODO borrame esta
-        AA = Y.copy()
-
-        # concatenate all arrays by the number of variables
+    # either do this or drop the index column
+    X.set_index('index', inplace=True)
+    Y.set_index('index', inplace=True)
+    
+    X_dict = {} #convert time series data into supervised learning compatible
+    for col in X.columns: #for the input is based on the number of previous samples
+        X_dict[col] = X[col]
+        X_dict[col] = series_to_forecast(X_dict[col], PRE, 0, dropnan=False)
+        if control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
+            #in the case of ANN it is neccessary to use 3D vectors
+            X_dict[col] = np.ravel(X_dict[col])
+            X_dict[col] = X_dict[col].reshape(int(X.shape[0]), PRE+1, n_var_out)  # (samples, PRE+1, n_variables_in)
+    
+    Y_dict = {} #convert time series data into supervised learning compatible
+    for col in Y.columns: #for the output is based on the horizon length
+        Y_dict[col] = Y[col]
+        Y_dict[col] = series_to_forecast(Y_dict[col], 0, H, dropnan=False).drop(col + '_(t)', axis=1)
+        if control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
+            #in the case of ANN it is neccessary to use 3D vectors
+            Y_dict[col] = np.ravel(Y_dict[col])
+            Y_dict[col] = Y_dict[col].reshape(int(Y.shape[0]), H, n_var_out)  # (samples, H, n_variables_predicted)
+        
+        
+        #There are a number of operations diverging from RF and SVM compared to ANN
+    if control['MLtype'] in ['RF', 'SVM']:        
+        
+        # First we concatenate all arrays by the number of variables as columns
         X = pd.concat([X_dict[x] for x in X_dict], axis=1)
         Y = pd.concat([Y_dict[x] for x in Y_dict], axis=1)
         
-        #contact the arrays in order to remove al rows with nans
-        XY=pd.concat([X,Y], axis=1)
-        XY=XY.dropna(axis=0, how='any')
-
-        del X, Y
-
+        #Then we contact the arrays into a single DataFrame in order to remove al rows with nans
+        XY=pd.concat([X,Y], axis=1).dropna(axis=0, how='any')
+        
+        del X, Y #done to release memory
+        
+        # split the dataset into training and testing. In general, ensemble methods do not require validation set (unlike ANN)
         X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(XY[XY.columns[0:PRE+1]], XY[XY.columns[PRE+1:]], test_size=train_val_test[-1] / 100, shuffle=False,
                                                             random_state=None)
-        del XY
+        del XY #done to release memory
 
-        # apply the scaler
-        X_TRAIN = Xscaler.fit_transform(X_TRAIN)
-        X_TEST = Xscaler.transform(X_TEST)
-
+        # apply the scaler: note that we fit/train it into the training set only
+        #and then we apply it on the remaining sets. If we were to fit_transform 
+        #on the whole dataset, we would be introducing informantion from the test
+        #into the training, hence, introducing bias.
+        X_TRAIN = Xscaler.fit_transform(X_TRAIN) 
+        X_TEST = Xscaler.transform(X_TEST) 
+        
+        #same reasoning for the outputs
         Y_TRAIN = Yscaler.fit_transform(Y_TRAIN)
         Y_TEST = Yscaler.transform(Y_TEST)
 
-        #TODO #here is missing to drop the nans. Best option is probably to join XY, drop nan on the rows, and divide again
-        #that can be done if we record the shape of X and then say something like X=XY[oldshape] Y=XY[therest]
-
+        #these are the two variables to be output by this function
         Scaler = {
             'X_data': Xscaler,
             'Y_data': Yscaler,
@@ -603,75 +608,47 @@ def PreProcessDataset(data, control):
 
     elif control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
         
-        #we do this in order to build 3D vectors of shapes
-        X.reset_index(inplace=True) #(samples, PRE+1, n_variables_in)
-        Y.reset_index(inplace=True) #(samples, H, n_variables_predicted)
-
-        #with this loop we append nans in the rows we need to complete the first PRE
-        for i in range(0,int(np.ceil(X.shape[0]/(PRE+1))*(PRE+1))-X.shape[0]):
-            X = pd.concat([X, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
-            X = X.drop(0, axis=1)
-
-        #with this loop we append nans in the rows we need to complete the last H
-        for i in range(0,int(np.ceil(Y.shape[0]/H)*H)-Y.shape[0]):
-            Y = pd.concat([Y, pd.DataFrame([np.nan])], axis=0, ignore_index=True)
-            Y = Y.drop(0, axis=1)
-
-        #either do this or drop the index column
-        X.set_index('index',inplace=True)
-        Y.set_index('index',inplace=True)
-
-        X_dict = {}
-        Y_dict = {}
-        for col in X.columns:
-            X_dict[col] = X[col]
-            X_dict[col] = series_to_forecast(X_dict[col], PRE, 0, dropnan=False)
-            X_dict[col] = np.ravel(X_dict[col])
-            X_dict[col] = X_dict[col].reshape(int(X.shape[0]), PRE+1, n_var_out)  # (samples, PRE+1, n_variables_in)
-
-        for col in Y.columns:
-            Y_dict[col] = Y[col]
-            Y_dict[col] = series_to_forecast(Y_dict[col], 0, H, dropnan=False).drop(col + '_(t)', axis=1)
-            Y_dict[col] = np.ravel(Y_dict[col])
-            Y_dict[col] = Y_dict[col].reshape(int(Y.shape[0]), H, n_var_out)  # (samples, H, n_variables_predicted)
-
-        A=X.copy() #TODO borrame esta
-        AA=Y.copy()
-
-        #concatenate all arrays by the number of variables
+        # First we concatenate all arrays by the number of variables as columns
         X = np.concatenate([X_dict[x] for x in X_dict], 2)
         Y = np.concatenate([Y_dict[x] for x in Y_dict], 2)
-
+        
+        #Now We remove the nans from the begining of the dataset (caused by the number previous samples)
         X= X[PRE:-PRE-1,:,:]
         Y = Y[PRE:-PRE - 1, :, :]
-
+        
+        #Then, we do the same with the nans in the end of the dataset (caused by horizon)
         X = X[0:-(H), :, :]
         Y=Y[0:-(H-PRE)-1,:,:]
-        shapeX = X.shape
-        shapeY = Y.shape
-
+        
+        #again, we split the dataset in training, validation, and testing. We use a scikit learn function
+        #thus we must use it twice in order to split it as we want it
         X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST = train_test_split(X, Y, train_size=train_val_test[0]/100, shuffle=False, random_state=None)
         
-        del X, Y
+        del X, Y #done to release memory
         
         X_VAL, X_TEST, Y_VAL, Y_TEST = train_test_split(X_VAL_TEST, Y_VAL_TEST, train_size=train_val_test[1]/(100-train_val_test[0]), shuffle=False, random_state=None)
             
-        del X_VAL_TEST, Y_VAL_TEST
+        del X_VAL_TEST, Y_VAL_TEST #done to release memory
         
-        #undoing the reshape into the suffled sets to be able to use the scaler function
+        #the scaler can only take 2D arrays, thus we must undo the reshape of the splat sets 
         X_TRAIN=X_TRAIN.reshape(int(X_TRAIN.shape[0]*X_TRAIN.shape[1]), n_var_in)
         X_VAL=X_VAL.reshape(int(X_VAL.shape[0]*X_VAL.shape[1]), n_var_in)
         X_TEST=X_TEST.reshape(int(X_TEST.shape[0]*X_TEST.shape[1]), n_var_in)
         
+        #same reasoning for the outputs
         Y_TRAIN=Y_TRAIN.reshape(int(Y_TRAIN.shape[0]*Y_TRAIN.shape[1]), n_var_out)
         Y_VAL=Y_VAL.reshape(int(Y_VAL.shape[0]*Y_VAL.shape[1]), n_var_out)
         Y_TEST=Y_TEST.reshape(int(Y_TEST.shape[0]*Y_TEST.shape[1]), n_var_out)
         
-        #apply the scaler
+        # apply the scaler: note that we fit/train it into the training set only
+        #and then we apply it on the remaining sets. If we were to fit_transform 
+        #on the whole dataset, we would be introducing informantion from the test
+        #into the training, hence, introducing bias.
         X_TRAIN = Xscaler.fit_transform(X_TRAIN)
         X_VAL = Xscaler.transform(X_VAL)
         X_TEST = Xscaler.transform(X_TEST)
         
+        #same reasoning for the outputs
         Y_TRAIN = Yscaler.fit_transform(Y_TRAIN)
         Y_VAL = Yscaler.transform(Y_VAL)
         Y_TEST = Yscaler.transform(Y_TEST)
@@ -685,7 +662,7 @@ def PreProcessDataset(data, control):
         Y_VAL=Y_VAL.reshape(int(Y_VAL.shape[0]/H), H, n_var_out)
         Y_TEST=Y_TEST.reshape(int(Y_TEST.shape[0]/H), H, n_var_out)
         
-        
+        #these are the two variables to be output by this function
         Scaler = {
                   'X_data' : Xscaler,
                   'Y_data' : Yscaler,
@@ -704,141 +681,6 @@ def PreProcessDataset(data, control):
         print("\n\n\n WARNING: Your ML method is not supported by the 'PreProcessDataset' function.\n\n")
     
     return ML_DATA, Scaler
-
-def TimePeriods(data, control):
-    """
-    A function that will split the time series to input and output for training 
-    of the forecast problem with supervised learning
-
-    Parameters
-    ----------
-    data : DataFrame
-        Variable including all the data from the Solete dataset
-    control : dict
-        Control_Var.
-
-    Returns
-    -------
-    dik : dict of DataFrames
-        cotains the train and testing sets for RF and SVM
-        or the train, validation and testing for ANN
-        
-    Scaler : dict
-        data of the scaling method applied to the data. This must be inverted
-        afterwards in oder functions.
-        
-    Arguments
-    ---------
-        n_in: Number of lag observations as input (X).
-        n_out: Number of observations as output (y).
-        base: Is the basic variable that will be shifted back and forward in time, e.g. Pestimated
-        additions: are the other variables that will tag along base to complete the dataset
-        train_val_test = division of timestamps in the three blocks
-
-    """
-    n_in=control["PRE"]
-    n_out=control["H"]
-    base=control["IntrinsicFeature"]
-    additions= control["PossibleFeatures"].copy()
-    additions.remove(control["IntrinsicFeature"])
-    train_val_test = control['Train_Val_Test']
-    
-    if control['MLtype'] in ['RF', 'SVM']: 
-        data.fillna(0, inplace=True)
-           
-        BASE = series_to_forecast(data[base], n_in, n_out, dropnan=False)
-        
-        col_loc_base = []
-        for addition in additions:
-            BASE[addition] = data[addition]
-            col_loc_base.append(BASE.columns.get_loc(addition))
-        
-        
-        BASE.dropna(inplace=True)
-            
-            
-        X_COLS = [*range(0,n_in+1)]+col_loc_base  #because they are the PRE+t0 current sample
-        Y_COLS = [*range(n_in+1,n_in+n_out+1)]
-        
-        X=BASE.iloc[:, X_COLS]
-        Y=BASE.iloc[:, Y_COLS]    
-        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(X, Y, test_size=train_val_test[-1]/100, shuffle=False, random_state=None)
-        
-        Scaler = {
-                  'X_data' : 1,
-                  'Y_data' : 1,
-                  }
-    
-        
-        ML_DATA = {
-            "X_TRAIN": X_TRAIN.sort_index(),
-            "X_TEST": X_TEST.sort_index(),
-            "Y_TRAIN": Y_TRAIN.sort_index(),
-            # "Y_TEST": Y_TEST.sort_index(),
-            "Y_TEST_abs": Y_TEST.sort_index(),
-            }
-    
-    
-    elif control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
-        Xscaler = MinMaxScaler(feature_range=(0, 1)) #initialise the scaler 
-        Yscaler = MinMaxScaler(feature_range=(0, 1)) #initialise the scaler   
-            
-        X = data[additions] 
-        Y = data[base]
-                   
-        X = series_to_forecast(X, n_in, 0, dropnan=False)#.drop(X.index[-(n_out):])
-        Y = series_to_forecast(Y, 0, n_out, dropnan=False).drop(base+'_(t)', axis=1)#.drop(Y.index[:(n_in)])
-           
-        X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST = train_test_split(X, Y, train_size=train_val_test[0]/100, shuffle=False, random_state=None)
-        
-        del X, Y
-        
-        X_VAL, X_TEST, Y_VAL, Y_TEST = train_test_split(X_VAL_TEST, Y_VAL_TEST, train_size=train_val_test[1]/(100-train_val_test[0]), shuffle=False, random_state=None)
-            
-        del X_VAL_TEST, Y_VAL_TEST
-            
-        #apply scaler to keep all values between 0 and 1
-        X_TRAIN = pd.DataFrame(Xscaler.fit_transform(X_TRAIN), index=X_TRAIN.index, columns = X_TRAIN.columns)
-        X_VAL = pd.DataFrame(Xscaler.transform(X_VAL), index=X_VAL.index, columns = X_VAL.columns)
-        X_TEST = pd.DataFrame(Xscaler.transform(X_TEST), index=X_TEST.index, columns = X_TEST.columns)
-        
-        Y_TRAIN = pd.DataFrame(Yscaler.fit_transform(Y_TRAIN), index=Y_TRAIN.index, columns = Y_TRAIN.columns)
-        Y_VAL = pd.DataFrame(Yscaler.transform(Y_VAL), index=Y_VAL.index, columns = Y_VAL.columns)
-        Y_TEST_abs = pd.DataFrame(Y_TEST, index=Y_TEST.index, columns = Y_TEST.columns)
-        Y_TEST = pd.DataFrame(Yscaler.transform(Y_TEST), index=Y_TEST.index, columns = Y_TEST.columns)
-        
-        
-        # apply masking as to substitute a complete row by 999 if any of its values is NAN (aka missing value)
-        X_TRAIN.mask(X_TRAIN.isna().any(axis=1), other=999, inplace=True)
-        X_VAL.mask(X_VAL.isna().any(axis=1), other=999, inplace=True)
-        X_TEST.mask(X_TEST.isna().any(axis=1), other=999, inplace=True)
-        
-        Y_TRAIN.mask(Y_TRAIN.isna().any(axis=1), other=999, inplace=True)
-        Y_VAL.mask(Y_VAL.isna().any(axis=1), other=999, inplace=True)
-        Y_TEST.mask(Y_TEST.isna().any(axis=1), other=999, inplace=True)
-        Y_TEST_abs.mask(Y_TEST_abs.isna().any(axis=1), other=999, inplace=True)
-        
-        
-        Scaler = {
-                  'X_data' : Xscaler,
-                  'Y_data' : Yscaler,
-                  }
-       
-        ML_DATA = {
-            "X_TRAIN": X_TRAIN.sort_index(),
-            "X_VAL": X_VAL.sort_index(),
-            "X_TEST": X_TEST.sort_index().drop(X_TEST.tail(n_out).index, axis=0),
-            "Y_TRAIN": Y_TRAIN.sort_index(),
-            "Y_VAL": Y_VAL.sort_index(),
-            "Y_TEST": Y_TEST.sort_index().drop(Y_TEST.tail(n_out).index, axis=0),
-            "Y_TEST_abs": Y_TEST_abs.sort_index().drop(Y_TEST.tail(n_out).index, axis=0),
-            }
-            
-    else:
-        print("\n\n\n WARNING: Your ML method is not supported by the 'TimePeriods' function.\n\n")
-    
-    return ML_DATA, Scaler
-
 
 def series_to_forecast(data, n_in, n_out, dropnan=True):
     """
@@ -918,6 +760,8 @@ def PrepareMLmodel(control, ml_data):
         
         elif control['MLtype'] in ["LSTM", "CNN", "CNN_LSTM"]: 
             filename = filename + ".h5"
+            
+            print("Training " + control['MLtype'] + "...\n")
         
             if control['MLtype'] == 'LSTM':
                 ML, ANN_training = train_LSTM(ml_data, control)
@@ -941,15 +785,15 @@ def PrepareMLmodel(control, ml_data):
 
         if control['trainVSimport'] and control['saveMLmodel']:
             if control['MLtype'] in ['RF', "SVM"]:
-                print("Saving Trained Model with name:" + filename)
+                print("Saving Trained Model with name: " + filename)
                 joblib.dump(ML, filename)
                 
             elif control['MLtype'] in ["LSTM", "CNN", "CNN_LSTM"]:
-                print("Saving Trained Model with name:" + filename)
+                print("Saving Trained Model with name: " + filename)
                 ML.save(filename)
-            print("...Done")
+            print("...Done\n")
         else:
-            print(control['MLtype'] + " was NOT saved.")
+            print(control['MLtype'] + " was NOT saved.\n")
 
     else: #we dont train but import the ML
         if control['MLtype'] in ['RF', "SVM"]:
@@ -961,7 +805,7 @@ def PrepareMLmodel(control, ml_data):
             filename = filename + ".h5"
             print("Importing " + filename + "...")
             ML=load_model(filename)
-        print("...Done")
+        print("...Done\n")
     
         
     return ML
@@ -1028,7 +872,7 @@ def train_LSTM(data, control):
                 verbose=2, #0-> shows nothing, 1-> shows progress bar, 2-> shows the number of epoch.
                 shuffle=False)
                 # callbacks=[tbGraph])
-    # pass
+
     return ML, ANN_training, #data, 
 
 
@@ -1080,7 +924,7 @@ def train_CNN(data, control):
                 verbose=2, #0-> shows nothing, 1-> shows progress bar, 2-> shows the number of epoch.
                 shuffle=False)
                 # callbacks=[tbGraph])
-    # pass
+    
     return ML, ANN_training,
 
 def train_CNN_LSTM(data, control):
@@ -1136,7 +980,7 @@ def train_CNN_LSTM(data, control):
                 verbose=2, #0-> shows nothing, 1-> shows progress bar, 2-> shows the number of epoch.
                 shuffle=False)
                 # callbacks=[tbGraph])
-    # pass
+    
     return ML, ANN_training,
 
 
@@ -1150,15 +994,19 @@ def TestMLmodel(control, data, ml, scaler):
         Control_Var
     data : DataFrame
         SOLETE dataset
-    ml : dict of dataframes
+    ml : trained ML model
         ML_DATA, the sets cointaining training, validation and testing
     scaler : dict
         if an scaler has been applied it is neccesary to invert it aftewards
 
     Returns
     -------
-    predictions : dataframe
-        Predicted values
+    Results : dict of dataframe
+        Includes different dataframes:
+            -Forecasted: predicted values
+            -Observed: measured values (true ones)
+            -Persistence: benchmark forecasting method, naive persistence
+            -Persistence24: #Variant of persistence using the 24 hours previous value instead of latest available value
 
     """
     
@@ -1168,13 +1016,8 @@ def TestMLmodel(control, data, ml, scaler):
         predictions=ml.predict(data['X_TEST'])
         persistence = generate_persistence(meas=data["X_TEST"][:,-1,], hor=control['H'])
             
-    elif control['MLtype'] in ["LSTM", "CNN", "CNN_LSTM"]: 
-        features= control["PossibleFeatures"].copy()
-        features.remove(control["IntrinsicFeature"])
-        
-        # test_data = data['X_TEST'].values.reshape(len(data['X_TEST'].index), control["PRE"]+1, len(features))
-        test_data = data['X_TEST']
-        predictions = ml.predict(test_data)
+    elif control['MLtype'] in ["LSTM", "CNN", "CNN_LSTM"]:        
+        predictions = ml.predict(data['X_TEST'])
         persistence = generate_persistence(meas=data["X_TEST"][:,-1,0], hor=control['H'])
     
     print("...Done!\n")
@@ -1182,11 +1025,12 @@ def TestMLmodel(control, data, ml, scaler):
     
     
     print("Building Results dictionary of Dataframes...")
+    #here we undo the scaler transformation to facilitate comparing the results with the orignal dataset
     Results={
-        "Forecasted": pd.DataFrame(scaler['Y_data'].inverse_transform(predictions)),
+        "Forecasted": pd.DataFrame(scaler['Y_data'].inverse_transform(predictions)), 
         "Observed": pd.DataFrame(scaler['Y_data'].inverse_transform(data["Y_TEST"].reshape(predictions.shape))),
         "Persistence": pd.DataFrame(scaler['Y_data'].inverse_transform(persistence)),
-        #"Persistence24": #Variant of persistence with 24 hours previous instead of latest available value
+        #"Persistence24": #Variant of persistence with 24 hours previous instead of latest available value #TODO
         }
         
     print("...Done\n")
@@ -1203,11 +1047,28 @@ def TestMLmodel(control, data, ml, scaler):
         else:
             Results[key].to_hdf(filename, index = True, mode= 'a', key = key)
         
-    print("...Done")
+    print("...Done\n")
     
     return Results
 
-def generate_persistence(meas, hor):
+def generate_persistence(meas, hor,):
+    """
+    Short function that creates the naive persistance forecasters
+
+    Parameters
+    ----------
+    meas : numpy array
+        True values, observations to be repeated
+    hor : int
+        Horizon length in number of samples
+
+    Returns
+    -------
+    df : pd.DataFrame
+        DataFrame containing the naive Persistence forecaster
+
+    """
+    
     meas = meas.reshape(len(meas),1) #it is neccessary to reshape otherwise 
     #it doesnt allow to concatenate on the columns axis
     df = meas.copy()
@@ -1225,21 +1086,20 @@ def post_process(control, RESULTS):
     ----------
     control : dict
         Control_Var
-    RESULTS : DataFrame
-        The horrible DataFrame containing three columns per forecasted horizon.
-    data : DataFrame
-        SOLETE Dataset
+    RESULTS : dict of DataFrames
+        The dict containing Forecasted, Observed, and Persistence dataframes
 
     Returns
     -------
-    RMSE : DataFrame
-        Contains the results in terms of RMSE
+    analysis : dict of DataFrame
+        Contains the results in terms of MAE, MSE, and RMSE per horizon sample, but also the residual
 
     """
     
     print("Post-processing results...")
+    print("    -Computing errors:")
     
-    RESULTS["Residual"]=RESULTS["Observed"] - RESULTS["Forecasted"] 
+    residual=RESULTS["Observed"] - RESULTS["Forecasted"] 
     
     #raw values gives us the value per horizon time step
     rmse = pd.DataFrame(mean_squared_error(RESULTS["Observed"], RESULTS["Forecasted"], squared=False, multioutput='raw_values'), columns=["Forecaster"])
@@ -1252,6 +1112,7 @@ def post_process(control, RESULTS):
         mse[error] = mean_squared_error(RESULTS["Observed"], RESULTS[error], squared=True, multioutput='raw_values')
     
         
+    #these enable the autoscaling of the plot
     ymin = min([rmse.min().min()*1.1, 0])
     ymax = max([rmse.max().max()*1.1, 0])
         
@@ -1267,17 +1128,18 @@ def post_process(control, RESULTS):
     plt.legend(rmse.columns)
     
     filename = "RMSE_" + control["MLtype"]
-    print("Saving RMSE plot as: ", filename)
+    print("    -Saving RMSE plot as: ", filename)
     plt.savefig(filename, dpi=500)
     print("...Done")
     
-    print("\n\nThe End!")
-        
     analysis ={'_description_' : 'Holds different statistics related to prediction accuracy',
             'RMSE' : rmse, #root mean squared error
             'MAE' : mae, #mean absolute error     
             'MSE' : mse, #mean squared error
+            'Residual': residual, #residual error
             }
+    
+    print("\n\nThe End!")
     
     return analysis
 
