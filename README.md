@@ -87,7 +87,7 @@ doi = "10.11583/DTU.17040626"
 
 # Corrigendum
 Versions of the SOLETE Platform up to and including v2.3 contained two major bugs.
-1. When spliting the data in training, validation, and testing sets. 
-2. In the postprocessing of results, when calculating RMSE. 
+1. When spliting the data in training, validation, and testing sets. This was directly affecting accuracy. 
+2. In the postprocessing of results, when calculating RMSE. This was affecting evaluation quality.
 
-I can only apologize for these mistakes, which have been corrected in versions v3.0 and upwards 
+I can only apologize for these mistakes, which have been corrected in versions v3.0 and upwards. 
