@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 17 14:35:08 2021
-Latest edit April 2023
+Latest edit July 2023
 
 author: Daniel Vázquez Pombo
 email: daniel.vazquez.pombo@gmail.com
@@ -546,6 +546,10 @@ def PreProcessDataset(data, control):
     X.set_index('index', inplace=True)
     Y.set_index('index', inplace=True)
     
+    #the column names are needed to id what are the input and output var names
+    xcols = X.columns
+    ycols = Y.columns
+    
     X_dict = {} #convert time series data into supervised learning compatible
     for col in X.columns: #for the input is based on the number of previous samples
         X_dict[col] = X[col]
@@ -572,13 +576,17 @@ def PreProcessDataset(data, control):
         X = pd.concat([X_dict[x] for x in X_dict], axis=1)
         Y = pd.concat([Y_dict[x] for x in Y_dict], axis=1)
         
+        #the column names must be updated 
+        xcols = X.columns
+        ycols = Y.columns
+        
         #Then we contact the arrays into a single DataFrame in order to remove al rows with nans
         XY=pd.concat([X,Y], axis=1).dropna(axis=0, how='any')
         
         del X, Y #done to release memory
         
         # split the dataset into training and testing. In general, ensemble methods do not require validation set (unlike ANN)
-        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(XY[XY.columns[0:PRE+1]], XY[XY.columns[PRE+1:]], test_size=train_val_test[-1] / 100, shuffle=False,
+        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(XY[xcols], XY[ycols], test_size=train_val_test[-1] / 100, shuffle=False,
                                                             random_state=None)
         del XY #done to release memory
 
@@ -604,6 +612,8 @@ def PreProcessDataset(data, control):
             "X_TEST": X_TEST,
             "Y_TRAIN": Y_TRAIN,
             "Y_TEST": Y_TEST,
+            "xcols": list(xcols),
+            "ycols": list(ycols),
         }
 
     elif control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
@@ -611,14 +621,38 @@ def PreProcessDataset(data, control):
         # First we concatenate all arrays by the number of variables as columns
         X = np.concatenate([X_dict[x] for x in X_dict], 2)
         Y = np.concatenate([Y_dict[x] for x in Y_dict], 2)
+                
+        if H > PRE:
+            #Now we remove the nans from the begining of the dataset (caused by the number previous samples)
+            X= X[PRE:-PRE-1,:,:]
+            Y = Y[PRE:-PRE - 1, :, :]
+            
+            #Then, we do the same with the nans in the end of the dataset (caused by horizon)
+            X = X[0:-(H), :, :]
+            Y=Y[0:-(H-PRE)-1,:,:]
+        elif PRE > H:
+            X= X[PRE:-PRE-1,:,:]
+            Y = Y[PRE:-PRE-1, :, :]
+            
+        #match lenght of arrays
+        dif = X.shape[0]-Y.shape[0]
+        if dif > 0:
+            X = X[0:-dif, :, :]
+        elif dif < 0:
+            Y = Y[0:dif, :, :]
+            
+        #remove nans
+        id_nans=np.argwhere(np.isnan(X))
+        if id_nans.any():
+            id_nans=np.unique(id_nans[:,0])
+            X=np.delete(X, id_nans, axis=0)
+            Y=np.delete(Y, id_nans, axis=0)
         
-        #Now We remove the nans from the begining of the dataset (caused by the number previous samples)
-        X= X[PRE:-PRE-1,:,:]
-        Y = Y[PRE:-PRE - 1, :, :]
-        
-        #Then, we do the same with the nans in the end of the dataset (caused by horizon)
-        X = X[0:-(H), :, :]
-        Y=Y[0:-(H-PRE)-1,:,:]
+        id_nans=np.argwhere(np.isnan(Y))
+        if id_nans.any():
+            id_nans=np.unique(id_nans[:,0])
+            X=np.delete(X, id_nans, axis=0)
+            Y=np.delete(Y, id_nans, axis=0)
         
         #again, we split the dataset in training, validation, and testing. We use a scikit learn function
         #thus we must use it twice in order to split it as we want it
@@ -675,6 +709,8 @@ def PreProcessDataset(data, control):
             "Y_TRAIN": Y_TRAIN,
             "Y_VAL": Y_VAL,
             "Y_TEST": Y_TEST,
+            "xcols": list(xcols),
+            "ycols": list(ycols),
             }
             
     else:
@@ -1014,11 +1050,13 @@ def TestMLmodel(control, data, ml, scaler):
 
     if control['MLtype'] in ['RF', "SVM"]:
         predictions=ml.predict(data['X_TEST'])
-        persistence = generate_persistence(meas=data["X_TEST"][:,-1,], hor=control['H'])
+        persistence = generate_persistence(meas=data["X_TEST"][:,data["xcols"].index(control["IntrinsicFeature"]+"_(t)"),],
+                                           hor=control['H'])
             
     elif control['MLtype'] in ["LSTM", "CNN", "CNN_LSTM"]:        
         predictions = ml.predict(data['X_TEST'])
-        persistence = generate_persistence(meas=data["X_TEST"][:,-1,0], hor=control['H'])
+        persistence = generate_persistence(meas=data["X_TEST"][:,-1,data["xcols"].index(control["IntrinsicFeature"])],
+                                           hor=control['H'])
     
     print("...Done!\n")
     

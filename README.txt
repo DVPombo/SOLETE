@@ -5,6 +5,9 @@ Daniel Vázquez Pombo https://orcid.org/0000-0001-5664-9421
 _______________________________________________________________
 Contributors:
 Mario Javier Rincon Perez https://orcid.org/0000-0003-3239-6612
+	function -> Rincon_Pombo_ThermodynamicModel()
+Jon Martínez-Rico https://orcid.org/0000-0003-0204-5272
+	reported a bug in RunMe_matlab.m
 _______________________________________________________________
 Related publications:
 https://github.com/DVPombo/SOLETE -> GitHub repository.

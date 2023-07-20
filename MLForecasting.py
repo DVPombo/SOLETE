@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 17 14:35:08 2021
-Latest edit April 2023
+Latest edit July 2023
 
 author: Daniel Vázquez Pombo
 email: daniel.vazquez.pombo@gmail.com
@@ -89,7 +89,7 @@ DISCLAIMERS:
 3- SVM will take for ever if run in this way for the whole set. An alternative programming 
     based on this -> https://stackoverflow.com/questions/31681373/making-svm-run-faster-in-python    
     was employed in when researching what ended up becoming [4]. 
-4- I put together the dataset and this scripts in a couple of days, so do not expect them to be pretty or 100% error free.
+4- I put together the dataset and these scripts in a couple of days, so do not expect them to be pretty or 100% error free.
 """
 
 from Functions import import_SOLETE_data, import_PV_WT_data, PreProcessDataset  
@@ -112,7 +112,7 @@ Control_Var = {
                         'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 
                         'HoursOfDay', 'MeanPrevH', 'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
                         ],
-    'MLtype' : 'RF', # RF SVM LSTM CNN CNN_LSTM
+    'MLtype' : 'CNN', # RF SVM LSTM CNN CNN_LSTM
     'H' : 10, #horizon length in number of samples
     'PRE' : 5, #previous samples to be used in the predictor
     }  
@@ -121,7 +121,7 @@ Control_Var = {
 # edit this dictionaries to tailor-made the ML model that you want 
 
 RF = {'_description_' : 'Holds the values related to Random Forest',
-        'n_trees' : 100, #number of trees
+        'n_trees' : 1, #number of trees
         'random_state' : 32, #initialization number, can be removed for random seed generation
         }
 
