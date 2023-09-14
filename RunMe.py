@@ -19,14 +19,18 @@ The licensing of this work is pretty chill, just give credit: https://creativeco
 
 import pandas as pd
 import matplotlib.pyplot as plt
-from Functions import import_PV_WT_data
+from Functions import import_PV_WT_data, error_msg
 
 #%% Import Data
-DATA=pd.read_hdf('SOLETE_short.h5')
-# DATA=pd.read_hdf('SOLETE_Pombo_1sec.h5') #WARNING, this file is huge, consider only reading a piece of it.
-# DATA=pd.read_hdf('SOLETE_Pombo_1min.h5')
-# DATA=pd.read_hdf('SOLETE_Pombo_5min.h5')
-# DATA=pd.read_hdf('SOLETE_Pombo_60min.h5')
+try:
+    DATA=pd.read_hdf('SOLETE_short.h5')
+    # DATA=pd.read_hdf('SOLETE_Pombo_1sec.h5') #WARNING, this file is huge, consider only reading a piece of it.
+    # DATA=pd.read_hdf('SOLETE_Pombo_1min.h5')
+    # DATA=pd.read_hdf('SOLETE_Pombo_5min.h5')
+    # DATA=pd.read_hdf('SOLETE_Pombo_60min.h5')
+except FileNotFoundError:
+    error_msg(key = "missing_SOLETE_datafile")
+    
 PVinfo, WTinfo = import_PV_WT_data()
 
 #%% Plot a bit of data

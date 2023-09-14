@@ -1199,12 +1199,20 @@ def error_msg(key):
 
     """
     
-    if key == "resolution":
+    if key == "missing_SOLETE_datafile": 
+        print("ERROR: SOLETE dataset not found.\n")
+        print("Worry not, it is easy to fix:")
+        print("     1-Make sure you have downloaded the dataset from:  https://doi.org/10.11583/DTU.17040767.v3")
+        print("     2-Extract the .zip in the same directory as the RunMe.py and MLForecasting.py files")
+        print("     3-Try running the script again. If it fails, double check the spelling of the file's name")
+        print("     Available options: 1sec, 1min, 5min or 60min")
+        
+    elif key == "resolution":
         print("ERROR: You have selected a resolution that is not available.\n")
         print("Worry not, it is easy to fix:")
         print("     1-Go to the code section: Control The Script")
         print("     2-Edit the dict Control_Var[resolution]")
-        print("     Available options: 5min or 1h")
+        print("     Available options: 1sec, 1min, 5min or 60min")
     
     elif key == "missing_expanded_SOLETE":
         print("ERROR: You have selected Import a expanded SOLETE dataset.")
@@ -1229,7 +1237,7 @@ def error_msg(key):
         print("     5-Revert Control_Var[SOLETE_builvsimport] back to Import")
         print("It should be fixed now, try to import again.\n\n\n")        
         
-        
+    print("\n")    
     sys.exit("Did I do that? ¯\_(ツ)_/¯ \n\n\nCheck at the top for hints on what went wrong!!!")
     #yes, that was a reference to good old Steve Urkel
     pass
