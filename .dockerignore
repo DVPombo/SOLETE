@@ -1,0 +1,34 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Large/external data files. The full SOLETE dataset is fetched/mounted
+# separately at runtime (see README) -- but the small SOLETE_short.h5 sample
+# that ships with the repo (~9 KB) is intentionally kept, since RunMe.py reads
+# it by default and it's harmless to bake into the image.
+*.h5
+!SOLETE_short.h5
+*.hdf5
+*.csv
+*.mat
+data/
+
+# Editors / OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
