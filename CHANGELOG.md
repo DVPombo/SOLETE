@@ -7,11 +7,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Changed
 - Bumped all pinned dependencies in `requirements.txt` to their latest stable releases (pandas 3.0.5, numpy 2.5.3, matplotlib 3.11.1, scikit-learn 1.9.0, TensorFlow 2.21.0 / Keras 3.15.1, CoolProp 8.0.0) and the target interpreter to Python 3.13, replacing the original Python 3.9.12 / pandas 1.5.0 / TensorFlow-Keras 2.10.0 / scikit-learn 1.1.2 pins, which no longer install on a current Python.
-- Dropped `environment.yml` / conda support -- pip + `requirements.txt` only, per maintainer's request.
+- Included `requirements.txt`to ease installation.
 - Updated `Dockerfile` base image from `python:3.9-slim` to `python:3.13-slim` to match.
 
 ### Known issues (not fixed here — packaging only)
-- `Functions.py`'s `post_process()` calls `sklearn.metrics.mean_squared_error(..., squared=...)`, an argument scikit-learn has since removed. This breaks `MLForecasting.py`'s error-computation step under the new pins. See the note at the top of `requirements.txt` for two fix options; deferred to Phase 0.5.
+- `Functions.py`'s `post_process()` calls `sklearn.metrics.mean_squared_error(..., squared=...)`, an argument scikit-learn has since removed. This breaks `MLForecasting.py`'s error-computation step under the new pins. 
 
 <!-- add further entries here as work lands -->
 
@@ -53,15 +53,3 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - First tagged, citable release: minimum running scripts to load the SOLETE dataset and reproduce the "Data in Brief" paper's review materials.
 - Initial `README.md` describing the dataset and repository purpose.
-
-<!-- Note: an earlier v0.1 tag (2021-11-18) exists in git history before v1.0; -->
-<!-- not broken out separately here since Task 0.3 only requested notes for -->
-<!-- v1.0, v2.0, v2.3, and v3.0+. Its commits are folded into the v1.0 entry above. -->
-
-[Unreleased]: #
-[3.0]: releases/v3.0_notes.md
-[2.3]: releases/v2.3_notes.md
-[2.2]: releases/v2.3_notes.md
-[2.1]: releases/v2.3_notes.md
-[2.0]: releases/v2.0_notes.md
-[1.0]: releases/v1.0_notes.md
