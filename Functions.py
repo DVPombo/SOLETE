@@ -26,7 +26,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.multioutput import MultiOutputRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, root_mean_squared_error
 
 from keras.models import Sequential
 from keras.layers import LSTM
@@ -88,7 +88,7 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
         
         if Control_Var["SOLETE_save"]==True:
-            df.to_hdf(name_import, 'name', mode='w')
+            df.to_hdf(name_import, key='name', mode='w')
             
     elif Control_Var["SOLETE_builvsimport"]=='Import':
         
@@ -1140,14 +1140,14 @@ def post_process(control, RESULTS):
     residual=RESULTS["Observed"] - RESULTS["Forecasted"] 
     
     #raw values gives us the value per horizon time step
-    rmse = pd.DataFrame(mean_squared_error(RESULTS["Observed"], RESULTS["Forecasted"], squared=False, multioutput='raw_values'), columns=["Forecaster"])
+    rmse = pd.DataFrame(root_mean_squared_error(RESULTS["Observed"], RESULTS["Forecasted"], multioutput='raw_values'), columns=["Forecaster"])
     mae = pd.DataFrame(mean_absolute_error(RESULTS["Observed"], RESULTS["Forecasted"], multioutput='raw_values'), columns=["Forecaster"])
-    mse = pd.DataFrame(mean_squared_error(RESULTS["Observed"], RESULTS["Forecasted"], squared=True, multioutput='raw_values'), columns=["Forecaster"])
+    mse = pd.DataFrame(mean_squared_error(RESULTS["Observed"], RESULTS["Forecasted"], multioutput='raw_values'), columns=["Forecaster"])
     
     for error in ["Persistence"]: #["Persistence", "Persistence24"]
-        rmse[error] = mean_squared_error(RESULTS["Observed"], RESULTS[error], squared=False, multioutput='raw_values')
+        rmse[error] = root_mean_squared_error(RESULTS["Observed"], RESULTS[error], multioutput='raw_values')
         mae[error] = mean_absolute_error(RESULTS["Observed"], RESULTS[error], multioutput='raw_values')
-        mse[error] = mean_squared_error(RESULTS["Observed"], RESULTS[error], squared=True, multioutput='raw_values')
+        mse[error] = mean_squared_error(RESULTS["Observed"], RESULTS[error], multioutput='raw_values')
     
         
     #these enable the autoscaling of the plot
@@ -1161,8 +1161,8 @@ def post_process(control, RESULTS):
     plt.ylim(ymin, ymax) 
     plt.ylabel( "RMSE" )
     plt.xlabel( "Time Horizon" )
-    plt.title("RMSE=" + str(round(rmse.mean()[0], 3)) + " MAE = " + str(round(mae.mean()[0], 3))\
-              +" MSE = "+ str(round(mse.mean()[0], 3)))
+    plt.title("RMSE=" + str(round(rmse.mean().iloc[0], 3)) + " MAE = " + str(round(mae.mean().iloc[0], 3))\
+              +" MSE = "+ str(round(mse.mean().iloc[0], 3)))
     plt.legend(rmse.columns)
     
     filename = "RMSE_" + control["MLtype"]

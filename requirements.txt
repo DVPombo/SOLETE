@@ -2,7 +2,7 @@
 # Author: Daniel Vázquez Pombo (daniel.vazquez.pombo@gmail.com)
 # Content licensed CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
 #
-# Updated dependencies to the latest stable releases as of 2026-09-08.
+# Updated dependencies to the latest stable releases as of 2026-09-09.
 
 pandas==3.0.5
 numpy==2.5.3

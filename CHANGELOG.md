@@ -11,7 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Updated `Dockerfile` base image from `python:3.9-slim` to `python:3.13-slim` to match.
 
 ### Known issues (not fixed here — packaging only)
+- `Functions.py`'s `post_process()` called `sklearn.metrics.mean_squared_error(..., squared=False/True)`, an argument scikit-learn removed in 1.4+. Replaced with `root_mean_squared_error()` (for the former `squared=False` calls) and bare `mean_squared_error()` (for the former `squared=True` calls, now equivalent to the old default). This unblocks `MLForecasting.py`'s error-computation step under the new pins.
 - `Functions.py`'s `post_process()` calls `sklearn.metrics.mean_squared_error(..., squared=...)`, an argument scikit-learn has since removed. This breaks `MLForecasting.py`'s error-computation step under the new pins. 
+- While verifying the above against the real pinned stack, `post_process()` raised a second, unrelated `KeyError` from `rmse.mean()[0]` / `mae.mean()[0]` / `mse.mean()[0]`: pandas 3.0 removed the integer-position fallback in `Series.__getitem__`, so indexing a label-indexed Series with `[0]` now raises instead of warning. Changed to `.mean().iloc[0]` (explicit positional access) in all three spots.
+- Verified: imported `Functions.py` directly and called `post_process()` against the real pinned stack (pandas 3.0.5, numpy 2.4.4, scikit-learn 1.9.0, TensorFlow 2.21.0, CoolProp 8.0.0) with synthetic Observed/Forecasted/Persistence data — ran end-to-end with correct RMSE/MSE/MAE output and no errors. Also re-ran `RunMe.py` end-to-end after the change to confirm no regression. Both were run on Python 3.12 (no 3.13 interpreter available in the sandbox); wheel availability for 3.13 was already confirmed separately for every pinned package.
+- Not yet run: the real `MLForecasting.py` training pipeline against actual data (that needs a full LSTM/RF/SVR training run with real datasets, which wasn't exercised here) — the synthetic-data test above targets the specific bug in `post_process()`, not a full pipeline regression test.
+
 
 <!-- add further entries here as work lands -->
 
