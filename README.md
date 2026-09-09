@@ -4,6 +4,8 @@ LinkedIn: https://www.linkedin.com/in/dvp/<br/>
 ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo   
 ORCID: https://orcid.org/0000-0001-5664-9421
 
+See [CHANGELOG.md](CHANGELOG.md) for release history, including the v3.0 corrigendum.
+
 This repository used to be complementary material to its twin "Data in Brief" article [1], and a series of papers covering Solar PV power forecasting [2, 3, 4]. The objective is to increase the transparency of my work, which is one of the main limitations of Machine Learning in general.
 However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
 I included a number of functions that can be used by beginners to kickstart their projects with solar power, machine learning, forecasting, or simply python.
@@ -15,15 +17,13 @@ Version v1.0 was released during the PhD thus, Copyright 2021 Technical Universi
 Version v2.0 was released months after finalising my employment at DTU, therefore, Copyright belongs to me (yeah baby!).
 
 # Dependencies
-1. Python 3.9.12 
-2. Pandas 1.5.0 
-3. Numpy 1.23.1
-4. Matplotlib 3.6.0
-5. Scikit-Learn 1.1.2 
-6. Keras 2.10.0
-7. TensorFlow 2.10.0
-8. CoolProp 6.4.3   
+The pinned dependency versions live in `requirements.txt` -- see the Setup section below. Target interpreter: Python 3.13 (the newest Python that every pinned package currently ships wheels for). You will also need:
 9. The SOLETE dataset [1] -> https://doi.org/10.11583/DTU.17040767 
+
+## Setup
+```
+pip install -r requirements.txt
+```
 
 # How to use
 1. Store the SOLETE dataset in the same folder as the scripts from this repository 
@@ -91,3 +91,9 @@ Versions of the SOLETE Platform up to and including v2.3 contained two major bug
 2. In the postprocessing of results, when calculating RMSE. This was affecting evaluation quality.
 
 I can only apologize for these mistakes, which have been corrected in versions v3.0 and upwards. 
+
+# Run with Docker
+```
+docker build -t solete .
+docker run --rm -v $(pwd)/data:/app/data solete
+```

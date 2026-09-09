@@ -16,7 +16,7 @@
 %
 % If you encounter any troubles using it let me know and I will see what I can do.
 % 
-% The licensing of this work is pretty chill, just give credit: https://creativecommons.org/licenses/by/4.0/
+% The licensing of this work is pretty chill, just give credit.
 % 
 %% Select File to Import
 clc, clear,

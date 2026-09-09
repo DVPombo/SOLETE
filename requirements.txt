@@ -1,0 +1,15 @@
+# SOLETE platform — pinned dependencies
+# Author: Daniel Vázquez Pombo (daniel.vazquez.pombo@gmail.com)
+# Content licensed CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
+#
+# Updated dependencies to the latest stable releases as of 2026-09-08.
+
+pandas==3.0.5
+numpy==2.5.3
+matplotlib==3.11.1
+scikit-learn==1.9.0
+tensorflow==2.21.0
+keras==3.15.1
+CoolProp==8.0.0
+tables==3.11.1     
+joblib==1.6.0      
