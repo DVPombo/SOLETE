@@ -581,7 +581,13 @@ def PreProcessDataset(data, control):
         ycols = Y.columns
         
         #Then we contact the arrays into a single DataFrame in order to remove al rows with nans
-        XY=pd.concat([X,Y], axis=1).dropna(axis=0, how='any')
+        #X and Y are reset to a unique positional index first: the row order between
+        #them is already correct (both were built by shifting the same underlying
+        #time series), but their original DatetimeIndex can carry duplicate
+        #timestamps (a known SOLETE data quirk) and the padding step upstream can
+        #append multiple NaN-labelled rows, either of which pandas now refuses to
+        #align/reindex during concat.
+        XY=pd.concat([X.reset_index(drop=True), Y.reset_index(drop=True)], axis=1).dropna(axis=0, how='any')
         
         del X, Y #done to release memory
         
@@ -867,15 +873,15 @@ def train_LSTM(data, control):
     features= control["PossibleFeatures"].copy()
     features.remove(control["IntrinsicFeature"])
     
-    train_data = data['X_TRAIN'].values.reshape(len(data['X_TRAIN'].index), pre+1, len(features))
-    validation_data = data['X_VAL'].values.reshape(len(data['X_VAL'].index), pre+1, len(features))
-    
-    train_target = data['Y_TRAIN'].values.reshape(len(data['Y_TRAIN'].index),hor)
-    validation_target = data['Y_VAL'].values.reshape(len(data['Y_VAL'].index),hor)
+    train_data = data['X_TRAIN']#already a correctly-shaped (samples, pre+1, n_features) array from PreProcessDataset
+    validation_data = data['X_VAL']
+
+    train_target = data['Y_TRAIN']#already a correctly-shaped (samples, hor) array from PreProcessDataset
+    validation_target = data['Y_VAL']
     
     ##### Designing Neuronal Network #######
     ML = Sequential() #initialize
-    ML.add(Masking(mask_value=999, input_shape=(pre+1, len(features)))) #add the mask so 999 = nan and are not taken into account
+    ML.add(Masking(mask_value=999, input_shape=(train_data.shape[1], train_data.shape[2]))) #add the mask so 999 = nan and are not taken into account
     if control['LSTM']['Dense'][0] > 0: #add a dense if the number of neurons is higher than 0
         ML.add(Dense(control['LSTM']['Dense'][0]))
     if len(control["LSTM"]["Neurons"]) > 1: #if there is another LSTM coming afterwards we need the true
@@ -981,11 +987,11 @@ def train_CNN_LSTM(data, control):
     features= control["PossibleFeatures"].copy()
     features.remove(control["IntrinsicFeature"])
     
-    train_data = data['X_TRAIN'].values.reshape(len(data['X_TRAIN'].index), pre+1, len(features))
-    validation_data = data['X_VAL'].values.reshape(len(data['X_VAL'].index), pre+1, len(features))
-    
-    train_target = data['Y_TRAIN'].values.reshape(len(data['Y_TRAIN'].index),hor)
-    validation_target = data['Y_VAL'].values.reshape(len(data['Y_VAL'].index),hor)
+    train_data = data['X_TRAIN']#already a correctly-shaped (samples, pre+1, n_features) array from PreProcessDataset
+    validation_data = data['X_VAL']
+
+    train_target = data['Y_TRAIN']#already a correctly-shaped (samples, hor) array from PreProcessDataset
+    validation_target = data['Y_VAL']
     
     ##### Designing Neuronal Network #######
     ML = Sequential() #initialize
@@ -997,7 +1003,7 @@ def train_CNN_LSTM(data, control):
     if control['CNN_LSTM']['Dense'][1] > 0: #we only add the dense one if the number of neurons is higher than 0
                 ML.add(Dense(control['CNN_LSTM']['Dense'][1], activation = 'relu'))
     
-    ML.add(Masking(mask_value=999, input_shape=(pre+1, len(features)))) #add the mask so 999 = nan and are not taken into account
+    ML.add(Masking(mask_value=999, input_shape=(train_data.shape[1], train_data.shape[2]))) #add the mask so 999 = nan and are not taken into account
     ML.add(LSTM(control["CNN_LSTM"]["Neurons"][0], input_shape=(train_data.shape[1], train_data.shape[2]),
                 activation = control["CNN_LSTM"]["LSTMActFun"],
                 bias_initializer = "zeros", kernel_initializer = "random_uniform",
