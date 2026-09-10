@@ -148,7 +148,7 @@ LSTM = {'_description_' : 'Holds the values related to LSTM ANN design',
 
 CNN = {'_description_' : 'Holds the values related to LSTM NN design',
         'n_batch' : 16, #see note in LSTM
-        'epo_num' : 100, #see note in LSTM
+        'epo_num' : 3, #see note in LSTM
         'filters' : 32, #number of nodes per layer, usually top layers have higher values
         'kernel_size' : 2, #size of the filter used to extract features
         'pool_size' : 3, #down sampling feature maps in order to gain robustness to changes

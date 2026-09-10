@@ -203,7 +203,11 @@ def ExpandSOLETE(data, info, Control_Var):
     list_expansion.append('TempCell')
     
     print("    Cleaning noise and curtailment from active power production")
-    data['P_Solar[kW]'] =  np.where(data['Pac'] >= 1.5*data['P_Solar[kW]'],
+    #flags every row where the measured P_Solar[kW] is about to be silently replaced by King's
+    #model estimate (Pac), so the substitution is traceable downstream instead of being invisible.
+    data['P_Solar_model_substituted'] = data['Pac'] >= 1.5*data['P_Solar[kW]']
+    list_expansion.append('P_Solar_model_substituted')
+    data['P_Solar[kW]'] =  np.where(data['P_Solar_model_substituted'],
                                     data['Pac'], data['P_Solar[kW]'])
     print("    Smoothing zeros")
     data['P_Solar[kW]'] =  np.where(data['P_Solar[kW]'] <= 0.001,
@@ -301,9 +305,11 @@ def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]', coltemp='TEMPER
         
         
         Results['Pac_' + pv] =  DATA_PV.loc[pv, 'eff_max_%']/100 * Results['Pmp_array_' + pv]
-        Results[Results['Pac_' + pv]>DATA_PV.loc[pv, 'eff_max_P']]=DATA_PV.loc[pv, 'eff_max_P'] #If any of the Pac is > than the maximum capacity of the inverter 
-        # then use the max capacity of the inverter
-        Results[Results['Pac_' + pv]<0]=0
+        #If any of the Pac is > than the maximum capacity of the inverter, then use the max capacity of the inverter.
+        #NOTE: this must only touch the Pac_<pv> column -- Results[mask]=value (without .loc[mask, col]) applies
+        #the scalar to every column of Results for the masked rows, silently clobbering Tm/Tc/Pmp_panel/Pmp_array/eff_inv too.
+        Results.loc[Results['Pac_' + pv]>DATA_PV.loc[pv, 'eff_max_P'], 'Pac_' + pv]=DATA_PV.loc[pv, 'eff_max_P']
+        Results.loc[Results['Pac_' + pv]<0, 'Pac_' + pv]=0
         
     return Results[['Pac_A', 'Pac_B']].sum(axis=1)/1000, Results[['Pmp_array_A', 'Pmp_array_B']].sum(axis=1)/1000, Results[['Tm_A', 'Tm_B']].mean(axis=1), Results[['Tc_A', 'Tc_B']].mean(axis=1)
 
@@ -342,7 +348,7 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
     gradLimiter = 5  # max gradT allowed without limiter applied
     # PV cells
     # E_STC = 1000  # Solar irradiance W/m^2
-    E_POA = data['POA Irr[kW1m2]'] * 1000  # Solar irradiance W/m^2
+    E_POA = data['POA Irr[kW1m2]'].to_numpy() * 1000  # Solar irradiance W/m^2
     # E_POA = data['GHI[kW/m2]'] * E_STC
     epsilon = 0.3  # radiative emissivity (glass)
     SB = 5.670374419e-8  # stefan boltzmann constant
@@ -355,13 +361,20 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
     R = 8.31432e3  # ideal gas constant
     R_a = 285.9  # dry air gas constant
     R_w = 461.5  # water vapour constant
-    T = 273.15 + data['TEMPERATURE[degC]']  # dry bulb temperature K
-    p = data['Pressure[mbar]'] * 100  # pressure Pa
+    T = (273.15 + data['TEMPERATURE[degC]']).to_numpy()  # dry bulb temperature K
+    p = data['Pressure[mbar]'].to_numpy() * 100  # pressure Pa
+    #plain numpy arrays for everything indexed by [i] in the loop below: these Series carry the
+    #dataset's DatetimeIndex, and pandas no longer allows integer keys like [i] to fall back to
+    #positional access on a non-integer index -- it now always treats them as (nonexistent) labels
+    #and raises KeyError. Working on arrays makes the intended positional access unambiguous, and
+    #also lets the humidity clip below actually persist across the rest of the same iteration.
+    humidity = data['HUMIDITY[%]'].to_numpy().copy()
+    wind_speed = data['WIND_SPEED[m1s]'].to_numpy()
     
     # Initial variables declaration
     Nu = 0
     T_plot = np.array([])
-    T_PV = 273.15 + data['TempModule'][0]  # initialise temperature of PV cell
+    T_PV = 273.15 + data['TempModule'].iloc[0]  # initialise temperature of PV cell
     A = pv["L"] * pv["W"]  # PV area
     
     gradT = np.array([])
@@ -378,25 +391,25 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
         # CONVECTION
         # Thermophysical properties of air and fluid mechanics variables
         rho_a = p[i] / (R_a * T[i])  # density of dry air
-        if data['HUMIDITY[%]'][i] > 1:
-            data['HUMIDITY[%]'][i] = 1.0
+        if humidity[i] > 1:
+            humidity[i] = 1.0
     
     
-        rho = rho_a * (1 + data['HUMIDITY[%]'][i]) / (1 + R_w / R_a * data['HUMIDITY[%]'][i])  # density of mixture
-        mu = HAPropsSI('mu', 'P', p[i], 'T', T[i], 'R', data['HUMIDITY[%]'][i])  # dynamic viscosity
-        cp = HAPropsSI('cp_ha', 'P', p[i], 'T', T[i], 'R', data['HUMIDITY[%]'][i])  # specific heat per unit of humid air
-        k = HAPropsSI('k', 'P', p[i], 'T', T[i], 'R', data['HUMIDITY[%]'][i])  # thermal conductivity
+        rho = rho_a * (1 + humidity[i]) / (1 + R_w / R_a * humidity[i])  # density of mixture
+        mu = HAPropsSI('mu', 'P', p[i], 'T', T[i], 'R', humidity[i])  # dynamic viscosity
+        cp = HAPropsSI('cp_ha', 'P', p[i], 'T', T[i], 'R', humidity[i])  # specific heat per unit of humid air
+        k = HAPropsSI('k', 'P', p[i], 'T', T[i], 'R', humidity[i])  # thermal conductivity
         nu = mu / rho
         beta = 1 / T[i]  # thermal expansion coefficient for ideal gases
     
         # Nusslet number correlations for humidity changes
-        Re = rho * abs(data['WIND_SPEED[m1s]'][i]) * pv["L"] / mu  # Reynolds number
+        Re = rho * abs(wind_speed[i]) * pv["L"] / mu  # Reynolds number
         Pr = cp * mu / k  # Prandtl number
         Gr = g * beta * abs((T_PV - T[i])) * (A / (2 * pv["W"] + 2 * pv["L"])) ** 3 / nu ** 2  # Grashof number
         Ra = Gr * Pr  # Rayleigh number
         hx = np.array([])
         for x in np.linspace(0, pv["L"], num=100): #PVdiscretisation
-            Rex = rho * abs(data['WIND_SPEED[m1s]'][i]) * x / mu
+            Rex = rho * abs(wind_speed[i]) * x / mu
             if Rex <= 1e5:  # Laminar, similarity solutions
                 if Pr < 0.6:
                     print('Correlation does not satisfy')
