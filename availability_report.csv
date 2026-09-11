@@ -1,21 +1,21 @@
 file,key,column,inferred_resolution,expected_count,actual_non_null_count,completeness_pct,qc_valid_count,qc_missing_count,qc_sensor_error_count,qc_physically_implausible_count,qc_interpolated_count,qc_aggregation_affected_by_gaps_count,qc_suspected_curtailment_or_model_substituted_count,qc_flagged_pct_of_nonnull
-SOLETE_short.h5,DATA,TEMPERATURE[degC],0 days 01:00:00,24,24,100.0,,,,,,,,
-SOLETE_short.h5,DATA,HUMIDITY[%],0 days 01:00:00,24,24,100.0,24.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-SOLETE_short.h5,DATA,WIND_SPEED[m1s],0 days 01:00:00,24,24,100.0,,,,,,,,
-SOLETE_short.h5,DATA,WIND_DIR[deg],0 days 01:00:00,24,24,100.0,24.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-SOLETE_short.h5,DATA,GHI[kW1m2],0 days 01:00:00,24,24,100.0,,,,,,,,
-SOLETE_short.h5,DATA,POA Irr[kW1m2],0 days 01:00:00,24,24,100.0,,,,,,,,
-SOLETE_short.h5,DATA,P_Gaia[kW],0 days 01:00:00,24,24,100.0,,,,,,,,
-SOLETE_short.h5,DATA,P_Solar[kW],0 days 01:00:00,24,24,100.0,19.0,0.0,0.0,0.0,0.0,0.0,5.0,20.833
-SOLETE_short.h5,DATA,Pressure[mbar],0 days 01:00:00,24,24,100.0,24.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-SOLETE_Pombo_60min.h5,DATA,TEMPERATURE[degC],0 days 01:00:00,10969,10969,100.0,,,,,,,,
-SOLETE_Pombo_60min.h5,DATA,HUMIDITY[%],0 days 01:00:00,10969,10969,100.0,10781.0,0.0,0.0,188.0,0.0,0.0,0.0,1.714
-SOLETE_Pombo_60min.h5,DATA,WIND_SPEED[m1s],0 days 01:00:00,10969,10969,100.0,,,,,,,,
-SOLETE_Pombo_60min.h5,DATA,WIND_DIR[deg],0 days 01:00:00,10969,10969,100.0,10866.0,0.0,0.0,103.0,0.0,0.0,0.0,0.939
-SOLETE_Pombo_60min.h5,DATA,GHI[kW1m2],0 days 01:00:00,10969,10969,100.0,,,,,,,,
-SOLETE_Pombo_60min.h5,DATA,POA Irr[kW1m2],0 days 01:00:00,10969,10969,100.0,,,,,,,,
-SOLETE_Pombo_60min.h5,DATA,P_Gaia[kW],0 days 01:00:00,10969,10969,100.0,,,,,,,,
-SOLETE_Pombo_60min.h5,DATA,P_Solar[kW],0 days 01:00:00,10969,10969,100.0,6765.0,0.0,0.0,0.0,0.0,0.0,4204.0,38.326
-SOLETE_Pombo_60min.h5,DATA,Pressure[mbar],0 days 01:00:00,10969,10969,100.0,13.0,0.0,0.0,10956.0,0.0,0.0,0.0,99.881
-SOLETE_Pombo_60min.h5,DATA,Azimuth[deg],0 days 01:00:00,10969,10969,100.0,10.0,10959.0,0.0,0.0,0.0,0.0,0.0,99.909
-SOLETE_Pombo_60min.h5,DATA,Elevation[deg],0 days 01:00:00,10969,10969,100.0,9.0,10960.0,0.0,0.0,0.0,0.0,0.0,99.918
+SOLETE_short.h5,DATA,TEMPERATURE[degC],0 days 01:00:00,24,24,100,,,,,,,,
+SOLETE_short.h5,DATA,HUMIDITY[%],0 days 01:00:00,24,24,100,24,0,0,0,0,0,0,0
+SOLETE_short.h5,DATA,WIND_SPEED[m1s],0 days 01:00:00,24,24,100,,,,,,,,
+SOLETE_short.h5,DATA,WIND_DIR[deg],0 days 01:00:00,24,24,100,24,0,0,0,0,0,0,0
+SOLETE_short.h5,DATA,GHI[kW1m2],0 days 01:00:00,24,24,100,,,,,,,,
+SOLETE_short.h5,DATA,POA Irr[kW1m2],0 days 01:00:00,24,24,100,,,,,,,,
+SOLETE_short.h5,DATA,P_Gaia[kW],0 days 01:00:00,24,24,100,,,,,,,,
+SOLETE_short.h5,DATA,P_Solar[kW],0 days 01:00:00,24,24,100,19,0,0,0,0,0,5,20.833
+SOLETE_short.h5,DATA,Pressure[mbar],0 days 01:00:00,24,24,100,24,0,0,0,0,0,0,0
+SOLETE_Pombo_60min.h5,DATA,TEMPERATURE[degC],0 days 01:00:00,10969,10969,100,,,,,,,,
+SOLETE_Pombo_60min.h5,DATA,HUMIDITY[%],0 days 01:00:00,10969,10969,100,10781,0,0,188,0,0,0,1.714
+SOLETE_Pombo_60min.h5,DATA,WIND_SPEED[m1s],0 days 01:00:00,10969,10969,100,,,,,,,,
+SOLETE_Pombo_60min.h5,DATA,WIND_DIR[deg],0 days 01:00:00,10969,10969,100,10866,0,0,103,0,0,0,0.939
+SOLETE_Pombo_60min.h5,DATA,GHI[kW1m2],0 days 01:00:00,10969,10969,100,,,,,,,,
+SOLETE_Pombo_60min.h5,DATA,POA Irr[kW1m2],0 days 01:00:00,10969,10969,100,,,,,,,,
+SOLETE_Pombo_60min.h5,DATA,P_Gaia[kW],0 days 01:00:00,10969,10969,100,,,,,,,,
+SOLETE_Pombo_60min.h5,DATA,P_Solar[kW],0 days 01:00:00,10969,10969,100,6765,0,0,0,0,0,4204,38.326
+SOLETE_Pombo_60min.h5,DATA,Pressure[mbar],0 days 01:00:00,10969,10969,100,13,0,0,10956,0,0,0,99.881
+SOLETE_Pombo_60min.h5,DATA,Azimuth[deg],0 days 01:00:00,10969,10969,100,10,10959,0,0,0,0,0,99.909
+SOLETE_Pombo_60min.h5,DATA,Elevation[deg],0 days 01:00:00,10969,10969,100,9,10960,0,0,0,0,0,99.918

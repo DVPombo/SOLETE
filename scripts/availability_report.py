@@ -3,8 +3,8 @@
 availability_report.py
 
 Per-column-per-file completeness and QC-flag report, built on top of
-inspect_dataset.py's HDF5-key discovery (Phase 1) and the QC flag layer
-(Phase 2, Functions.apply_qc_flags / QC_SCHEMA.md).
+inspect_dataset.py's HDF5-key discovery and the QC flag layer
+(Functions.apply_qc_flags / QC_SCHEMA.md).
 
 For every column in every file/key, reports two related-but-distinct things:
   - completeness: expected sample count (inferred from the file's own time

@@ -44,7 +44,7 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 #yep, bad practice, see function get_results to understand why is this here :) 
 
 # ---------------------------------------------------------------------------
-# Phase 2 -- QC flag layer. See QC_SCHEMA.md at the repo root for the full
+# QC flag layer. See QC_SCHEMA.md at the repo root for the full
 # design rationale (flag semantics, mutually-exclusive vs bitmask decision,
 # precedence order, and why each detection rule looks the way it does).
 # ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ QC_FLAG_PRECEDENCE = [
     QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED,
 ]
 
-# Known placeholder/sentinel values for Pressure[mbar] (Phase 1, KNOWN_ISSUES.md
+# Known placeholder/sentinel values for Pressure[mbar] (KNOWN_ISSUES.md
 # finding #1). Kept as an explicit, easily-extended set rather than baked into
 # the detector logic -- see QC_SCHEMA.md section 5 for why a range check alone
 # can't catch the 1000.0 case.
@@ -203,8 +203,7 @@ def build_substitution_qc_rule(source_col='P_Solar_model_substituted',
         'column': source_col,
         'qc_column': qc_col,
         'flag': QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED,
-        'detector': lambda s: s == True,  # noqa: E712 (explicit bool compare
-                                           # reads clearer here than `s`)
+        'detector': lambda s: s == True,  
     }
 
 

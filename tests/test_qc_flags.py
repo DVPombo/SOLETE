@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Tests for the Phase 2 QC flag layer (Functions.apply_qc_flags and friends).
+Tests for the Quality Control flag layer (Functions.apply_qc_flags and friends).
 
-Per the maintainer's standing preference, every case is built from a real row
-pulled out of SOLETE_Pombo_60min.h5 by the exact criteria in QC_SCHEMA.md,
-with its value(s) copied inline -- not a fabricated row. The two exceptions
-are explicitly marked SYNTHETIC below: SOLETE_Pombo_60min.h5 contains no row
-with WIND_DIR[deg] exactly 360.0, and none with a negative Pressure[mbar]/
+Every case is built from a real row pulled out of SOLETE_Pombo_60min.h5 by the 
+exact criteria in QC_SCHEMA.md, with its value(s) copied inline -- not a fabricated row. 
+The two exceptions are explicitly marked SYNTHETIC below: SOLETE_Pombo_60min.h5 
+contains no row with WIND_DIR[deg] exactly 360.0, and none with a negative Pressure[mbar]/
 HUMIDITY[%]/WIND_DIR[deg] value, so those specific boundaries can't be
 sourced from the real file and are hand-built instead.
 
