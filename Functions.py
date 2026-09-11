@@ -43,6 +43,171 @@ import warnings
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 #yep, bad practice, see function get_results to understand why is this here :) 
 
+# ---------------------------------------------------------------------------
+# Phase 2 -- QC flag layer. See QC_SCHEMA.md at the repo root for the full
+# design rationale (flag semantics, mutually-exclusive vs bitmask decision,
+# precedence order, and why each detection rule looks the way it does).
+# ---------------------------------------------------------------------------
+
+QC_VALID = 0
+QC_MISSING = 1
+QC_SENSOR_ERROR = 2                    # reserved, no detector wired up yet
+QC_PHYSICALLY_IMPLAUSIBLE = 3
+QC_INTERPOLATED = 4                    # reserved, no detector wired up yet
+QC_AGGREGATION_AFFECTED_BY_GAPS = 5    # reserved, no detector wired up yet
+QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED = 6
+
+# Precedence order (highest first) used by apply_qc_flags to resolve the rare
+# case where more than one rule targets the same <column>_qc cell. None of the
+# rules below actually collide today (see QC_SCHEMA.md section 2), this is
+# just so a future rule doesn't have to invent a tie-break from scratch.
+QC_FLAG_PRECEDENCE = [
+    QC_MISSING,
+    QC_SENSOR_ERROR,
+    QC_PHYSICALLY_IMPLAUSIBLE,
+    QC_AGGREGATION_AFFECTED_BY_GAPS,
+    QC_INTERPOLATED,
+    QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED,
+]
+
+# Known placeholder/sentinel values for Pressure[mbar] (Phase 1, KNOWN_ISSUES.md
+# finding #1). Kept as an explicit, easily-extended set rather than baked into
+# the detector logic -- see QC_SCHEMA.md section 5 for why a range check alone
+# can't catch the 1000.0 case.
+KNOWN_PRESSURE_SENTINELS = {1000.0, 2000.0, 3000.0}
+# General safety net: Earth-surface sea-level-pressure record extremes (mbar).
+# Catches a future out-of-scale sentinel even if it's not in the set above.
+PRESSURE_PLAUSIBLE_RANGE = (870.0, 1085.0)
+
+
+def apply_qc_flags(data, rules):
+    """
+    Apply a list of QC detection rules to `data`, adding one <column>_qc
+    column per distinct qc_column named in `rules`. General-purpose: Task 2.2
+    uses it for the three physically-implausible-value checks, Task 2.3 reuses
+    it unchanged for the azimuth/elevation missingness check and the
+    P_Solar_model_substituted mapping.
+
+    Parameters
+    ----------
+    data : DataFrame
+        Mutated in place -- one <column>_qc column is added/updated per rule.
+    rules : list of dict
+        Each dict:
+            'column'     : source column name the detector reads from.
+            'qc_column'  : optional override for the flag column name,
+                           defaults to f"{column}_qc".
+            'flag'       : int QC flag value to assign where the detector
+                           returns True (see the QC_* constants above).
+            'detector'   : callable(pd.Series) -> boolean Series, True where
+                           that flag applies.
+        Process rules in QC_FLAG_PRECEDENCE order (highest priority first) if
+        more than one rule ever targets the same qc_column, so a
+        lower-priority rule never overwrites a cell a higher-priority rule
+        already flagged. Cells no rule touches default to QC_VALID.
+
+    Returns
+    -------
+    data : DataFrame
+        Same object passed in (mutated), returned for convenience/chaining.
+    counts : dict
+        {qc_column: number_of_rows_flagged_by_this_rule} -- for sanity checks
+        and logging. If two rules share a qc_column, later (lower-precedence)
+        rules only count cells they actually got to flag (i.e. that weren't
+        already claimed by a higher-precedence rule), matching what ends up
+        on disk.
+    """
+    ordered_rules = sorted(
+        rules,
+        key=lambda r: QC_FLAG_PRECEDENCE.index(r['flag'])
+        if r['flag'] in QC_FLAG_PRECEDENCE else len(QC_FLAG_PRECEDENCE),
+    )
+
+    counts = {}
+    for rule in ordered_rules:
+        col = rule['column']
+        if col not in data.columns:
+            print(f"apply_qc_flags: column '{col}' not found, skipping "
+                  f"rule for '{rule.get('qc_column', col + '_qc')}'")
+            continue
+
+        qc_col = rule.get('qc_column', f"{col}_qc")
+        flag = rule['flag']
+        mask = rule['detector'](data[col])
+
+        if qc_col not in data.columns:
+            data[qc_col] = QC_VALID
+
+        # Mutually exclusive: don't clobber a cell a higher-precedence rule
+        # (processed earlier, since we sorted by precedence) already flagged.
+        available = data[qc_col] == QC_VALID
+        apply_mask = mask & available
+        data.loc[apply_mask, qc_col] = flag
+
+        counts[qc_col] = counts.get(qc_col, 0) + int(apply_mask.sum())
+
+    return data, counts
+
+
+def build_raw_value_qc_rules(data):
+    """
+    QC rules for findings #1-#4 (KNOWN_ISSUES.md / QC_SCHEMA.md section 3):
+    Pressure/Humidity/WindDir physically-implausible values, and the
+    Azimuth/Elevation missingness proxy. Only returns rules whose source
+    column actually exists in `data` -- SOLETE_short.h5 has no
+    Azimuth[deg]/Elevation[deg], for example, and apply_qc_flags would skip
+    them anyway, but building the list this way keeps the caller's log clean.
+    """
+    candidates = [
+        {
+            'column': 'Pressure[mbar]',
+            'flag': QC_PHYSICALLY_IMPLAUSIBLE,
+            'detector': lambda s: s.isin(KNOWN_PRESSURE_SENTINELS)
+                | (s < PRESSURE_PLAUSIBLE_RANGE[0])
+                | (s > PRESSURE_PLAUSIBLE_RANGE[1]),
+        },
+        {
+            'column': 'HUMIDITY[%]',
+            'flag': QC_PHYSICALLY_IMPLAUSIBLE,
+            'detector': lambda s: (s > 1.0) | (s < 0.0),
+        },
+        {
+            'column': 'WIND_DIR[deg]',
+            'flag': QC_PHYSICALLY_IMPLAUSIBLE,
+            'detector': lambda s: (s >= 360.0) | (s < 0.0),
+        },
+        {
+            'column': 'Azimuth[deg]',
+            'flag': QC_MISSING,
+            'detector': lambda s: s == 0.0,
+        },
+        {
+            'column': 'Elevation[deg]',
+            'flag': QC_MISSING,
+            'detector': lambda s: s == 0.0,
+        },
+    ]
+    return [r for r in candidates if r['column'] in data.columns]
+
+
+def build_substitution_qc_rule(source_col='P_Solar_model_substituted',
+                                qc_col='P_Solar[kW]_qc'):
+    """
+    QC rule for finding #6: folds the existing P_Solar_model_substituted
+    boolean (added in Phase 0.5, computed in ExpandSOLETE from
+    Pac >= 1.5*P_Solar[kW]) into the unified <column>_qc convention, without
+    touching the substitution logic itself. True -> flag 6
+    (suspected_curtailment_or_model_substituted), False -> flag 0 (valid).
+    """
+    return {
+        'column': source_col,
+        'qc_column': qc_col,
+        'flag': QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED,
+        'detector': lambda s: s == True,  # noqa: E712 (explicit bool compare
+                                           # reads clearer here than `s`)
+    }
+
+
 def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
     """
     Imports different versions of SOLETE depending on the inputs:
@@ -85,6 +250,12 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         
         print("SOLETE was imported with a resolution of: ", Control_Var['resolution'], "\n")
         
+        #QC flags for raw-value issues (Phase 2, see QC_SCHEMA.md). Computed here,
+        #directly on the raw columns, rather than deferred into ExpandSOLETE --
+        #none of these rules depend on anything ExpandSOLETE derives.
+        _, qc_counts = apply_qc_flags(df, build_raw_value_qc_rules(df))
+        print("QC flags applied:", qc_counts, "\n")
+        
         ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
         
         if Control_Var["SOLETE_save"]==True:
@@ -100,6 +271,18 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         print("SOLETE was imported:")
         print("    -resolution: ", Control_Var['resolution'])
         print("    -version: Expanded. ")
+        
+        #QC flags (Phase 2): recomputed from the raw columns rather than trusted
+        #from disk. This is deliberately self-healing -- if a saved _Expanded.h5
+        #file ever had its _qc columns dropped below (because they weren't listed
+        #in Control_Var['PossibleFeatures'], the same registration gap that
+        #already affects P_Solar_model_substituted, see QC_SCHEMA.md section 7),
+        #this regenerates them here from the still-present raw columns instead of
+        #silently going without. Note this only sticks if the caller's
+        #PossibleFeatures *also* lists the _qc columns -- otherwise the drop loop
+        #a few lines down removes them again immediately after.
+        _, qc_counts = apply_qc_flags(df, build_raw_value_qc_rules(df))
+        print("QC flags (re)applied on Import:", qc_counts)
         
         for col in Control_Var['PossibleFeatures']: #if the possiblefeature includes
         #something that was not in the import file, execution is killed with an error message
@@ -207,6 +390,12 @@ def ExpandSOLETE(data, info, Control_Var):
     #model estimate (Pac), so the substitution is traceable downstream instead of being invisible.
     data['P_Solar_model_substituted'] = data['Pac'] >= 1.5*data['P_Solar[kW]']
     list_expansion.append('P_Solar_model_substituted')
+    #Phase 2: fold the substitution boolean into the unified QC schema
+    #(finding #6, QC_SCHEMA.md section 3) without changing the substitution
+    #logic above -- same boolean, just also exposed as P_Solar[kW]_qc.
+    _, qc_counts = apply_qc_flags(data, [build_substitution_qc_rule()])
+    list_expansion.append('P_Solar[kW]_qc')
+    print("    QC flag (substitution):", qc_counts)
     data['P_Solar[kW]'] =  np.where(data['P_Solar_model_substituted'],
                                     data['Pac'], data['P_Solar[kW]'])
     print("    Smoothing zeros")
@@ -219,6 +408,12 @@ def ExpandSOLETE(data, info, Control_Var):
         data['TempModule_RP'] = Rincon_Pombo_ThermodynamicModel(data, info[0])
         list_expansion.append('TempModule_RP')
     
+    #Phase 2: also register the raw-value QC columns computed earlier in
+    #import_SOLETE_data() (before ExpandSOLETE ran), so the "features added"
+    #accounting below reflects them too, same treatment as Pac/Pdc/etc.
+    list_expansion.extend(c for c in data.columns
+                           if c.endswith('_qc') and c not in list_expansion)
+
     for expansion in list_expansion: #this is than simply to print a nice statement about which types are added
         if expansion in all_expansions: all_expansions.remove(expansion)
     
