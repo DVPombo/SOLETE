@@ -299,6 +299,52 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         
     return df
 
+
+def import_SOLETE_sample(path, Control_Var, PVinfo, WTinfo):
+    """
+    Phase 3 convenience wrapper (see examples/) -- lets the lightweight
+    notebook sample files (e.g. SOLETE_sample.h5) go through the same
+    intended entry point as import_SOLETE_data()'s 'Build' branch (raw-value
+    QC flags, then ExpandSOLETE()'s PV-model expansion and substitution
+    flag) without needing to match the SOLETE_Pombo_<resolution>.h5 naming
+    convention import_SOLETE_data() assumes for the full-size real files.
+
+    Does not modify import_SOLETE_data() or its behavior for the real
+    files -- this is an additive wrapper for an explicit file path.
+
+    Parameters
+    ----------
+    path : str
+        Path to the sample .h5 file to load (e.g. 'SOLETE_sample.h5').
+    Control_Var : dict
+        Same Control_Var dict used elsewhere; only 'OriginalFeatures' is
+        set/overwritten here, mirroring import_SOLETE_data()'s 'Build' branch.
+    PVinfo, WTinfo : dict
+        As returned by import_PV_WT_data().
+
+    Returns
+    -------
+    df : DataFrame
+        The sample dataset, expanded exactly as import_SOLETE_data()'s
+        'Build' branch would (QC flags + King's PV performance model).
+    """
+    df = pd.read_hdf(path)
+    print(f"SOLETE sample was imported from: {path}")
+    print(f"    {len(df)} rows, {df.index.min()} .. {df.index.max()}\n")
+
+    Control_Var['OriginalFeatures'] = list(df.columns)
+
+    #Same raw-value QC flags as import_SOLETE_data()'s 'Build' branch
+    #(see QC_SCHEMA.md) -- computed here so the notebooks demonstrate the
+    #real entry point rather than bypassing it with a bare pd.read_hdf.
+    _, qc_counts = apply_qc_flags(df, build_raw_value_qc_rules(df))
+    print("QC flags applied:", qc_counts, "\n")
+
+    ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
+
+    return df
+
+
 def import_PV_WT_data():
     """
     Returns
