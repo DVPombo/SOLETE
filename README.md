@@ -47,6 +47,14 @@ I have been reached out by several people complaining that hdf5 can't be importe
 
 *I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
 
+# Examples
+New to SOLETE? The notebooks in `examples/` walk through the dataset on a small sample file, so you can get a feel for it without downloading the full dataset first. Each has an "Open in Colab" badge to run it straight in the browser.
+
+- [`examples/01_dataset_overview.ipynb`](examples/01_dataset_overview.ipynb) — first look at SOLETE: loading the sample data and exploring its columns and structure.
+- [`examples/02_data_quality.ipynb`](examples/02_data_quality.ipynb) — walks through the QC flag layer and the data-quality issues it catches.
+- [`examples/03_pv_forecasting.ipynb`](examples/03_pv_forecasting.ipynb) — a small persistence-vs-Random-Forest forecasting demo for solar PV power.
+- [`examples/04_wind_forecasting.ipynb`](examples/04_wind_forecasting.ipynb) — the same forecasting demo for wind power, including a data note on the turbine's near-zero output in this dataset.
+
 # How to cite this:
 Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:
 
