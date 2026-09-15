@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Dataset / code questions
+    url: https://github.com/DVPombo/SOLETE/discussions
+    about: For general usage questions, please use Discussions (once enabled) instead of a blank issue.
