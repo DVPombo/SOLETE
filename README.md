@@ -1,4 +1,7 @@
 # SOLETE
+
+**2026 Note that we are in active development and the main branch might not be stable. Please use the latest release available on the right-hand side of this page**
+
 Author: **Daniel Vázquez Pombo** - Contact: daniel.vazquez.pombo@gmail.com<br/>
 LinkedIn: https://www.linkedin.com/in/dvp/<br/>
 ResearchGate: https://www.researchgate.net/profile/Daniel-Vazquez-Pombo   
