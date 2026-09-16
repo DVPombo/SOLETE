@@ -1,0 +1,36 @@
+{
+  "model": "climatology",
+  "description": "Hour-of-day average from train (see module docstring for why month-of-year is not used)",
+  "split_version": "v1",
+  "horizon": "1 step (1h)",
+  "fitting": "train only (hour-of-day means)",
+  "targets": {
+    "pv_power": {
+      "qc_included": {
+        "n": 2953,
+        "mae": 0.6288999974533025,
+        "rmse": 1.0459729592533362,
+        "nrmse_capacity": 0.1405877633405022,
+        "nrmse_mean": 0.8067570559939343
+      },
+      "qc_excluded": {
+        "n": 2202,
+        "mae": 0.8430328540358133,
+        "rmse": 1.2112752892393137,
+        "nrmse_capacity": 0.1628058184461443,
+        "nrmse_mean": 0.6966570563818638
+      }
+    },
+    "wind_power": {
+      "qc_included": {
+        "n": 2953,
+        "mae": 0.055342527674676144,
+        "rmse": 0.6117794350721133,
+        "nrmse_capacity": 0.05561631227928303,
+        "nrmse_mean": 11.764860953020222
+      },
+      "qc_excluded": null,
+      "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See splits/README.md."
+    }
+  }
+}

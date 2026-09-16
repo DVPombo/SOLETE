@@ -1,0 +1,71 @@
+{
+  "model": "gradient_boosting",
+  "library": "lightgbm",
+  "description": "LightGBM regressor on lagged target + same-timestamp weather + calendar features (see module docstring)",
+  "split_version": "v1",
+  "horizon": "1 step (1h)",
+  "fitting": "fit on train, hyperparameters selected on val by RMSE",
+  "feature_set": {
+    "lags": [
+      1,
+      2,
+      3,
+      24
+    ],
+    "meteorological_same_timestamp": [
+      "GHI[kW1m2]",
+      "POA Irr[kW1m2]",
+      "WIND_SPEED[m1s]",
+      "TEMPERATURE[degC]"
+    ],
+    "calendar": [
+      "hour",
+      "month",
+      "hour_sin",
+      "hour_cos",
+      "doy_sin",
+      "doy_cos"
+    ]
+  },
+  "targets": {
+    "pv_power": {
+      "qc_included": {
+        "n": 2953,
+        "mae": 0.011273830290340346,
+        "rmse": 0.02536493386450334,
+        "nrmse_capacity": 0.0034092653043687284,
+        "nrmse_mean": 0.019563927718184264
+      },
+      "qc_excluded": {
+        "n": 2202,
+        "mae": 0.01498492608863001,
+        "rmse": 0.029370557514690677,
+        "nrmse_capacity": 0.0039476555799315425,
+        "nrmse_mean": 0.01689228396240822
+      },
+      "chosen_hyperparameters": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "val_rmse_at_chosen_params": 0.04229985963284231
+    },
+    "wind_power": {
+      "qc_included": {
+        "n": 2953,
+        "mae": 0.047566431488931776,
+        "rmse": 0.5175373052215483,
+        "nrmse_capacity": 0.04704884592923166,
+        "nrmse_mean": 9.952532048114026
+      },
+      "qc_excluded": null,
+      "chosen_hyperparameters": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "val_rmse_at_chosen_params": 0.005833508448000106,
+      "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See splits/README.md."
+    }
+  }
+}

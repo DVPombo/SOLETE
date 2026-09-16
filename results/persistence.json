@@ -1,0 +1,36 @@
+{
+  "model": "persistence",
+  "description": "y_hat(t) = y(t-1h)",
+  "split_version": "v1",
+  "horizon": "1 step (1h)",
+  "fitting": "none (no train-set fitting; history lookback only)",
+  "targets": {
+    "pv_power": {
+      "qc_included": {
+        "n": 2953,
+        "mae": 0.43378677615180167,
+        "rmse": 0.6985656219144961,
+        "nrmse_capacity": 0.0938932287519484,
+        "nrmse_mean": 0.5388024036076563
+      },
+      "qc_excluded": {
+        "n": 2202,
+        "mae": 0.5805770822828183,
+        "rmse": 0.8089340379799493,
+        "nrmse_capacity": 0.10872769327687491,
+        "nrmse_mean": 0.46525311852115636
+      }
+    },
+    "wind_power": {
+      "qc_included": {
+        "n": 2953,
+        "mae": 0.01232121458403884,
+        "rmse": 0.22383800361274725,
+        "nrmse_capacity": 0.020348909419340658,
+        "nrmse_mean": 4.30453009293324
+      },
+      "qc_excluded": null,
+      "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See splits/README.md."
+    }
+  }
+}

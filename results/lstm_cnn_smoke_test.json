@@ -1,0 +1,58 @@
+{
+  "model": "lstm_cnn_cnn_lstm_smoke_test",
+  "status": "REDUCED-EPOCH RUN -- epo_num per architecture: {'LSTM': 20, 'CNN': None, 'CNN_LSTM': 20} (CNN's is its own unmodified original default; LSTM/CNN_LSTM reduced from their original 1000 -- see ASK FIRST note in module docstring). Loss curves converge/plateau at this epoch count (see training logs) but this is still not the full original run; treat as indicative, not final.",
+  "split_version": "v1",
+  "horizon": "1 step (1h)",
+  "pre_window": 5,
+  "architectures_source": "Functions.py: train_LSTM / train_CNN / train_CNN_LSTM (imported, unmodified)",
+  "results": {
+    "LSTM": {
+      "pv_power": {
+        "n": 2953,
+        "mae": 0.2765804211011846,
+        "rmse": 0.5392986743488617,
+        "nrmse_capacity": 0.0724863809608685,
+        "nrmse_mean": 0.41596009435052844
+      },
+      "wind_power": {
+        "n": 2953,
+        "mae": 0.04539300500558529,
+        "rmse": 0.523304367872026,
+        "nrmse_capacity": 0.047573124352002366,
+        "nrmse_mean": 10.063435890741932
+      }
+    },
+    "CNN": {
+      "pv_power": {
+        "n": 2953,
+        "mae": 0.35566660638409214,
+        "rmse": 0.5667638880573984,
+        "nrmse_capacity": 0.07617794194319871,
+        "nrmse_mean": 0.43714396412242057
+      },
+      "wind_power": {
+        "n": 2953,
+        "mae": 0.04972654537751533,
+        "rmse": 0.5708398652855751,
+        "nrmse_capacity": 0.05189453320777955,
+        "nrmse_mean": 10.97757011190472
+      }
+    },
+    "CNN_LSTM": {
+      "pv_power": {
+        "n": 2953,
+        "mae": 0.28774812892143664,
+        "rmse": 0.5495901267318786,
+        "nrmse_capacity": 0.07386964068976862,
+        "nrmse_mean": 0.42389787300242715
+      },
+      "wind_power": {
+        "n": 2953,
+        "mae": 0.05332142103277426,
+        "rmse": 0.6119037863495919,
+        "nrmse_capacity": 0.05562761694087199,
+        "nrmse_mean": 11.767252297686282
+      }
+    }
+  }
+}
