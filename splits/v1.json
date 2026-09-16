@@ -1,0 +1,64 @@
+{
+  "split_version": "v1",
+  "created": "2026-09-16",
+  "source_file": "SOLETE_Pombo_60min.h5",
+  "resolution": "60min",
+  "method": "chronological time-based blocks (NOT a random row shuffle) -- see CHANGELOG.md v3.0 corrigendum for why a shuffled split was historically a bug in this project",
+  "preprocessing_before_splitting": [
+    "loaded via Functions.import_SOLETE_data(Control_Var={'resolution':'60min','SOLETE_builvsimport':'Build', ...}, PVinfo, WTinfo)",
+    "df = df.sort_index()  # KNOWN_ISSUES.md #8: the 60min file's rows are NOT stored in chronological order on disk; import_SOLETE_data() does not sort internally, so this must be done by the caller before any split/rolling-window logic",
+    "QC columns (<column>_qc) and PV-expansion columns (Pac, Pdc, P_Solar[kW]_qc, etc.) are already present at this point, produced by the same Build path used everywhere else in this repo"
+  ],
+  "full_dataset": {
+    "n_rows": 10969,
+    "start": "2018-06-01T00:00:00",
+    "end": "2019-09-01T00:00:00",
+    "is_monotonic_increasing_after_sort": true
+  },
+  "blocks": {
+    "train": {
+      "start": "2018-06-01T00:00:00",
+      "end": "2019-03-31T23:00:00",
+      "n_rows": 7296,
+      "pct_of_total": 66.51,
+      "wind_active_rows_P_Gaia_gt_0": 24,
+      "pv_qc6_model_substituted_rows": 3232,
+      "pv_qc0_valid_rows": 4064
+    },
+    "val": {
+      "start": "2019-04-01T00:00:00",
+      "end": "2019-04-30T23:00:00",
+      "n_rows": 720,
+      "pct_of_total": 6.56,
+      "wind_active_rows_P_Gaia_gt_0": 0,
+      "pv_qc6_model_substituted_rows": 221,
+      "pv_qc0_valid_rows": 499
+    },
+    "test": {
+      "start": "2019-05-01T00:00:00",
+      "end": "2019-09-01T00:00:00",
+      "n_rows": 2953,
+      "pct_of_total": 26.92,
+      "wind_active_rows_P_Gaia_gt_0": 24,
+      "pv_qc6_model_substituted_rows": 751,
+      "pv_qc0_valid_rows": 2202
+    }
+  },
+  "boundary_timestamps": {
+    "train_end_inclusive": "2019-03-31T23:00:00",
+    "val_start_inclusive": "2019-04-01T00:00:00",
+    "val_end_inclusive": "2019-04-30T23:00:00",
+    "test_start_inclusive": "2019-05-01T00:00:00"
+  },
+  "boundary_choice_rationale": "Boundaries are NOT a plain 70/15/15 (or similar) proportional cut. A plain proportional cut (train 0-70%, val 70-85%, test 85-100%) was checked and rejected: it would have put the dataset's second wind-active day (2019-05-25, at the 78.3% mark of the full timeline) inside val instead of test, leaving test with ZERO rows where P_Gaia[kW] > 0 -- i.e. a wind-power test set that is trivially all-zero and would make every model's wind metrics meaningless (a persistence baseline would score a perfect 0.000 MAE/RMSE on wind for the wrong reason). Boundaries were moved to guarantee train contains the first wind-active day (2018-08-31) and test contains the second (2019-05-25), while keeping the split still purely chronological (no row-shuffling, no cherry-picked individual rows -- whole contiguous months were adjusted). The single-populated azimuth/elevation day (2019-01-16, KNOWN_ISSUES.md #7) falls in train either way and was not a factor in this decision, since Azimuth/Elevation are not benchmark targets.",
+  "decisions": {
+    "wind_benchmark_scope": {
+      "decision": "INCLUDED -- v1 canonical benchmark covers both PV (P_Solar[kW]) and wind (P_Gaia[kW]) power targets.",
+      "caveat_required_everywhere": "P_Gaia[kW] is exactly 0 for 10,921 of 10,969 rows (99.56%) in the full record; the only non-zero readings are 24 rows on 2018-08-31 and 24 rows on 2019-05-25 (48 rows total, 0.44%), despite thousands of hours elsewhere with wind speed above the turbine's 3.5 m/s cut-in (per examples/SAMPLE_DATA.md's prior finding). Most plausibly the turbine was out of service for nearly the entire 15-month record. This caveat MUST be shown wherever wind results are presented (BENCHMARKS.md, any future leaderboard UI/API) -- a wind-power score on this dataset is overwhelmingly a score on an all-zero target, and near-perfect scores reflect that, not forecasting skill."
+    },
+    "pv_qc6_model_substituted_rows": {
+      "decision": "FLAGGED, NOT AUTO-EXCLUDED -- P_Solar[kW]_qc == 6 rows (model-substituted, ~38% of the full record) are kept in train, val, AND test. The column is preserved through the split so each baseline/model/metric call decides for itself whether to pass a QC-exclusion mask (see metrics.py, Task 5.2).",
+      "rationale": "This differs from examples/03_pv_forecasting.ipynb's own convention (which excludes qc==6 rows from its evaluation) by maintainer choice for the canonical benchmark: exclusion is now the metrics module's job via an explicit, opt-in mask argument, not something baked into the split itself. This keeps the split reusable for both 'strict, sensor-only evaluation' and 'evaluate on everything, note the caveat' use cases without needing a second split version."
+    }
+  }
+}
