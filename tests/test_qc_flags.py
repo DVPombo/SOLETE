@@ -34,6 +34,8 @@ from Functions import (
     apply_qc_flags,
     build_raw_value_qc_rules,
     build_substitution_qc_rule,
+    import_SOLETE_data,
+    import_PV_WT_data,
     QC_VALID,
     QC_MISSING,
     QC_PHYSICALLY_IMPLAUSIBLE,
@@ -46,6 +48,23 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 @pytest.fixture(scope="module")
 def real_60min():
     return pd.read_hdf(REPO_ROOT / "SOLETE_Pombo_60min.h5")
+
+
+@pytest.fixture(scope="module")
+def real_60min_expanded():
+    # Canonical loading recipe (Build, no save), copied from
+    # bench_common.load_full_df / splits/README.md, so this exercises the
+    # exact same ExpandSOLETE path the benchmark scripts and notebooks do,
+    # including the Phase 6 P_hybrid[kW] QC-inheritance step.
+    Control_Var = {
+        "resolution": "60min",
+        "SOLETE_builvsimport": "Build",
+        "SOLETE_save": False,
+        "OriginalFeatures": [],
+        "PossibleFeatures": [],
+    }
+    PVinfo, WTinfo = import_PV_WT_data()
+    return import_SOLETE_data(Control_Var, PVinfo, WTinfo).sort_index()
 
 
 @pytest.fixture(scope="module")
@@ -281,3 +300,27 @@ def test_missing_source_column_is_skipped_not_raised():
     result_df, counts = apply_qc_flags(df, build_raw_value_qc_rules(df))
     assert counts == {}
     assert result_df is df
+
+
+# ---------------------------------------------------------------------------
+# P_hybrid[kW] QC inheritance (Phase 6, Task 6.1) -- regression coverage
+# added in Phase 7 Session 1, per Phase 6's own suggested test coverage.
+#
+# There is no wind ('P_Gaia[kW]') QC detection rule today (checked against
+# build_raw_value_qc_rules() / QC_SCHEMA.md section 3 -- neither defines one),
+# so on the real 60min file P_hybrid[kW]_qc can currently only ever reflect
+# P_Solar[kW]_qc, and P_hybrid[kW]_qc_source can currently never be
+# 'P_Gaia[kW]'. These two tests pin that *current* behavior so that if a
+# future session adds a wind QC rule, the resulting change in
+# P_hybrid[kW]_qc/_qc_source is a deliberate, visible test update -- not a
+# silent behavior change that inheritance logic in Functions.py hides.
+# ---------------------------------------------------------------------------
+
+def test_hybrid_qc_equals_solar_qc_on_real_60min_file_today(real_60min_expanded):
+    df = real_60min_expanded
+    assert (df["P_hybrid[kW]_qc"] == df["P_Solar[kW]_qc"]).all()
+
+
+def test_hybrid_qc_source_never_attributes_to_wind_today(real_60min_expanded):
+    df = real_60min_expanded
+    assert not (df["P_hybrid[kW]_qc_source"] == "P_Gaia[kW]").any()
