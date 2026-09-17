@@ -175,6 +175,57 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
 
 ---
 
+### 10. `P_Gaia[kW]` near-total zero-degeneracy — root cause unconfirmed (Phase 6) — **OPEN**
+- **What it is:** `P_Gaia[kW]` is exactly `0.0` for 10,921 of 10,969 rows (99.56%) across
+  the full real 15-month record. The only non-zero readings are 24 rows on 2018-08-31 and
+  24 rows on 2019-05-25 (48 rows, 0.44%) — despite thousands of hours elsewhere with wind
+  speed above the turbine's 3.5 m/s cut-in. This was already flagged as a benchmark
+  caveat in `splits/README.md` (Phase 5); this entry is about *why*.
+- **Test-split-specific numbers (Phase 6, Task 6.0, computed directly against
+  `splits/v1.json`'s test block, 2,953 rows, 2019-05-01 to 2019-09-01):**
+  - Wind-active rows: 24 of 2,953 (**0.81%**) — all on 2019-05-25, the split's only
+    wind-active day (by design, see `splits/README.md`'s boundary-choice rationale).
+  - Wind's share of `P_hybrid[kW] = P_Solar[kW] + P_Gaia[kW]` total **energy**: **3.86%**.
+  - Wind's share of `P_hybrid[kW]` **variance**: **11.36%** — notably higher than its
+    energy share, because the handful of active-day readings include some large spikes
+    rather than a steady small contribution; this is not evidence of a strong signal, just
+    of a spiky small one.
+  - Solar↔wind covariance in test: **0.0068** (correlation ≈ 0.007, effectively zero).
+    `var(solar) + var(wind) = 3.262` vs. the actual `var(hybrid) = 3.276` — matches a
+    near-zero covariance almost exactly, i.e. as close to "no interaction between the two
+    signals" as this kind of check can show.
+- **Two candidate explanations, both unconfirmed, neither preferred by this repo's code
+  or data alone:**
+  1. **Turbine out of service.** The original Phase 5 write-up's leading guess — physically
+     plausible (11 kW research turbines at a single site can sit idle for maintenance,
+     grid-connection, or project reasons for long stretches), but nothing in this repo
+     (logbook, maintenance record, status column) confirms it either way.
+  2. **Resolution/aggregation pipeline artifact.** `RESOLUTIONS.md` already found a related,
+     *confirmed-symptom* problem in the same aggregation pipeline: `WIND_DIR[deg]` in this
+     same 60min file holds 103 rows (0.94%) above the physically-valid 360° compass range,
+     a pattern consistent with a non-circular-mean bug in whatever built the coarser
+     resolution files from the finer ones (see `RESOLUTIONS.md` and finding #6 above). No
+     aggregation code or finer-resolution (`1sec`/`1min`/`5min`) source file exists in this
+     repo to check directly against, for either `WIND_DIR[deg]` or `P_Gaia[kW]` — so this
+     explanation is equally unconfirmed, not equally unlikely. A pipeline step that zeroes
+     out (rather than mis-averages) a channel under some condition is a different failure
+     mode than the angle-wrapping bug, but the same root uncertainty applies: **this repo
+     cannot rule in or rule out either explanation from what's available in it.**
+- **Current status:** Open. Filed with the same "confirmed symptom / unconfirmed
+  mechanism" framing as finding #6, deliberately — the near-total-zero pattern is real and
+  verified directly against the real file; *why* it's that way is not established.
+  `<!-- TODO: confirm with maintainer -->` — the maintainer's stated plan (2026-09) is to
+  pursue raw/finer-resolution data from the original SYSLAB/DTU project to settle this
+  empirically, the same way a finer-resolution file would let `RESOLUTIONS.md`'s
+  wind-direction question be checked directly instead of left circumstantial.
+- **What a user should do in the meantime:** Treat any wind or hybrid (`P_hybrid[kW]`)
+  result on this dataset as **infrastructure/methodology**, not a demonstrated finding
+  about wind behavior or wind-solar complementarity, until this is resolved — see
+  `examples/05_hybrid_forecasting.ipynb` and `BENCHMARKS.md`'s hybrid section for the full
+  scoping. Do not cite a "joint beats independent" or "ramp-smoothing" result from this
+  phase as general evidence about SOLETE's wind turbine or Danish wind-solar
+  complementarity broadly — at most it's evidence about two specific calendar days.
+
 ## Housekeeping (not a data-quality issue — process gap only)
 
 ### 9. CHANGELOG entries and regression tests still missing for the three Phase 0.5 fixes
@@ -206,3 +257,4 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
 | 7 | `Azimuth`/`Elevation[deg]` effectively unpopulated | `SOLETE_Pombo_60min.h5` | Open |
 | 8 | Unsorted row order on disk | `SOLETE_Pombo_60min.h5` | Open (usage caveat) |
 | 9 | CHANGELOG/tests missing for Phase 0.5 fixes | n/a (process) | Housekeeping, open |
+| 10 | `P_Gaia[kW]` near-total zero-degeneracy, root cause unconfirmed | `SOLETE_Pombo_60min.h5` | Open |

@@ -448,7 +448,55 @@ def ExpandSOLETE(data, info, Control_Var):
                                       0, data['P_Solar[kW]'])
     data['Pac'] =  np.where(data['Pac'] <= 0.001,
                                       0, data['Pac'])
-    
+
+    print("    Adding derived hybrid wind+solar column (Phase 6, Task 6.1)")
+    #P_hybrid[kW] = P_Solar[kW] + P_Gaia[kW], computed AFTER the substitution/
+    #zero-smoothing above so it uses the same finalized P_Solar[kW] everything
+    #else in this dataset sees -- not the raw pre-cleaning sensor value.
+    #
+    #IMPORTANT CAVEAT (see splits/README.md and KNOWN_ISSUES.md finding #10):
+    #P_Gaia[kW] is genuinely nonzero on only ~0.4-0.8% of rows across the real
+    #record (depending on split block) -- this column is overwhelmingly
+    #P_Solar[kW] in practice, not a balanced wind+solar hybrid signal. That
+    #limitation is documented at the data level, not hidden here.
+    data['P_hybrid[kW]'] = data['P_Solar[kW]'] + data['P_Gaia[kW]']
+    list_expansion.append('P_hybrid[kW]')
+
+    #QC inheritance (Task 6.1, QC_SCHEMA.md section 8): P_hybrid[kW]_qc takes
+    #whichever constituent's flag is higher-precedence per QC_FLAG_PRECEDENCE
+    #(same tie-break apply_qc_flags itself uses), tagged in a companion
+    #P_hybrid[kW]_qc_source column so a reader can tell which constituent (or
+    #neither) produced the flag. P_Gaia[kW] has no QC detection rule of its own
+    #today -- checked against build_raw_value_qc_rules() / QC_SCHEMA.md section
+    #3, neither exists -- so in practice this currently only ever reflects
+    #P_Solar[kW]_qc. The combination is still written generically against
+    #whatever '<constituent>_qc' columns exist, so it starts covering wind too
+    #the moment a wind QC rule is added, with no further code change here.
+    solar_qc = data['P_Solar[kW]_qc'].to_numpy()
+    if 'P_Gaia[kW]_qc' in data.columns:
+        wind_qc = data['P_Gaia[kW]_qc'].to_numpy()
+    else:
+        wind_qc = np.full(len(data), QC_VALID)
+
+    def _qc_rank(flag):
+        return (QC_FLAG_PRECEDENCE.index(flag)
+                if flag in QC_FLAG_PRECEDENCE else len(QC_FLAG_PRECEDENCE))
+    rank = np.vectorize(_qc_rank)
+    solar_rank, wind_rank = rank(solar_qc), rank(wind_qc)
+
+    solar_wins = (solar_qc != QC_VALID) & (solar_rank <= wind_rank)
+    wind_wins = (wind_qc != QC_VALID) & ~solar_wins
+
+    data['P_hybrid[kW]_qc'] = np.where(
+        solar_wins, solar_qc, np.where(wind_wins, wind_qc, QC_VALID))
+    data['P_hybrid[kW]_qc_source'] = np.where(
+        solar_wins, 'P_Solar[kW]', np.where(wind_wins, 'P_Gaia[kW]', 'none'))
+    list_expansion.append('P_hybrid[kW]_qc')
+    list_expansion.append('P_hybrid[kW]_qc_source')
+    print(f"    P_hybrid[kW] QC: "
+          f"{int((data['P_hybrid[kW]_qc'] != QC_VALID).sum())} rows flagged "
+          f"(inherited from constituents)")
+
     if 'TempModule_RP' in Control_Var['PossibleFeatures']: #advanced thermodynamic model
         data['TempModule_RP'] = Rincon_Pombo_ThermodynamicModel(data, info[0])
         list_expansion.append('TempModule_RP')

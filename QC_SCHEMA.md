@@ -133,3 +133,36 @@ decision above:
   (and `P_Solar_model_substituted`, which was already exposed to this risk before this
   phase) to that list, or they'll be dropped on load from a saved expanded file — the same
   underlying gap, not something this phase introduces.
+
+## 8. Derived/combined columns — QC inheritance (Task 6.1)
+
+Phase 6 adds the first *derived-from-two-columns* target, `P_hybrid[kW]` (=
+`P_Solar[kW] + P_Gaia[kW]`, see `DATA_DICTIONARY.md`). Nothing above covers how a
+combined column's QC flag should be built from its constituents' flags — this section
+closes that gap.
+
+**Checked first: does `P_Gaia[kW]` have a QC column of its own?** No. None of the six
+Phase 1/2 findings target it, `build_raw_value_qc_rules()` has no rule keyed on it, and
+`ExpandSOLETE()` never touches it. This isn't an oversight being fixed here — the raw
+`P_Gaia[kW]` values that exist all pass the kind of physically-implausible/missing checks
+finding #1–#4 look for; the column's real problem (near-total zero-degeneracy, see
+`KNOWN_ISSUES.md` #10) isn't a per-row data-quality defect, it's a documented dataset-level
+caveat that lives in `splits/README.md` and `KNOWN_ISSUES.md`, not a `_qc` flag. Flagging
+every zero row as suspect would be wrong — most of them may be genuinely zero output on a
+calm day; the issue is the *pattern*, not any individual value.
+
+**Rule (implemented in `ExpandSOLETE`, `Functions.py`):** `P_hybrid[kW]_qc` takes
+whichever constituent's flag ranks higher in `QC_FLAG_PRECEDENCE` (the same precedence
+order `apply_qc_flags` already uses for same-cell collisions); `0` (`valid`) if both
+constituents are valid. A companion column, `P_hybrid[kW]_qc_source`, records which
+constituent produced the flag (`'P_Solar[kW]'`, `'P_Gaia[kW]'`, or `'none'`), so a QC-flag
+value alone never leaves a reader guessing which half of the sum triggered it.
+
+Because `P_Gaia[kW]` has no QC rule today, `P_hybrid[kW]_qc_source` is currently always
+either `'P_Solar[kW]'` or `'none'` in practice — real data confirms this: on the full
+60min record, all 4,204 `P_hybrid[kW]_qc == 6` rows trace back to `P_Solar[kW]_qc`, zero to
+wind. The combination logic itself doesn't hardcode that asymmetry, though — it's written
+against whichever `'<constituent>_qc'` columns exist on `data`, so if a wind QC rule is
+ever added (e.g. under `QC_AGGREGATION_AFFECTED_BY_GAPS`, reserved flag `5`, once/if the
+resolution-aggregation question in `KNOWN_ISSUES.md` #10 is resolved), `P_hybrid[kW]_qc`
+starts reflecting it immediately, no code change required here.

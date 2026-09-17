@@ -70,12 +70,24 @@ wind (`P_Gaia[kW]`) as forecast targets, per the maintainer's explicit choice.
 `BENCHMARKS.md`, any future API/docs): `P_Gaia[kW]` is exactly `0.0` for 10,921 of 10,969
 rows (99.56%) in the full record. The only non-zero readings are 24 rows on 2018-08-31 and
 24 rows on 2019-05-25 — 48 rows total (0.44%) — despite thousands of hours elsewhere with
-wind speed above the turbine's 3.5 m/s cut-in. Most plausibly the turbine was out of
-service for nearly the entire 15-month record (unconfirmed). **A wind-power score on this
-dataset is overwhelmingly a score on an all-zero target.** Near-perfect wind metrics are
-expected from that alone and should not be read as forecasting skill until/unless this is
-revisited (e.g. if the reason for the near-zero readings is understood and a
-better-populated wind file becomes available).
+wind speed above the turbine's 3.5 m/s cut-in. **A wind-power score on this dataset is
+overwhelmingly a score on an all-zero target.** Near-perfect wind metrics are expected
+from that alone and should not be read as forecasting skill until/unless this is
+revisited.
+
+**Why the readings are near-zero is not established — see `KNOWN_ISSUES.md` finding #10
+for the full discussion.** Two explanations are on the table, neither confirmed nor ruled
+out by anything in this repo: the turbine could have been physically out of service for
+nearly the whole record, or the near-zero pattern could be a resolution/aggregation
+pipeline artifact — the latter has real precedent, since `RESOLUTIONS.md` already found a
+related, confirmed-symptom problem (an angle-wrapping bug pattern in `WIND_DIR[deg]`) in
+the same aggregation pipeline, with no aggregation code or finer-resolution source file in
+this repo to check either issue against directly. Phase 6 (`examples/05_hybrid_forecasting.ipynb`,
+`KNOWN_ISSUES.md` #10) treats this as open and is scoped accordingly — its wind/hybrid
+results are infrastructure and methodology, not a demonstrated finding about the turbine
+or about wind-solar complementarity, pending either explanation being resolved (e.g. via
+raw/finer-resolution data from the original project, which the maintainer intends to
+pursue).
 
 ### Decision — `P_Solar[kW]_qc == 6` (model-substituted) rows (Task 5.1.3, ASK FIRST)
 

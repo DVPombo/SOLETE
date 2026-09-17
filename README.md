@@ -57,6 +57,7 @@ New to SOLETE? The notebooks in `examples/` walk through the dataset on a small 
 - [`examples/02_data_quality.ipynb`](examples/02_data_quality.ipynb) — walks through the QC flag layer and the data-quality issues it catches.
 - [`examples/03_pv_forecasting.ipynb`](examples/03_pv_forecasting.ipynb) — a small persistence-vs-Random-Forest forecasting demo for solar PV power.
 - [`examples/04_wind_forecasting.ipynb`](examples/04_wind_forecasting.ipynb) — the same forecasting demo for wind power, including a data note on the turbine's near-zero output in this dataset.
+- [`examples/05_hybrid_forecasting.ipynb`](examples/05_hybrid_forecasting.ipynb) — hybrid wind+solar forecasting (`P_hybrid[kW]`). Honestly scoped: this dataset's wind record is too sparse to demonstrate wind-solar complementarity, so the notebook documents the infrastructure and methodology (derived column, joint-vs-independent comparison, ramp-rate tooling) for reuse once better-populated wind data is available, rather than a positive complementarity claim. See `BENCHMARKS.md`'s hybrid section and `KNOWN_ISSUES.md` #10.
 
 # How to cite this:
 Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:

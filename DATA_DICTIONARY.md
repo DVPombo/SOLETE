@@ -217,6 +217,27 @@ from the maintainer or the full paper text, not be guessed here.
   See `KNOWN_ISSUES.md` for discussion of why these two rates differ so much and what
   that might imply.
 
+### `P_hybrid[kW]` *(derived column, added by `ExpandSOLETE()` in Phase 6, not present in the raw files)*
+- **Human-readable name:** Combined wind + solar active power (`P_Solar[kW] + P_Gaia[kW]`)
+- **Units:** kW
+- **Source:** Computed in `Functions.py::ExpandSOLETE()`, after `P_Solar[kW]`'s
+  substitution/zero-smoothing step, so it sums the same finalized `P_Solar[kW]` every
+  other column downstream sees — not the raw pre-cleaning sensor value.
+- **Resolution(s) it appears in:** Any resolution, once `ExpandSOLETE()` has run — same
+  in-memory/expanded-only status as `P_Solar_model_substituted` above.
+- **Read this before using it for anything complementarity-related:** `P_Gaia[kW]` is
+  exactly `0.0` on 99.56% of rows across the full 15-month record (see
+  `splits/README.md` and `KNOWN_ISSUES.md` finding #10 for the exact numbers, including
+  the test-split-specific figures computed for Phase 6). **`P_hybrid[kW]` is, in
+  practice, overwhelmingly `P_Solar[kW]` wearing a different name** — on the canonical
+  test split it's 96.1% solar energy by construction. Do not read a joint-forecasting or
+  ramp-smoothing result on this column as evidence about wind-solar complementarity in
+  general; at most it's evidence about this specific, wind-degenerate 15-month window.
+  See `examples/05_hybrid_forecasting.ipynb` for the full, honestly-scoped treatment.
+- **QC:** `P_hybrid[kW]_qc` (+ companion `P_hybrid[kW]_qc_source`) — see `QC_SCHEMA.md`
+  section 8 for the inheritance rule. `P_Gaia[kW]` itself has no QC column (checked, not
+  assumed — see that section), so today this only ever reflects `P_Solar[kW]_qc`.
+
 ---
 
 ## Column-set comparison between the two real files

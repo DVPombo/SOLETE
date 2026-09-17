@@ -1,0 +1,57 @@
+{
+  "task": "6.3 -- ramp-rate / volatility analysis",
+  "decision_gate": "Task 6.0 chose path (b). See KNOWN_ISSUES.md #10.",
+  "part_1_test_split_wide": {
+    "scope": "All 2,953 test-split rows, general characterization, not gated on wind activity.",
+    "abs_delta_P_solar_kw": {
+      "n": 2952,
+      "mean": 0.4339337228916905,
+      "median": 0.1991414097443141,
+      "std": 0.547688209773679,
+      "max": 4.700630448780199,
+      "p50": 0.1991414097443141,
+      "p90": 1.269614308229166,
+      "p95": 1.5225582333236578,
+      "p99": 2.2432853491261575
+    },
+    "abs_delta_P_hybrid_kw": {
+      "n": 2952,
+      "mean": 0.44419130513812227,
+      "median": 0.20191091779312237,
+      "std": 0.5894906050084077,
+      "max": 7.669987777777784,
+      "p50": 0.20191091779312237,
+      "p90": 1.273351790257424,
+      "p95": 1.5284789363682403,
+      "p99": 2.3585883001956476
+    },
+    "rows_where_hybrid_and_solar_ramp_differ_at_all": 25,
+    "rows_where_hybrid_and_solar_ramp_differ_pct": 0.847,
+    "interpretation": "Across the full test split, P_hybrid's and P_Solar's ramp-rate distributions are effectively identical (matching means/medians/percentiles above to 2-3 significant figures) -- the two series differ at all in only 25 of 2952 scored rows (0.847%), which is consistent with wind being active on 0.81% of test rows and contributing a small, spiky term when it is. This is NOT evidence of a general ramp-smoothing (or ramp-worsening) effect from wind on this dataset -- it is evidence there is almost no wind signal present in the test split to smooth or worsen anything with."
+  },
+  "part_2_two_known_active_days_case_study": {
+    "scope": "n=2 calendar days ONLY -- not a general claim, see module docstring.",
+    "days": {
+      "2018-08-31": {
+        "in_split": "train",
+        "wind_active_hours": 24,
+        "max_abs_delta_hybrid_kw": 2.136493333333326,
+        "max_abs_delta_solar_kw": 1.7878538888888966,
+        "hours_where_hybrid_and_solar_ramps_differ": 25,
+        "largest_single_divergence_kw": 1.6006626005901259
+      },
+      "2019-05-25": {
+        "in_split": "test",
+        "wind_active_hours": 24,
+        "max_abs_delta_hybrid_kw": 7.669987777777784,
+        "max_abs_delta_solar_kw": 2.075813611111126,
+        "hours_where_hybrid_and_solar_ramps_differ": 25,
+        "largest_single_divergence_kw": 7.669987777777784
+      }
+    }
+  },
+  "figures": [
+    "results/hybrid_ramp_rate_histogram.png",
+    "results/hybrid_ramp_rate_active_days.png"
+  ]
+}

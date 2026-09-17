@@ -104,6 +104,50 @@ reduced/default-epoch LSTM-CNN-family caveat) and apply identically here.
 
 ---
 
+## Hybrid wind+solar (`P_hybrid[kW]`, Phase 6)
+
+> **This is not a leaderboard table — read the caveat before the numbers.**
+> `P_hybrid[kW] = P_Solar[kW] + P_Gaia[kW]` inherits wind's near-total zero-degeneracy
+> (`KNOWN_ISSUES.md` #10): on the v1 test split, wind is active on only 24 of 2,953 rows
+> (0.81%), contributing 3.86% of `P_hybrid[kW]`'s total energy and 11.36% of its variance,
+> with solar↔wind covariance of ~0.0068 (correlation ≈ 0.007 — no measurable interaction).
+> **Task 6.0's decision (path (b)): this phase's deliverable is the hybrid-forecasting
+> *infrastructure* — the derived column, the joint-vs-independent methodology, the
+> ramp-rate tooling — not a demonstrated complementarity finding.** The root cause of
+> wind's zero-degeneracy is itself unconfirmed: it may be a genuine turbine outage, or a
+> resolution-aggregation pipeline artifact (there's a confirmed related bug — `WIND_DIR[deg]`
+> out-of-range values, `RESOLUTIONS.md` — in the same pipeline). The maintainer is pursuing
+> raw/finer-resolution data from the original project to settle this; the numbers below
+> should be re-run against that data if/when it arrives, using the same `task6_2_*`/`task6_3_*`
+> scripts unchanged. Full scoping: `examples/05_hybrid_forecasting.ipynb`.
+
+**Joint vs. independent forecasting** (`task6_2_hybrid_joint_vs_independent.py`, AR(p),
+same lag-only feature protocol for all three targets, test split, n=2,953):
+
+| Approach | RMSE vs. true `P_hybrid[kW]` (kW) |
+|---|---:|
+| Independent: AR(solar) + AR(wind) predictions, summed, scored once against `P_hybrid[kW]` | 0.6045 |
+| Joint: AR(p) trained directly on `P_hybrid[kW]` | 0.5912 |
+| Difference (joint − independent) | −0.0132 |
+
+A −0.0132 kW difference on a target that is 96.1% solar energy by construction, with
+wind active on 0.81% of rows and ~zero solar-wind covariance, is **not distinguishable
+from noise**. This is neither a "joint beats independent" nor an "independent beats
+joint" finding — see the full interpretation in `results/hybrid_joint_vs_independent.json`.
+
+**Ramp-rate / volatility** (`task6_3_ramp_rate_analysis.py`, test split):
+`|ΔP_hybrid[kW]|` and `|ΔP_Solar[kW]|` have effectively identical distributions
+(matching mean/median/p90/p95/p99 to 2–3 significant figures) — the two series differ
+at all in only 25 of 2,952 scored rows (0.847%). On the two individually-known
+wind-active calendar days (2018-08-31, in train; 2019-05-25, in test), wind power adds
+on top of solar's daytime output rather than filling a gap — if anything the hybrid
+signal shows a **larger** peak-to-peak swing on those two days (e.g. 7.67 kW max
+step-change on 2019-05-25 vs. 2.08 kW for solar alone), not a smoothed one. This is a
+narrow, two-day observation, not a general claim about wind-solar ramp behavior on this
+dataset.
+
+---
+
 ## Findings worth keeping as-is (not bugs)
 
 - **Plain persistence beats smart (seasonal) persistence on PV**, qc_included (RMSE 0.699
