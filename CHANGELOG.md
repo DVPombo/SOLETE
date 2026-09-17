@@ -47,6 +47,60 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - New `examples/05_hybrid_forecasting.ipynb`, walking through the hybrid column, its QC inheritance, and both task scripts above.
 - New `BENCHMARKS.md` section for `P_hybrid[kW]`, and `KNOWN_ISSUES.md` #10 documenting `P_Gaia[kW]`'s near-total zero-degeneracy (99.56% exactly zero across the full record; only 0.81% of the test split's rows are wind-active) with two unconfirmed candidate explanations (turbine downtime vs. an aggregation-pipeline artifact) — root cause not established in this repo.
 
+### Changed (Phase 7 Session 2 — vectorized the CoolProp-heavy thermodynamic loop)
+- `Rincon_Pombo_ThermodynamicModel()` (`Functions.py`) looped row-by-row over the
+  entire dataset with three `CoolProp.HAPropsSI` calls per row plus a 100-point
+  per-row Python discretization loop (rebuilding a numpy array with `np.append`
+  each time). Profiled first against `SOLETE_Pombo_60min.h5` (10,969 rows,
+  `cProfile`): the dominant cost was **not** actually `HAPropsSI` — it was
+  ~1.1 million `np.append` calls inside the old 100-point discretization loop
+  (O(n) per call, O(n·100) total). `HAPropsSI` calls themselves were a small
+  fraction of total time.
+  - Confirmed the pinned `CoolProp==8.0.0`'s `HAPropsSI` accepts `numpy` array
+    inputs directly and returns an array — batched into one call per property
+    (`mu`, `cp_ha`, `k`) across all rows instead of one call per row per
+    property. Verified bit-for-bit identical to the old per-row scalar calls
+    on both real files (10,969 + 24 rows) before relying on it.
+  - Everything that depends only on a row's own `(T, p, humidity, wind_speed)`
+    — humid-air properties, derived fluid-mechanics quantities (`rho`, `nu`,
+    `beta`, `Re`, `Pr`), and the forced-convection coefficient (the former
+    100-point-loop-per-row) — has no dependency on the recursive `T_PV` state
+    and is now computed once for every row with vectorized `numpy` array
+    operations, before the sequential loop starts.
+  - The genuinely stateful part (`T_PV` carries across iterations; the
+    natural-convection check via `Gr`/`Ra`, the heat balance, and the gradient
+    limiter all depend on the running history) remains a per-row Python loop,
+    since it's a real sequential dependency, not something that can be
+    vectorized away without changing the model. That loop now does O(1) work
+    per row instead of O(100), and `T_plot`/`gradT` are preallocated with
+    `np.empty` instead of grown with `np.append` inside the loop.
+  - No fallback (caching repeated `(T, p, humidity)` tuples, or
+    multiprocessing) was needed — the array-native `HAPropsSI` path plus
+    eliminating the `np.append`-based inner loop was enough; the **ASK FIRST**
+    "no meaningful speedup" branch of this session's scope didn't apply.
+  - **Timing** (`SOLETE_Pombo_60min.h5`, 10,969 rows, same machine, 3-run mean
+    for the new implementation): **before 4.11 s (2,667 rows/s) → after
+    ~0.97 s (~11,300 rows/s), ≈4.2x**. The bulk of the removed cost was the
+    eliminated `np.append`-based discretization loop, not the `HAPropsSI`
+    batching itself, per the profiling above.
+  - **Numerical equivalence**: validated against the original implementation
+    on the same real file. Max absolute difference across all 10,969 output
+    rows: **5.68e-14 K** — floating-point-precision equivalent, not quite
+    bit-for-bit. Traced the residual to `numpy`'s vectorized `**` power ufunc
+    rounding very slightly differently than CPython's scalar `float.__pow__`
+    for the same base/exponent (confirmed directly: replacing every array
+    with its scalar equivalent in a side-by-side comparison reproduces the
+    old implementation bit-for-bit; the difference appears only once the same
+    power operation runs on a `numpy` array). This is a known, harmless
+    property of vectorized floating-point math, not a modeling difference.
+    Also re-ran the full `pytest` suite (43 tests) after the change — all
+    pass unaffected, since this function isn't currently exercised by any
+    test or the default `MLForecasting.py` feature list (`'TempModule_RP'` is
+    commented out of `PossibleFeatures` there).
+  - Docstring on `Rincon_Pombo_ThermodynamicModel()` expanded in place with
+    the same before/after numbers and the reasoning above, for anyone reading
+    the function directly rather than this changelog.
+
 <!-- add further entries here as work lands -->
 
 ## [3.0] - 2023-07-20

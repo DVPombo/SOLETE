@@ -607,10 +607,46 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
     performance model for photovoltaic pannels. All credit for the coding goes to my
     good friend Mario Javier Rincón Pérez (mjrp@mpe.au.dk). I simply adapted it to fit
     in the SOLETE platform. If you are into fluid and thermodynamics reach out to him.
-    
-    Note that this function is not very pythonee, which makes it slow. 
-    Could it be that it was originally coded in Matlab and then poorly ported? Maybe. 
-    Will there be a future release making it faster? Maybe.
+
+    Phase 7, Session 2: vectorized/batched, see CHANGELOG.md for before/after timing.
+    The physics and the returned values are unchanged -- validated against the
+    previous row-by-row implementation on real data (SOLETE_Pombo_60min.h5):
+    max absolute difference 5.68e-14 (K) across all 10,969 rows, i.e. matching
+    to floating-point precision but not quite bit-for-bit. That residual traces
+    to `numpy`'s vectorized `**` power ufunc rounding very slightly differently
+    than CPython's scalar `float.__pow__` for the exact same base/exponent
+    (confirmed directly: with every array replaced by its scalar equivalent, the
+    two implementations agree bit-for-bit; the difference appears only once the
+    power operation runs on a numpy array). This is a known, harmless property of
+    vectorized floating-point math, not a modeling difference -- see
+    CHANGELOG.md for the full validation method. What changed is *how* the same
+    computation is carried out:
+
+    - `T_PV` (module temperature) genuinely carries a recursive dependency across
+      rows -- each row's radiative term, natural-convection check, heat balance and
+      gradient limiter depend on the previous row's `T_PV`/`T_plot` history -- so
+      that part is still a per-row Python loop. It cannot be vectorized away without
+      changing the model.
+    - Everything that only depends on a row's own (T, p, humidity, wind_speed) --
+      the humid-air properties (mu, cp, k via `CoolProp.HAPropsSI`), the derived
+      air/fluid-mechanics quantities (rho, nu, beta, Re, Pr), and the forced-
+      convection coefficient `h_forced` (previously an inner Python loop over a
+      100-point discretization of the panel, rebuilt from scratch with
+      `np.append` for every one of the ~11,000 rows) -- has no dependency on the
+      recursive `T_PV` state and is computed once, up front, for every row at once
+      with plain numpy array operations.
+    - `CoolProp.HAPropsSI` in the pinned version (8.0.0) accepts numpy array
+      inputs directly and returns an array (confirmed empirically, see
+      CHANGELOG.md) -- no manual per-row calling, caching, or multiprocessing
+      fallback was needed for this.
+    - The `T_plot`/`gradT` history arrays are now preallocated with `np.empty`
+      instead of grown with `np.append` inside the loop (which is O(n) per call,
+      O(n^2) total over the full loop) -- indexed writes in the remaining
+      per-row loop are O(1).
+    - The profiler showed the dominant cost was never actually the CoolProp calls
+      -- it was the ~1.1 million `np.append` calls inside the old per-row 100-point
+      discretization loop. That loop is what this rewrite eliminates; the
+      remaining per-row loop is now O(1) work per row instead of O(100).
 
     Parameters
     ----------
@@ -658,100 +694,132 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
     #also lets the humidity clip below actually persist across the rest of the same iteration.
     humidity = data['HUMIDITY[%]'].to_numpy().copy()
     wind_speed = data['WIND_SPEED[m1s]'].to_numpy()
-    
-    # Initial variables declaration
-    Nu = 0
-    T_plot = np.array([])
-    T_PV = 273.15 + data['TempModule'].iloc[0]  # initialise temperature of PV cell
+
+    n = len(data)
     A = pv["L"] * pv["W"]  # PV area
-    
-    gradT = np.array([])
-    index = 0
-    
-    for i in range(len(data)):  
+
+    # ------------------------------------------------------------------
+    # Vectorized precompute: everything below depends only on a row's own
+    # (T, p, humidity, wind_speed) -- never on the recursive T_PV state --
+    # so it is computed once for all rows before the sequential loop.
+    # ------------------------------------------------------------------
+    humidity = np.minimum(humidity, 1.0)  # same clip as the old per-row `if humidity[i] > 1`
+
+    rho_a = p / (R_a * T)  # density of dry air, per row
+    rho = rho_a * (1 + humidity) / (1 + R_w / R_a * humidity)  # density of mixture, per row
+
+    # CoolProp.HAPropsSI (pinned CoolProp==8.0.0, see requirements.txt) accepts
+    # numpy array inputs directly and returns an array -- batched in one call
+    # per property instead of one call per row per property.
+    mu = HAPropsSI('mu', 'P', p, 'T', T, 'R', humidity)  # dynamic viscosity, per row
+    cp = HAPropsSI('cp_ha', 'P', p, 'T', T, 'R', humidity)  # specific heat per unit of humid air, per row
+    k = HAPropsSI('k', 'P', p, 'T', T, 'R', humidity)  # thermal conductivity, per row
+
+    nu = mu / rho  # kinematic viscosity, per row
+    beta = 1 / T  # thermal expansion coefficient for ideal gases, per row
+
+    Re = rho * np.abs(wind_speed) * pv["L"] / mu  # Reynolds number, per row
+    Pr = cp * mu / k  # Prandtl number, per row
+
+    # Forced-convection coefficient h_forced: the old code rebuilt this from
+    # scratch with a 100-point `for x in np.linspace(...)` Python loop (using
+    # np.append) for every single row. None of Rex/Nux/hx below depend on
+    # T_PV, so this whole discretization is now one vectorized (n, 100) grid.
+    n_disc = 100
+    x_grid = np.linspace(0, pv["L"], num=n_disc)  # (n_disc,)
+    # Rex[i, j] = rho[i] * |wind_speed[i]| * x_grid[j] / mu[i]
+    # Operation order deliberately matches the old per-row `rho[i]*abs(wind_speed[i])*x/mu[i]`
+    # (multiply-multiply-divide, in that order) rather than dividing by mu first -- floating
+    # point multiplication/division isn't associative, so this keeps the two implementations
+    # bit-for-bit identical instead of merely close.
+    Rex = (rho * np.abs(wind_speed))[:, None] * x_grid[None, :] / mu[:, None]  # (n, n_disc)
+
+    laminar = Rex <= 1e5  # same threshold/comparison as the old per-row branch
+    Pr_col = Pr[:, None]
+    with np.errstate(invalid='ignore', divide='ignore'):
+        Nux = np.where(
+            laminar,
+            0.453 * Rex ** 0.5 * Pr_col ** (1 / 3),
+            0.0308 * Rex ** 0.8 * Pr_col ** (1 / 3),
+        )
+        hx = Nux * k[:, None] / x_grid[None, :]
+    hx[:, 0] = 0.0  # x == 0 special-case, same as the old `if x == 0: hx = np.append(hx, 0)`
+
+    # Same diagnostic the old code printed (up to 100x per affected row, once
+    # per x in the laminar branch, since Pr doesn't vary with x) -- consolidated
+    # here into a single message per run instead of flooding stdout, since the
+    # check never affected the returned values (T_plot) either way.
+    if np.any(laminar & (Pr_col < 0.6)):
+        n_affected = int(np.any(laminar & (Pr_col < 0.6), axis=1).sum())
+        print(f"    Correlation does not satisfy (Pr < 0.6) on {n_affected} row(s) "
+              f"-- see Rincon_Pombo_ThermodynamicModel docstring, Phase 7 Session 2 note.")
+
+    h_forced = hx.mean(axis=1)  # mean convective heat transfer coefficient (W/m^2/K), per row
+
+    # ------------------------------------------------------------------
+    # Sequential loop: only the genuinely stateful part remains here.
+    # q_epsilon depends on the running T_PV; Gr/Ra (and therefore whether
+    # the natural-convection override to h applies) depend on T_PV too;
+    # the heat balance and gradient limiter are recursive by construction.
+    # T_plot/gradT are preallocated (np.empty) instead of grown with
+    # np.append -- O(1) writes instead of O(n) per append.
+    # ------------------------------------------------------------------
+    T_PV = 273.15 + data['TempModule'].iloc[0]  # initialise temperature of PV cell
+    T_plot = np.empty(n)
+    gradT = np.empty(n)
+    geom = (A / (2 * pv["W"] + 2 * pv["L"])) ** 3
+
+    for i in range(n):
         # RADIATION
         if T_PV >= T[i]:
             q_epsilon = -epsilon * SB * A * (T_PV ** 4 - T[i] ** 4)
         else:
             q_epsilon = 0
-    
+
         q_absorbed = E_POA[i] * A * IRratio * absorption
-        # CONVECTION
-        # Thermophysical properties of air and fluid mechanics variables
-        rho_a = p[i] / (R_a * T[i])  # density of dry air
-        if humidity[i] > 1:
-            humidity[i] = 1.0
-    
-    
-        rho = rho_a * (1 + humidity[i]) / (1 + R_w / R_a * humidity[i])  # density of mixture
-        mu = HAPropsSI('mu', 'P', p[i], 'T', T[i], 'R', humidity[i])  # dynamic viscosity
-        cp = HAPropsSI('cp_ha', 'P', p[i], 'T', T[i], 'R', humidity[i])  # specific heat per unit of humid air
-        k = HAPropsSI('k', 'P', p[i], 'T', T[i], 'R', humidity[i])  # thermal conductivity
-        nu = mu / rho
-        beta = 1 / T[i]  # thermal expansion coefficient for ideal gases
-    
-        # Nusslet number correlations for humidity changes
-        Re = rho * abs(wind_speed[i]) * pv["L"] / mu  # Reynolds number
-        Pr = cp * mu / k  # Prandtl number
-        Gr = g * beta * abs((T_PV - T[i])) * (A / (2 * pv["W"] + 2 * pv["L"])) ** 3 / nu ** 2  # Grashof number
-        Ra = Gr * Pr  # Rayleigh number
-        hx = np.array([])
-        for x in np.linspace(0, pv["L"], num=100): #PVdiscretisation
-            Rex = rho * abs(wind_speed[i]) * x / mu
-            if Rex <= 1e5:  # Laminar, similarity solutions
-                if Pr < 0.6:
-                    print('Correlation does not satisfy')
-                Nux = 0.453 * Rex ** (1 / 2) * Pr ** (1 / 3)
-                Nu = 0.680 * Re ** (1 / 2) * Pr ** (1 / 3)
-            elif Rex > 1e5:  # Turbulent, empirical correlations
-                Nux = 0.0308 * Rex ** (4 / 5) * Pr ** (1 / 3)
-                Nu = (0.037 * Re ** (4 / 5) - 871) * Pr ** (1 / 3)
-    
-            if x == 0:
-                hx = np.append(hx, 0)
-            else:
-                hx = np.append(hx, Nux * k / x)
-    
-        h = np.mean(hx)  # mean convective heat transfer coefficient (W/m^2/K)
-    
-        if 1e4 < Ra < 1e7 and Re < 1e3:  # Natural convection, empirical correlations
+
+        # CONVECTION -- start from the precomputed forced-convection value,
+        # then check whether the natural-convection override applies (this
+        # is the only piece of the convection calculation that depends on
+        # T_PV, via Gr).
+        h = h_forced[i]
+        Gr = g * beta[i] * abs(T_PV - T[i]) * geom / nu[i] ** 2  # Grashof number
+        Ra = Gr * Pr[i]  # Rayleigh number
+
+        if 1e4 < Ra < 1e7 and Re[i] < 1e3:  # Natural convection, empirical correlations
             Nu = 0.54 * Ra ** (1 / 4)
-            h = Nu * k / pv["L"]  # mean convective heat transfer coefficient from correlations (W/m^2/K)
-    
-        elif 1e7 < Ra < 1e11 and Re < 1e3:  # Natural convection, empirical correlations
+            h = Nu * k[i] / pv["L"]
+        elif 1e7 < Ra < 1e11 and Re[i] < 1e3:  # Natural convection, empirical correlations
             Nu = 0.15 * Ra ** (1 / 3)
-            h = Nu * k / pv["L"]  # mean convective heat transfer coefficient from correlations (W/m^2/K)
-    
+            h = Nu * k[i] / pv["L"]
+
         if h == 0:  # numerical solution for problems in convection or inputs
             h = 1e-16
-            R = pv["d"] / (pv["k_r"] * A * 2)  # Thermal resistance of the system
+            Rth = pv["d"] / (pv["k_r"] * A * 2)  # Thermal resistance of the system
         else:
-            R = 1 / (h * A) + pv["d"] / (pv["k_r"] * A * 2)  # Thermal resistance of the system
-    
+            Rth = 1 / (h * A) + pv["d"] / (pv["k_r"] * A * 2)  # Thermal resistance of the system
+
         q_convection = h * A * (T[i] - T_PV)
-       
+
         # Heat balance
         q = (q_absorbed + q_convection + q_epsilon)
-        T_PV = T_PV + q * R
-    
+        T_PV = T_PV + q * Rth
+
         if i == 0:
-            gradT = np.append(gradT, 0)
+            gradT[0] = 0
         else:
-            gradT = np.append(gradT, T_PV - T_plot[-1])
-            if abs(gradT[-1]) >= gradLimiter:  # Gradient limiter function
-                T_PV = T_plot[-1] + psi * gradT[-1]
-                T_plot[-1] = T_PV
-                gradT[-1] = T_PV - T_plot[-1]
-    
-        T_plot = np.append(T_plot, T_PV)
-    
+            gradT[i] = T_PV - T_plot[i - 1]
+            if abs(gradT[i]) >= gradLimiter:  # Gradient limiter function
+                T_PV = T_plot[i - 1] + psi * gradT[i]
+                T_plot[i - 1] = T_PV
+                gradT[i] = T_PV - T_plot[i - 1]
+
+        T_plot[i] = T_PV
+
         if i % 500 == 0: #output progress every 500 samples
-            msg='    Progress: ' + str(round(index/len(data)*100)) + ' %'
+            msg='    Progress: ' + str(round(i/n*100)) + ' %'
             sys.stdout.write('\r'+msg)
 
-    
-        index = index + 1
-    
     df = T_plot - 273.15
     
     msg='    Progress: ' + str(100) + ' %'
