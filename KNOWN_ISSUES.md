@@ -242,6 +242,29 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
   `P_Solar_model_substituted` flag addition — see items 1–3 above for the exact wording
   basis, and `git show 5eb11d0` for the diff.
 
+### 11. Fully-vectorized power-law term in `Rincon_Pombo_ThermodynamicModel` — tried and rejected (Phase 7 Session 2)
+
+- **What it is:** During the Phase 7 Session 2 speed refactor of `Rincon_Pombo_ThermodynamicModel`
+  (see `CHANGELOG.md` and the function's docstring), a first attempt fully vectorized the
+  100-point flat-plate power-law discretization (the `Rex**(1/2)`, `Rex**(4/5)`, `Pr**(1/3)`
+  terms) alongside the rest of the precomputable math. This was rejected in favor of the
+  committed version, which deliberately keeps that one piece as a scalar-typed loop.
+- **Why it was rejected:** `numpy`'s vectorized `**` ufunc uses a SIMD-approximated power that
+  is not bit-identical to Python/libm's scalar `pow()` for the same base/exponent — confirmed
+  directly (e.g. `Pr**(1/3)` computed as an array differed from the same values computed one at
+  a time in ~6–7% of elements, by up to 1 ULP). That per-element noise is negligible on its own,
+  but it compounds through the ~11,000-step recursive `T_PV` update: the fully-vectorized
+  version matched the pre-refactor original only to ~5.7e-14 K absolute (~1.9e-16 relative),
+  not bit-for-bit. The committed version keeps the power-law part as a 100×N-element scalar
+  loop instead — cheap relative to the CoolProp calls the refactor actually targets — and is
+  verified bit-for-bit identical (`np.array_equal`) to the original on both real files.
+- **Status:** Resolved by not doing it. Filed here so a future session doesn't re-attempt the
+  fully-vectorized version without knowing it was already tried on this same function and
+  produces a measurable (if small) precision regression rather than a free speedup.
+- **What a user should do:** Nothing — the committed function is bit-for-bit identical to the
+  pre-refactor original. This entry only matters to someone modifying
+  `Rincon_Pombo_ThermodynamicModel` further.
+
 ---
 
 ## Summary table
@@ -258,3 +281,4 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
 | 8 | Unsorted row order on disk | `SOLETE_Pombo_60min.h5` | Open (usage caveat) |
 | 9 | CHANGELOG/tests missing for Phase 0.5 fixes | n/a (process) | Housekeeping, open |
 | 10 | `P_Gaia[kW]` near-total zero-degeneracy, root cause unconfirmed | `SOLETE_Pombo_60min.h5` | Open |
+| 11 | Fully-vectorized power-law term in thermodynamic model — precision regression | `Functions.py` | Resolved (not adopted) |
