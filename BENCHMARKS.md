@@ -148,6 +148,57 @@ dataset.
 
 ---
 
+## Probabilistic forecasting (Phase 7 Session 6)
+
+**Model:** LightGBM quantile regression (`objective="quantile"`), one model per quantile
+level, on the same feature set as the point-forecast Gradient boosting row above
+(`baseline_gbm.py`'s lagged-target + same-timestamp weather + calendar features — the
+same-timestamp-weather caveat† applies identically here). Quantile levels:
+**0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95**, giving three nested nominal intervals (90%,
+80%, 50%). Fit on train, hyperparameters selected **per quantile level** on val by pinball
+loss (not RMSE). CRPS is **approximated** via trapezoidal integration over this 7-point
+quantile grid (`metrics.crps_from_quantiles`) — see that function's docstring for why this
+slightly undercounts the tails beyond the 5th/95th percentile. Script:
+`task7_6_probabilistic_forecast.py`; results: `results/probabilistic_pv.json`,
+`results/probabilistic_wind.json`.
+
+### PV (`P_Solar[kW]`)
+
+| QC setting | n | CRPS (kW) | 90% interval: coverage / sharpness (kW) | 80%: coverage / sharpness | 50%: coverage / sharpness |
+|---|---:|---:|---:|---:|---:|
+| qc_included | 2,953 | 0.0126 | 0.817 / 0.225 | 0.701 / 0.088 | 0.550 / 0.014 |
+| qc_excluded | 2,202 | 0.0164 | 0.759 / 0.287 | 0.619 / 0.094 | 0.398 / 0.018 |
+
+Empirical coverage runs somewhat under nominal at every level (e.g. 81.7% vs. a nominal
+90% target, qc_included) — the model is mildly overconfident (intervals too narrow) on
+this feature set/split, more so once `qc_excluded` removes the model-substituted rows the
+quantile models were still trained partly against. Not re-tuned further in this session;
+flagged here as a real calibration finding for a future session to improve on (e.g. wider
+quantile levels at the tails, or explicit calibration/conformal correction), not something
+silently corrected.
+
+### Wind (`P_Gaia[kW]`)
+
+> **This is not a meaningful wind result — read before the numbers.** Same caveat as the
+> point-forecast wind table above (`P_Gaia[kW]` 99.56% exactly zero) applies here with an
+> added twist: **every quantile level's chosen hyperparameters converged to predicting
+> ~0 everywhere** (val pinball loss of exactly `0.0` at all seven levels — the model learned
+> the target's own degeneracy, not a forecasting relationship), so all three intervals
+> collapse to essentially the same near-zero band and report **the same empirical coverage
+> (0.992) regardless of nominal width** in the row below. **ASK FIRST outcome (maintainer,
+> 2026-09-18): produced anyway, specifically so a working probabilistic pipeline exists to
+> re-point at better wind data if/when it arrives (`KNOWN_ISSUES.md` #10) — not offered as a
+> forecast-skill result today.** No QC column exists for wind, so only one setting is shown.
+
+| n | CRPS (kW) | 90% interval: coverage / sharpness (kW) | 80%: coverage / sharpness | 50%: coverage / sharpness |
+|---:|---:|---:|---:|---:|
+| 2,953 | 0.0358 | 0.992 / 0.0190 | 0.992 / 0.0182 | 0.992 / 0.0130 |
+
+† carries the same meaning as in the PV point-forecast table above (same-timestamp-weather
+GBM caveat) and applies identically here.
+
+---
+
 ## Findings worth keeping as-is (not bugs)
 
 - **Plain persistence beats smart (seasonal) persistence on PV**, qc_included (RMSE 0.699

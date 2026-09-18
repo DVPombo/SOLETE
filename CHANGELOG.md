@@ -53,6 +53,43 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - These files are pandas `to_hdf(..., format="fixed")` output, not a generic HDF5 table — the loader reads the `DATA/axis0` (columns)/`axis1` (index)/`block<N>_items`/`block<N>_values` structure directly. Two things worth flagging for anyone touching this later: `hdf5r` returns `block<N>_values` with dimensions reversed (features-first, then time) relative to what h5py/numpy report for the same dataset — an HDF5 row-major vs. R column-major storage-order artifact, not a data difference; and the nanosecond-since-epoch `axis1` index is converted to seconds using `bit64` integer64 arithmetic *before* going to `double`, since a raw nanosecond value (~1.5e18) is well past a double's ~9e15 exact-integer range and would otherwise silently round to the nearest ~256ns.
   - **Tested, not just written by hand**: an R environment (`r-base-core` 4.3.3 plus `r-cran-hdf5r`, both installed via `apt` — no CRAN/Bioconductor network access needed) was available, so this was run against both real files (`SOLETE_short.h5`, `SOLETE_Pombo_60min.h5`) and checked bit-for-bit against `pandas.read_hdf()` on the same files (raw binary comparison of the underlying float64 values and the datetime index, not a lossy CSV/text round trip) — exact match, no tolerance needed.
 
+### Fixed (Phase 7 Session 6 prep — Session 1's hybrid QC regression tests actually landed)
+- The "Added (Phase 6 — hybrid wind+solar forecasting)" entry below states the
+  `P_hybrid[kW]_qc`/`P_hybrid[kW]_qc_source` inheritance behavior was "pinned
+  by the new regression tests added in Phase 7 Session 1
+  (`tests/test_qc_flags.py`)". That was true of the intent but not of the
+  code: the suite was verified at 41 tests, not 43, and neither name appeared
+  anywhere in the file. Root cause not established (most likely lost in the
+  `a9ca880` "Reconcile parallel development" merge, which only touched
+  `KNOWN_ISSUES.md`); flagged rather than guessed at. Added the two tests now
+  (`test_hybrid_qc_equals_solar_qc_today`, `test_hybrid_qc_source_never_wind`),
+  against a new `built_60min` fixture that runs the full `import_SOLETE_data`
+  Build pipeline (existing fixtures only `pd.read_hdf` the raw file, which
+  never reaches `ExpandSOLETE()` and so never produces the hybrid columns).
+  Full suite now passes at 43/43 as originally claimed.
+
+### Added (Phase 7 Session 6 — probabilistic forecasting benchmark)
+- Extended `metrics.py` with four probabilistic metrics: `pinball_loss`, `crps_from_quantiles`
+  (trapezoidal approximation of CRPS from a discrete quantile grid, Gneiting & Raftery 2007
+  eq. 21), `interval_coverage`, and `sharpness` — see each function's docstring for the exact
+  formulas and caveats. New `tests/test_probabilistic_metrics.py` (11 tests: real-data-derived
+  plus synthetic edge cases, same convention as `tests/test_metrics.py`).
+- New `task7_6_probabilistic_forecast.py`: LightGBM quantile regression (`objective="quantile"`),
+  one model per quantile level (0.05/0.10/0.25/0.50/0.75/0.90/0.95), reusing `baseline_gbm.py`'s
+  feature set unchanged. **ASK FIRST outcome (maintainer, 2026-09-18):** quantile regression via
+  LightGBM (not a parametric/Gaussian-residual approach) — same library Task 5.5 already chose.
+  **ASK FIRST outcome (maintainer, 2026-09-18) — wind:** attempt it anyway despite the same
+  `P_Gaia[kW]` zero-degeneracy caveat (`KNOWN_ISSUES.md` #10) that affects every other wind row
+  in this benchmark, specifically so a working probabilistic pipeline exists to re-point at
+  better wind data once it arrives, not to claim a meaningful wind result today.
+- New `results/probabilistic_pv.json` and `results/probabilistic_wind.json`; new `BENCHMARKS.md`
+  section. PV intervals are calibrated somewhat below their nominal coverage (e.g. 81.7% empirical
+  vs. 90% nominal, qc_included) — a real, flagged finding, not silently corrected. Every wind
+  quantile model converged to predicting ~0 everywhere (val pinball loss of exactly 0.0 at all
+  seven levels), so wind's three nested intervals collapse to the same near-zero band and report
+  identical empirical coverage regardless of nominal width — expected given the target's own
+  degeneracy, called out explicitly in both the results file and `BENCHMARKS.md`.
+
 ### Changed (Phase 7 Session 2 — vectorize the CoolProp-heavy thermodynamic loop)
 - Refactored `Rincon_Pombo_ThermodynamicModel` in `Functions.py` for speed only — the physical model, and every per-row numerical behavior (including a pre-existing quirk in the gradient-limiter branch, where tripping the limiter overwrites the *previous* row's stored temperature rather than just the current one — left as-is, since this is a speed refactor, not a correctness one) are unchanged. Profiled first (real 60-minute file, 10,969 rows): baseline 2.679s end-to-end (0.244 ms/row). Batched the three per-row `CoolProp.HAPropsSI` calls (mu, cp, k) into 3 calls total instead of 3×N — confirmed CoolProp 8.0.0's `HAPropsSI` accepts array arguments directly, and checked it returns bit-for-bit identical values to the scalar-call loop on the same inputs before relying on it — plus vectorized the elementwise density/Reynolds/Prandtl-number arithmetic and the flat-plate Rex grid (ordinary +-*/ is IEEE-754 exact regardless of vectorization, so this part carried no precision risk).
   - **Deliberately did not vectorize the power-law part** of the 100-point flat-plate discretization (the `Rex**(1/2)`, `Rex**(4/5)`, `Pr**(1/3)` terms), even though it doesn't depend on the recursive `T_PV` state either: numpy's `**` ufunc on a sizable array uses a SIMD-approximated power that isn't bit-identical to Python/libm's scalar `pow()` — confirmed directly (e.g. `Pr**(1/3)` computed as a 5000-element array differed from the same values computed one at a time in ~6-7% of elements, by up to 1 ULP) — and that first, fully-vectorized attempt at this refactor produced output that matched the original only to ~5.7e-14 absolute (~1.9e-16 relative), not bit-for-bit, because that per-element ULP noise compounds through the ~11,000-step recursive `T_PV` update. Kept that part (and only that part) as a 100×N-element scalar-typed loop instead — cheap relative to the CoolProp calls it's actually targeting — to get true bit-for-bit equivalence with the original.

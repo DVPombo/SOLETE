@@ -34,6 +34,8 @@ from Functions import (
     apply_qc_flags,
     build_raw_value_qc_rules,
     build_substitution_qc_rule,
+    import_SOLETE_data,
+    import_PV_WT_data,
     QC_VALID,
     QC_MISSING,
     QC_PHYSICALLY_IMPLAUSIBLE,
@@ -51,6 +53,24 @@ def real_60min():
 @pytest.fixture(scope="module")
 def real_short():
     return pd.read_hdf(REPO_ROOT / "SOLETE_short.h5")
+
+
+@pytest.fixture(scope="module")
+def built_60min():
+    """Full pipeline (import_SOLETE_data, 'Build') on the real 60min file --
+    unlike real_60min above, this actually runs ExpandSOLETE(), so
+    P_hybrid[kW]_qc / P_hybrid[kW]_qc_source (Task 6.1, QC_SCHEMA.md section
+    8) exist to test against. Same loading recipe as bench_common.py's
+    load_full_df()."""
+    Control_Var = {
+        "resolution": "60min",
+        "SOLETE_builvsimport": "Build",
+        "SOLETE_save": False,
+        "OriginalFeatures": [],
+        "PossibleFeatures": [],
+    }
+    PVinfo, WTinfo = import_PV_WT_data()
+    return import_SOLETE_data(Control_Var, PVinfo, WTinfo)
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +283,31 @@ def test_whole_file_counts_near_zero_short(real_short):
     assert counts["Pressure[mbar]_qc"] == 0
     assert counts["HUMIDITY[%]_qc"] == 0
     assert counts["WIND_DIR[deg]_qc"] == 0
+
+
+# ---------------------------------------------------------------------------
+# P_hybrid[kW] QC inheritance -- Phase 6 Task 6.1 (QC_SCHEMA.md section 8)
+#
+# Regression coverage for CHANGELOG.md's "Added (Phase 6 -- hybrid wind+solar
+# forecasting)" entry, which states this behavior is "pinned by the new
+# regression tests added in Phase 7 Session 1". No wind (P_Gaia[kW]) QC rule
+# exists yet (checked against build_raw_value_qc_rules()/QC_SCHEMA.md section
+# 3 -- neither has one), so today P_hybrid[kW]_qc is equivalent to
+# P_Solar[kW]_qc, and P_hybrid[kW]_qc_source should never attribute a flag to
+# 'P_Gaia[kW]'. If a future session adds a wind QC rule, these two assertions
+# are exactly the ones that should start failing -- that's the point.
+# ---------------------------------------------------------------------------
+
+def test_hybrid_qc_equals_solar_qc_today(built_60min):
+    df = built_60min
+    pd.testing.assert_series_equal(
+        df["P_hybrid[kW]_qc"], df["P_Solar[kW]_qc"], check_names=False
+    )
+
+
+def test_hybrid_qc_source_never_wind(built_60min):
+    df = built_60min
+    assert not (df["P_hybrid[kW]_qc_source"] == "P_Gaia[kW]").any()
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,121 @@
+{
+  "model": "probabilistic_gbm",
+  "library": "lightgbm",
+  "description": "LightGBM quantile regression (objective='quantile'), one model per quantile level, on the same lagged-target + same-timestamp-weather + calendar feature set as baseline_gbm.py (Task 5.5) -- see that file's own same-timestamp-weather caveat, which applies identically here.",
+  "split_version": "v1",
+  "horizon": "1 step (1h)",
+  "fitting": "fit on train; hyperparameters selected per-quantile on val by pinball loss",
+  "quantile_levels": [
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9,
+    0.95
+  ],
+  "crps_note": "Approximated via metrics.crps_from_quantiles's trapezoidal integration over the quantile_levels grid above -- see that function's docstring for the under-the-tails caveat this implies.",
+  "feature_set": {
+    "lags": [
+      1,
+      2,
+      3,
+      24
+    ],
+    "meteorological_same_timestamp": [
+      "GHI[kW1m2]",
+      "POA Irr[kW1m2]",
+      "WIND_SPEED[m1s]",
+      "TEMPERATURE[degC]"
+    ],
+    "calendar": [
+      "hour",
+      "month",
+      "hour_sin",
+      "hour_cos",
+      "doy_sin",
+      "doy_cos"
+    ]
+  },
+  "target": "wind_power",
+  "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See splits/README.md. ASK FIRST outcome (maintainer, 2026-09-18): this wind result was produced anyway, specifically so a working probabilistic pipeline exists to re-point at better wind data later (KNOWN_ISSUES.md #10) -- it is not offered as a meaningful forecast-skill result today.",
+  "result": {
+    "qc_included": {
+      "n": 2953,
+      "pinball_loss": {
+        "0.05": 0.0025997868371264022,
+        "0.1": 0.005194297381885551,
+        "0.25": 0.012256634449078891,
+        "0.5": 0.02205117172632505,
+        "0.75": 0.027260322838525027,
+        "0.9": 0.031105680203439283,
+        "0.95": 0.032139780701967505
+      },
+      "crps": 0.03582934267222375,
+      "intervals": {
+        "interval_90": {
+          "nominal_coverage": 0.9,
+          "empirical_coverage": 0.99153403318659,
+          "sharpness": 0.01897368992906916
+        },
+        "interval_80": {
+          "nominal_coverage": 0.8,
+          "empirical_coverage": 0.99153403318659,
+          "sharpness": 0.018186508071825872
+        },
+        "interval_50": {
+          "nominal_coverage": 0.5,
+          "empirical_coverage": 0.99153403318659,
+          "sharpness": 0.013005427245475707
+        }
+      }
+    },
+    "qc_excluded": null,
+    "chosen_hyperparameters_per_quantile": {
+      "0.05": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "0.1": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "0.25": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "0.5": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "0.75": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "0.9": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      },
+      "0.95": {
+        "n_estimators": 100,
+        "num_leaves": 15,
+        "learning_rate": 0.1
+      }
+    },
+    "val_pinball_loss_at_chosen_params": {
+      "0.05": 0.0,
+      "0.1": 0.0,
+      "0.25": 0.0,
+      "0.5": 0.0,
+      "0.75": 0.0,
+      "0.9": 0.0,
+      "0.95": 0.0
+    }
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "model": "probabilistic_gbm",
+  "library": "lightgbm",
+  "description": "LightGBM quantile regression (objective='quantile'), one model per quantile level, on the same lagged-target + same-timestamp-weather + calendar feature set as baseline_gbm.py (Task 5.5) -- see that file's own same-timestamp-weather caveat, which applies identically here.",
+  "split_version": "v1",
+  "horizon": "1 step (1h)",
+  "fitting": "fit on train; hyperparameters selected per-quantile on val by pinball loss",
+  "quantile_levels": [
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9,
+    0.95
+  ],
+  "crps_note": "Approximated via metrics.crps_from_quantiles's trapezoidal integration over the quantile_levels grid above -- see that function's docstring for the under-the-tails caveat this implies.",
+  "feature_set": {
+    "lags": [
+      1,
+      2,
+      3,
+      24
+    ],
+    "meteorological_same_timestamp": [
+      "GHI[kW1m2]",
+      "POA Irr[kW1m2]",
+      "WIND_SPEED[m1s]",
+      "TEMPERATURE[degC]"
+    ],
+    "calendar": [
+      "hour",
+      "month",
+      "hour_sin",
+      "hour_cos",
+      "doy_sin",
+      "doy_cos"
+    ]
+  },
+  "target": "pv_power",
+  "result": {
+    "qc_included": {
+      "n": 2953,
+      "pinball_loss": {
+        "0.05": 0.014850878069810232,
+        "0.1": 0.011733087627778695,
+        "0.25": 0.0053303618202613385,
+        "0.5": 0.007553996894221555,
+        "0.75": 0.005246633075292487,
+        "0.9": 0.0065359275517868146,
+        "0.95": 0.00486117287843377
+      },
+      "crps": 0.012647201988657611,
+      "intervals": {
+        "interval_90": {
+          "nominal_coverage": 0.9,
+          "empirical_coverage": 0.817135116830342,
+          "sharpness": 0.22504563429514832
+        },
+        "interval_80": {
+          "nominal_coverage": 0.8,
+          "empirical_coverage": 0.7006434134778192,
+          "sharpness": 0.08792412643750482
+        },
+        "interval_50": {
+          "nominal_coverage": 0.5,
+          "empirical_coverage": 0.5499492041991195,
+          "sharpness": 0.013756599599580576
+        }
+      }
+    },
+    "qc_excluded": {
+      "n": 2202,
+      "pinball_loss": {
+        "0.05": 0.019915815365164815,
+        "0.1": 0.015734583926788052,
+        "0.25": 0.007147964831486884,
+        "0.5": 0.010130115670794634,
+        "0.75": 0.007035549103131775,
+        "0.9": 0.006354845327582591,
+        "0.95": 0.005794974116807026
+      },
+      "crps": 0.0164418887342175,
+      "intervals": {
+        "interval_90": {
+          "nominal_coverage": 0.9,
+          "empirical_coverage": 0.7593097184377838,
+          "sharpness": 0.28742142394485554
+        },
+        "interval_80": {
+          "nominal_coverage": 0.8,
+          "empirical_coverage": 0.6185286103542235,
+          "sharpness": 0.09407319686244554
+        },
+        "interval_50": {
+          "nominal_coverage": 0.5,
+          "empirical_coverage": 0.3978201634877384,
+          "sharpness": 0.01844691723932246
+        }
+      }
+    },
+    "chosen_hyperparameters_per_quantile": {
+      "0.05": {
+        "n_estimators": 500,
+        "num_leaves": 63,
+        "learning_rate": 0.03
+      },
+      "0.1": {
+        "n_estimators": 300,
+        "num_leaves": 31,
+        "learning_rate": 0.05
+      },
+      "0.25": {
+        "n_estimators": 300,
+        "num_leaves": 31,
+        "learning_rate": 0.05
+      },
+      "0.5": {
+        "n_estimators": 300,
+        "num_leaves": 31,
+        "learning_rate": 0.05
+      },
+      "0.75": {
+        "n_estimators": 500,
+        "num_leaves": 63,
+        "learning_rate": 0.03
+      },
+      "0.9": {
+        "n_estimators": 500,
+        "num_leaves": 63,
+        "learning_rate": 0.03
+      },
+      "0.95": {
+        "n_estimators": 500,
+        "num_leaves": 63,
+        "learning_rate": 0.03
+      }
+    },
+    "val_pinball_loss_at_chosen_params": {
+      "0.05": 0.019945976259128775,
+      "0.1": 0.01932014171586496,
+      "0.25": 0.010393761047652213,
+      "0.5": 0.011198964766291293,
+      "0.75": 0.008990322452496993,
+      "0.9": 0.007838711327894217,
+      "0.95": 0.007307888603853531
+    }
+  }
+}

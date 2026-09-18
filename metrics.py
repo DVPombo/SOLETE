@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-metrics.py -- SOLETE Phase 5, Task 5.2
+metrics.py -- SOLETE Phase 5, Task 5.2 (+ Phase 7 Session 6 probabilistic
+metrics)
 
 Standard evaluation metrics for the canonical SOLETE forecasting benchmark
 (splits/v1.json). Every function accepts an optional QC-flag mask/exclusion
@@ -9,11 +10,17 @@ Task 5.1.3's decision: `P_Solar[kW]_qc == 6` (model-substituted) rows are
 kept in every split, and it is up to whoever calls these functions to decide
 whether to exclude them from a given evaluation.
 
-Metrics implemented:
+Point-forecast metrics:
     - mae(y_true, y_pred, mask=None)
     - rmse(y_true, y_pred, mask=None)
     - nrmse(y_true, y_pred, capacity=None, method="capacity", mask=None)
     - skill_score(y_true, y_pred, y_reference, mask=None)
+
+Probabilistic-forecast metrics (Phase 7 Session 6):
+    - pinball_loss(y_true, y_pred_quantile, quantile, mask=None)
+    - crps_from_quantiles(y_true, quantile_preds, mask=None)
+    - interval_coverage(y_true, lower, upper, mask=None)
+    - sharpness(lower, upper, mask=None)
 
 QC-mask helpers:
     - qc_mask(qc_column, exclude_flags=(6,))
@@ -126,6 +133,14 @@ def _apply_mask(y_true, y_pred, mask):
         raise ValueError("No rows left to score after applying mask.")
 
     return y_true, y_pred
+
+
+def _apply_mask_pair(a, b, mask):
+    """Same alignment/filtering as _apply_mask, for two arrays that aren't
+    necessarily (y_true, y_pred) -- e.g. (lower_bound, upper_bound) for the
+    interval metrics below. Reuses _apply_mask's logic without implying
+    anything about which argument is "truth"."""
+    return _apply_mask(a, b, mask)
 
 
 # ---------------------------------------------------------------------------
@@ -248,3 +263,126 @@ def skill_score(y_true, y_pred, y_reference, mask=None):
             "zero). This can happen on a degenerate all-zero window."
         )
     return 1.0 - (rmse_model / rmse_reference)
+
+
+# ---------------------------------------------------------------------------
+# Probabilistic-forecast metrics (Phase 7 Session 6)
+# ---------------------------------------------------------------------------
+
+def pinball_loss(y_true, y_pred, quantile, mask=None):
+    """
+    Pinball (quantile) loss at a single quantile level.
+
+        L_q(y, q_hat) = q * (y - q_hat)      if y >= q_hat
+                      = (q - 1) * (y - q_hat) if y <  q_hat
+
+    Lower is better; 0 is a perfect quantile forecast. At quantile=0.5 this
+    is exactly half of mae() (the median-optimal loss) -- a useful sanity
+    check when validating a new quantile model.
+
+    Parameters
+    ----------
+    y_true : array-like
+        Observed ground truth.
+    y_pred : array-like
+        Forecast for THIS quantile level only (not a matrix of quantiles --
+        call once per level, same convention as crps_from_quantiles below).
+    quantile : float
+        Quantile level in (0, 1), e.g. 0.05 for the 5th percentile.
+    mask : array-like of bool, optional
+        Same convention as mae()/rmse() -- restrict to rows where True.
+    """
+    if not (0.0 < quantile < 1.0):
+        raise ValueError("quantile must be in (0, 1), got %r" % (quantile,))
+    y_true_arr, y_pred_arr = _apply_mask(y_true, y_pred, mask)
+    diff = y_true_arr - y_pred_arr
+    loss = np.where(diff >= 0, quantile * diff, (quantile - 1.0) * diff)
+    return float(np.mean(loss))
+
+
+def crps_from_quantiles(y_true, quantile_preds, mask=None):
+    """
+    Approximate the Continuous Ranked Probability Score (CRPS) from a
+    discrete set of quantile forecasts, using the identity
+
+        CRPS(F, y) = 2 * integral_0^1  QS_tau(y, F^-1(tau))  d(tau)
+
+    (the quantile-score / pinball-loss decomposition of CRPS -- see
+    Gneiting & Raftery 2007, "Strictly Proper Scoring Rules...", eq. 21;
+    also Laio & Tamea 2007). The integral is approximated here via the
+    trapezoidal rule over whatever quantile levels are supplied, so it
+    handles an uneven grid (e.g. denser near the tails) correctly, not just
+    an evenly-spaced one.
+
+    Caveat: this is an APPROXIMATION, not the exact CRPS, for two reasons:
+    (1) the trapezoidal rule is only exact for a piecewise-linear pinball-
+    loss-vs-tau curve, and (2) the integral outside [min(levels), max(levels)]
+    is not covered at all -- e.g. with levels 0.05..0.95 the tails beyond the
+    5th/95th percentile contribute nothing here, which slightly UNDERSTATES
+    the true CRPS. The narrower the outermost levels are to 0/1 and the
+    denser the grid, the closer this gets to the exact value.
+
+    Parameters
+    ----------
+    y_true : array-like
+        Observed ground truth.
+    quantile_preds : dict[float, array-like]
+        Mapping quantile level -> predicted value at that level, each
+        array aligned the same way as y_true. Needs at least 2 levels.
+    mask : array-like of bool, optional
+        Applied identically to y_true and every quantile's predictions.
+    """
+    levels = sorted(quantile_preds.keys())
+    if len(levels) < 2:
+        raise ValueError(
+            "crps_from_quantiles needs at least 2 quantile levels to "
+            "integrate over, got %d." % (len(levels),)
+        )
+    pinballs = np.array(
+        [pinball_loss(y_true, quantile_preds[q], q, mask=mask) for q in levels]
+    )
+    integral = np.trapezoid(pinballs, np.array(levels))
+    return float(2.0 * integral)
+
+
+def interval_coverage(y_true, lower, upper, mask=None):
+    """
+    Empirical coverage of a prediction interval: the fraction of observed
+    values that fall within [lower, upper] (inclusive of both bounds).
+
+    Compare against the interval's NOMINAL coverage (e.g. an interval built
+    from the 5th/95th percentile forecasts has nominal coverage 0.90) to
+    check calibration -- this function only computes the empirical number;
+    it doesn't know what the nominal level was supposed to be.
+
+    Parameters
+    ----------
+    y_true, lower, upper : array-like
+        lower/upper are this row's predicted interval bounds; lower should
+        be <= upper elementwise (not checked here -- a quantile-crossing
+        lower > upper would just report an empirical coverage of 0 for that
+        row, which is arguably the honest answer for a broken interval).
+    mask : array-like of bool, optional
+        Applied identically to y_true, lower, and upper.
+    """
+    y_true_arr, lower_arr = _apply_mask(y_true, lower, mask)
+    _, upper_arr = _apply_mask(y_true, upper, mask)
+    within = (y_true_arr >= lower_arr) & (y_true_arr <= upper_arr)
+    return float(np.mean(within))
+
+
+def sharpness(lower, upper, mask=None):
+    """
+    Mean prediction-interval width (upper - lower). Narrower is sharper
+    (more informative) -- but sharpness on its own is meaningless without
+    interval_coverage() alongside it: an interval that's narrow because it's
+    also wrong (poor coverage) is not a good interval, just a confident one.
+
+    Parameters
+    ----------
+    lower, upper : array-like
+        Predicted interval bounds, same alignment convention as elsewhere.
+    mask : array-like of bool, optional
+    """
+    lower_arr, upper_arr = _apply_mask_pair(lower, upper, mask)
+    return float(np.mean(upper_arr - lower_arr))
