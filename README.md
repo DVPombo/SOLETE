@@ -50,6 +50,15 @@ I have been reached out by several people complaining that hdf5 can't be importe
 
 *I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
 
+### A note on Functions.py
+
+The functions used throughout this repo now live in the `solete_pipeline/` package
+(one module per concern: I/O, physics, QC, preprocessing, ML model training,
+postprocessing) — see `CONTRIBUTING.md`'s "Code layout" section for the full map.
+`Functions.py` still exists and still works exactly as before, so none of the
+instructions above change; it's now a thin re-export shim over `solete_pipeline`
+kept for backward compatibility.
+
 # Examples
 New to SOLETE? The notebooks in `examples/` walk through the dataset on a small sample file, so you can get a feel for it without downloading the full dataset first. Each has an "Open in Colab" badge to run it straight in the browser.
 

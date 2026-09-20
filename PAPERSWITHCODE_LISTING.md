@@ -124,15 +124,14 @@ wind result from this dataset without that caveat attached.
 
 ## Licensing note for the listing
 
-There is a known, unresolved licensing inconsistency in the code repository
-(documented in its `CONTRIBUTING.md`): the top-level `LICENSE` file and
-`CITATION.cff` both say MIT, but several script headers (e.g. `Functions.py`,
-`MLForecasting.py`) and `requirements.txt` say CC-BY 4.0 instead. This
-concerns the *code*, not the dataset's own DTU Data licensing terms (see the
-DTU Data / figshare record for the data's own license). If Papers with Code's
-submission form requires picking a single license, flag this inconsistency to
-the maintainer rather than guessing one — same convention followed for the
-Hugging Face dataset card (`huggingface/README.md`) in this repo.
+The code repository is MIT licensed (`LICENSE`, `CITATION.cff`) — every script
+header and `requirements.txt` now say the same thing consistently. (A
+previous inconsistency, where several script headers and `requirements.txt`
+said CC-BY 4.0 instead, was resolved in favor of MIT.) This concerns the
+*code*, not the dataset's own DTU Data licensing terms (see the DTU Data /
+figshare record for the data's own license) — if Papers with Code's
+submission form separates "code license" from "data license," use MIT for
+the former and the DTU Data record's terms for the latter.
 
 ## Citation
 

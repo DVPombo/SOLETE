@@ -1,6 +1,6 @@
 # SOLETE platform — pinned dependencies
 # Author: Daniel Vázquez Pombo (daniel.vazquez.pombo@gmail.com)
-# Content licensed CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
+# Licensed under the MIT License -- see LICENSE at the repo root.
 #
 # Updated dependencies to the latest stable releases as of 2026-09-09.
 

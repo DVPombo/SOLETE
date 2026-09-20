@@ -14,7 +14,7 @@ It should run without errors simply by placing all the files in the same locatio
 We have checked the hdf5 file (the actual dataset) compatibility with Mathlab, Python and R. 
 If you encounter any troubles using it with other software let me know and I will see what I can do.
 
-The licensing of this work is pretty chill, just give credit.
+Licensed under the MIT License -- see LICENSE at the repo root. If you use this work, please give credit (see CITATION.cff).
 """
 
 import pandas as pd

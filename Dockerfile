@@ -1,6 +1,6 @@
 # SOLETE platform — Dockerfile
 # Author: Daniel Vázquez Pombo (daniel.vazquez.pombo@gmail.com)
-# Content licensed CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/
+# Licensed under the MIT License -- see LICENSE at the repo root.
 #
 # UNTESTED: `docker build` was not run against this Dockerfile (Docker is not
 # available in the environment this was authored in). Please verify with

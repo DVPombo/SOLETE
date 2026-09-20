@@ -16,7 +16,7 @@
 %
 % If you encounter any troubles using it let me know and I will see what I can do.
 % 
-% The licensing of this work is pretty chill, just give credit.
+% Licensed under the MIT License -- see LICENSE at the repo root. If you use this work, please give credit (see CITATION.cff).
 % 
 %% Select File to Import
 clc, clear,
