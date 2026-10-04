@@ -2,7 +2,7 @@
 
 All notable changes to the SOLETE platform are documented in this file.
 
-Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history and condensed from [releases/](releases/); see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
+Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history; see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
 
 ## [Unreleased]
 ### Changed — repository restructure (breaking: import paths and file locations)
