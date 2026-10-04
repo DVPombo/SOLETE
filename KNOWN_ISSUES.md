@@ -68,9 +68,7 @@ detail on each.
   1000/2000/3000 placeholder rows. `Rincon_Pombo_ThermodynamicModel` consumes this column
   directly (`p = data['Pressure[mbar]'] * 100`, converted to Pa for CoolProp calls), so
   its output (`TempModule_RP`) inherits this problem wherever pressure is pegged.
-  `<!-- TODO: confirm with maintainer -->` whether 1000/2000/3000 are known sentinel/fill
-  values from the data pipeline, or a control-system/logging fault.
-
+  
 ### 5. `HUMIDITY[%]` exceeds physically valid range (>1.0, i.e. >100%) in the 60min file — **OPEN**
 - **What it is:** `HUMIDITY[%]` is stored as a fraction on [0, 1] (confirmed by
   `Rincon_Pombo_ThermodynamicModel`'s own `if humidity[i] > 1: humidity[i] = 1.0` clip
@@ -82,8 +80,7 @@ detail on each.
   underlying column, so any other code path (or a user reading `HUMIDITY[%]` directly)
   still sees the invalid values.
 - **What a user should do in the meantime:** Clip or filter `HUMIDITY[%] > 1` before use
-  if working with the 60min file directly. `<!-- TODO: confirm with maintainer -->`
-  whether this is a known sensor-saturation artifact (e.g. condensation on the sensor)
+  if working with the 60min file directly. whether this is a known sensor-saturation artifact (e.g. condensation on the sensor)
   or something else.
 
 ### 6. `WIND_DIR[deg]` exceeds valid compass range (>360°) in the 60min file — **OPEN**
@@ -97,8 +94,7 @@ detail on each.
   aggregation code or finer-resolution source file exists in this repo to check against.
 - **What a user should do in the meantime:** Apply `% 360` (or discard/flag) rows where
   `WIND_DIR[deg] > 360` before using this column for anything direction-sensitive (e.g.
-  wind-rose plots, turbine yaw-alignment features). `<!-- TODO: confirm with maintainer -->`
-  the actual aggregation method used upstream, and whether it should be considered a bug
+  wind-rose plots, turbine yaw-alignment features). the actual aggregation method used upstream, and whether it should be considered a bug
   in the dataset-build pipeline (out of scope to fix in this repo either way, since that
   pipeline isn't part of this codebase).
 
@@ -113,8 +109,7 @@ detail on each.
   partially-run computation than an intentional column.
 - **What a user should do in the meantime:** Don't rely on these two columns as a real
   solar-position time series; they are not one, in this file, except for one day.
-  `<!-- TODO: confirm with maintainer -->` whether these were meant to be populated
-  dataset-wide (e.g. via a solar-position library run at build time that only completed
+  whether these were meant to be populated dataset-wide (e.g. via a solar-position library run at build time that only completed
   for one day), and whether the maintainer wants them documented as intentionally-partial
   or dropped from future exports.
 
