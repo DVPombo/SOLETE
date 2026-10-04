@@ -11,7 +11,7 @@ caught by having the two use the same code path.
 
 A couple of hand-computed synthetic edge cases (perfect forecast -> 0 error;
 all-zero window, matching the real wind-power situation documented in
-splits/README.md) are included too, since real data can't cleanly demonstrate
+benchmarks/splits/README.md) are included too, since real data can't cleanly demonstrate
 a division-by-zero / degenerate-target case on demand.
 
 Run with: pytest tests/test_metrics.py -v  (from the repo root)
@@ -21,9 +21,9 @@ import sys
 import types
 import pathlib
 
-# Functions.py imports keras/tensorflow at module level (for the ML
+# the platform modules used to import keras/tensorflow at module level (for the ML
 # forecasting code) purely so metrics.py's installed_capacity_kw() can call
-# Functions.import_PV_WT_data(). These tests never touch the ML code, so stub
+# solete.io.import_PV_WT_data(). These tests never touch the ML code, so stub
 # keras/tensorflow out -- same convention as tests/test_qc_flags.py -- to keep
 # this test file's dependency footprint light.
 for _modname in ["keras", "keras.models", "keras.layers"]:
@@ -39,10 +39,10 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from metrics import mae, rmse, nrmse, skill_score, qc_mask, installed_capacity_kw
+from _data import v3_60min_path
+from solete.metrics import mae, rmse, nrmse, skill_score, qc_mask, installed_capacity_kw
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-REAL_FILE = REPO_ROOT / "SOLETE_Pombo_60min.h5"
 
 
 # ---------------------------------------------------------------------------
@@ -53,11 +53,11 @@ REAL_FILE = REPO_ROOT / "SOLETE_Pombo_60min.h5"
 def real_pv_window():
     """
     72 consecutive real hourly P_Solar[kW] rows from the test split
-    (2019-06-01 -> 2019-06-03, well inside splits/v1.json's test block,
+    (2019-06-01 -> 2019-06-03, well inside benchmarks/splits/v1.json's test block,
     2019-05-01 to 2019-09-01). Not synthetic -- pulled directly from
     SOLETE_Pombo_60min.h5.
     """
-    df = pd.read_hdf(REAL_FILE).sort_index()  # KNOWN_ISSUES.md #8: must sort
+    df = pd.read_hdf(v3_60min_path()).sort_index()  # KNOWN_ISSUES.md #8: must sort
     window = df.loc["2019-06-01":"2019-06-03", "P_Solar[kW]"]
     assert len(window) == 72
     return window
@@ -133,7 +133,7 @@ def test_qc_mask_excludes_flagged_rows_on_real_substituted_column():
     # slice only, to keep this test fast) and confirm qc_mask's default
     # (exclude flag 6, model-substituted) actually drops those rows.
     sys.modules.setdefault("tensorflow", types.ModuleType("tensorflow"))
-    from Functions import import_SOLETE_data, import_PV_WT_data
+    from solete.io import import_SOLETE_data, import_PV_WT_data
 
     Control_Var = {
         "resolution": "60min",
@@ -189,7 +189,7 @@ def test_nrmse_requires_capacity_for_capacity_method():
 
 def test_nrmse_zero_denominator_raises_on_degenerate_window():
     # Mirrors the real all-zero-wind-power situation documented in
-    # splits/README.md: outside the two active days, P_Gaia[kW] is exactly
+    # benchmarks/splits/README.md: outside the two active days, P_Gaia[kW] is exactly
     # zero, so method="mean"/"range" would divide by zero. Confirms this
     # fails loudly instead of silently returning inf/nan.
     y_true = np.array([0.0, 0.0, 0.0])

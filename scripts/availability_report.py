@@ -4,7 +4,7 @@ availability_report.py
 
 Per-column-per-file completeness and QC-flag report, built on top of
 inspect_dataset.py's HDF5-key discovery and the QC flag layer
-(Functions.apply_qc_flags / QC_SCHEMA.md).
+(solete.qc.apply_qc_flags / docs/legacy/QC_SCHEMA_platform_v3.md).
 
 For every column in every file/key, reports two related-but-distinct things:
   - completeness: expected sample count (inferred from the file's own time
@@ -18,32 +18,35 @@ For every column in every file/key, reports two related-but-distinct things:
 
 Usage
 -----
-    python scripts/availability_report.py SOLETE_short.h5 SOLETE_Pombo_60min.h5 \
-        --csv availability_report.csv
+    python scripts/availability_report.py examples/SOLETE_short.h5 SOLETE_Pombo_60min.h5 \
+        --csv my_report.csv
 
-Note: this imports Functions.py to reuse apply_qc_flags/build_*_qc_rules and
+Note: this imports solete/ to reuse apply_qc_flags/build_*_qc_rules and
 (for the P_Solar[kW]_qc breakdown) PV_Performance_Model -- so it shares
-Functions.py's dependency footprint (scikit-learn, keras/TensorFlow,
+solete/'s dependency footprint (scikit-learn, keras/TensorFlow,
 CoolProp; see requirements.txt), not just h5py/pandas/numpy.
 """
 import argparse
 import pathlib
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # repo root: `import solete` works from any cwd / Spyder
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))      # sibling script inspect_dataset.py
+
 import h5py
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from inspect_dataset import discover_keys  # Phase 1, reused as-is
 
-from Functions import (  # Phase 2
+from solete.paths import resolve_input
+from solete.io import import_PV_WT_data
+from solete.physics import PV_Performance_Model
+from solete.qc import (  # Phase 2
     apply_qc_flags,
     build_raw_value_qc_rules,
     build_substitution_qc_rule,
-    import_PV_WT_data,
-    PV_Performance_Model,
     QC_VALID,
     QC_MISSING,
     QC_SENSOR_ERROR,
@@ -148,18 +151,20 @@ def report_for_file(path: str, pv_info: dict) -> pd.DataFrame:
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("h5_files", nargs="+", help="One or more .h5 files to report on")
-    ap.add_argument("--csv", default="availability_report.csv",
-                     help="Output CSV path (default: availability_report.csv)")
+    ap.add_argument("--csv", default=None,
+                     help="Output CSV path (default: outputs/availability_report.csv)")
     args = ap.parse_args()
 
     PV, _WT = import_PV_WT_data()
 
     combined = pd.concat(
-        [report_for_file(path, PV) for path in args.h5_files],
+        [report_for_file(str(resolve_input(path)), PV) for path in args.h5_files],
         ignore_index=True,
     )
-    combined.to_csv(args.csv, index=False)
-    print(f"Wrote {len(combined)} rows to {args.csv}")
+    from solete.paths import output_path
+    csv_path = args.csv or str(output_path("availability_report.csv"))
+    combined.to_csv(csv_path, index=False)
+    print(f"Wrote {len(combined)} rows to {csv_path}")
 
     worst_completeness = combined.nsmallest(5, "completeness_pct")[
         ["file", "column", "completeness_pct"]

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Tests for the Quality Control flag layer (Functions.apply_qc_flags and friends).
+Tests for the Quality Control flag layer (solete.qc.apply_qc_flags and friends).
 
 Every case is built from a real row pulled out of SOLETE_Pombo_60min.h5 by the 
-exact criteria in QC_SCHEMA.md, with its value(s) copied inline -- not a fabricated row. 
+exact criteria in docs/legacy/QC_SCHEMA_platform_v3.md, with its value(s) copied inline -- not a fabricated row. 
 The two exceptions are explicitly marked SYNTHETIC below: SOLETE_Pombo_60min.h5 
 contains no row with WIND_DIR[deg] exactly 360.0, and none with a negative Pressure[mbar]/
 HUMIDITY[%]/WIND_DIR[deg] value, so those specific boundaries can't be
@@ -16,7 +16,7 @@ import sys
 import types
 import pathlib
 
-# Functions.py imports keras/tensorflow at module level for the ML forecasting
+# the platform modules used to import keras/tensorflow at module level for the ML forecasting
 # code, which these tests never touch. Stub them out so this test file has no
 # dependency on those (heavy, unrelated) packages being installed.
 for _modname in ["keras", "keras.models", "keras.layers"]:
@@ -30,12 +30,12 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from Functions import (
+from _data import short_sample_path, v3_60min_path
+from solete.io import import_SOLETE_data, import_PV_WT_data
+from solete.qc import (
     apply_qc_flags,
     build_raw_value_qc_rules,
     build_substitution_qc_rule,
-    import_SOLETE_data,
-    import_PV_WT_data,
     QC_VALID,
     QC_MISSING,
     QC_PHYSICALLY_IMPLAUSIBLE,
@@ -47,20 +47,20 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope="module")
 def real_60min():
-    return pd.read_hdf(REPO_ROOT / "SOLETE_Pombo_60min.h5")
+    return pd.read_hdf(v3_60min_path())
 
 
 @pytest.fixture(scope="module")
 def real_short():
-    return pd.read_hdf(REPO_ROOT / "SOLETE_short.h5")
+    return pd.read_hdf(short_sample_path())
 
 
 @pytest.fixture(scope="module")
 def built_60min():
     """Full pipeline (import_SOLETE_data, 'Build') on the real 60min file --
     unlike real_60min above, this actually runs ExpandSOLETE(), so
-    P_hybrid[kW]_qc / P_hybrid[kW]_qc_source (Task 6.1, QC_SCHEMA.md section
-    8) exist to test against. Same loading recipe as bench_common.py's
+    P_hybrid[kW]_qc / P_hybrid[kW]_qc_source (Task 6.1, docs/legacy/QC_SCHEMA_platform_v3.md section
+    8) exist to test against. Same loading recipe as solete/benchmark/common.py's
     load_full_df()."""
     Control_Var = {
         "resolution": "60min",
@@ -115,7 +115,7 @@ def test_pressure_plausible_real_row_stays_valid(real_60min):
 def test_pressure_negative_synthetic():
     # SYNTHETIC: no row in either real file has a negative Pressure[mbar].
     # Built to isolate the general-range side of the detector
-    # (PRESSURE_PLAUSIBLE_RANGE in Functions.py), which the three known
+    # (PRESSURE_PLAUSIBLE_RANGE in solete/qc.py), which the three known
     # sentinels alone don't exercise.
     row = pd.DataFrame({"Pressure[mbar]": [-5.0]})
     apply_qc_flags(row, build_raw_value_qc_rules(row))
@@ -215,13 +215,13 @@ def test_azimuth_elevation_populated_real_row_stays_valid(real_60min):
     # Elevation happens to be 0.0 here too (sun right at the horizon at
     # 07:00 on 2019-01-16 in winter) -- this is the one real row where the
     # "== 0.0 means missing" proxy is a genuine false positive, called out
-    # explicitly in QC_SCHEMA.md section 6 rather than papered over.
+    # explicitly in docs/legacy/QC_SCHEMA_platform_v3.md section 6 rather than papered over.
     assert row["Elevation[deg]"].iloc[0] == 0.0
     assert row["Elevation[deg]_qc"].iloc[0] == QC_MISSING
 
 
 def test_azimuth_elevation_absent_columns_skipped_cleanly(real_short):
-    # SOLETE_short.h5 has no Azimuth[deg]/Elevation[deg] columns at all.
+    # examples/SOLETE_short.h5 has no Azimuth[deg]/Elevation[deg] columns at all.
     # apply_qc_flags must skip those rules without raising.
     df = real_short.copy()
     rules = build_raw_value_qc_rules(df)
@@ -286,7 +286,7 @@ def test_whole_file_counts_near_zero_short(real_short):
 
 
 # ---------------------------------------------------------------------------
-# P_hybrid[kW] QC inheritance -- Phase 6 Task 6.1 (QC_SCHEMA.md section 8)
+# P_hybrid[kW] QC inheritance -- Phase 6 Task 6.1 (docs/legacy/QC_SCHEMA_platform_v3.md section 8)
 #
 # Regression coverage for CHANGELOG.md's "Added (Phase 6 -- hybrid wind+solar
 # forecasting)" entry, which states this behavior is "pinned by the new

@@ -42,13 +42,13 @@ the repo itself for size reasons (see "Data access" below for the rest).
 Columns include ambient temperature, relative humidity, wind speed and
 direction, global horizontal and plane-of-array irradiance, barometric
 pressure, measured wind-turbine output (`P_Gaia[kW]`), and measured PV output
-(`P_Solar[kW]`) — see `DATA_DICTIONARY.md` in the code repository for the full,
+(`P_Solar[kW]`) — see `docs/legacy/DATA_DICTIONARY_platform_v3.md` in the code repository for the full,
 verified-against-the-real-files column-by-column reference (units, ranges,
 and known data-quality caveats per column), rather than duplicating that
 description here.
 
 **Known data-quality caveats worth surfacing in the listing itself** (full
-detail in `KNOWN_ISSUES.md` and `DATA_DICTIONARY.md`):
+detail in `KNOWN_ISSUES.md` and `docs/legacy/DATA_DICTIONARY_platform_v3.md`):
 - `P_Gaia[kW]` (wind) is exactly zero for 99.56% of the 60-minute file's rows
   — the turbine appears to have been out of service for nearly the entire
   record (unconfirmed root cause). Any wind-power benchmark result on this
@@ -91,15 +91,15 @@ Time series (tabular, timestamped, multivariate).
 Papers with Code dataset pages typically link out to where the actual files
 live rather than hosting them — link to the DTU Data / figshare record above
 as the download source, **not** to this GitHub repository (which ships only
-the small `SOLETE_short.h5` sample and the `SOLETE_Pombo_60min.h5` file used
+the small `examples/SOLETE_short.h5` sample and the `SOLETE_Pombo_60min.h5` file used
 for this repo's own benchmark; the full multi-resolution dataset, including
 1-second and 1-minute resolutions, is on DTU Data / figshare only).
 
 ## Benchmark description
 
-This repository (`BENCHMARKS.md`) maintains a leaderboard-style benchmark on
+This repository (`benchmarks/BENCHMARKS.md`) maintains a leaderboard-style benchmark on
 top of the 60-minute-resolution file, using a fixed chronological
-train/val/test split (`splits/v1.json`; test block 2019-05-01 through
+train/val/test split (`benchmarks/splits/v1.json`; test block 2019-05-01 through
 2019-09-01, 2,953 rows) so results across models are comparable. One-step-
 ahead (1-hour horizon) point forecasts are scored with MAE, RMSE, and nRMSE
 (under both a fixed-capacity and a mean-of-target normalization —
@@ -110,9 +110,9 @@ flagged as PV-model-substituted).
 Models currently benchmarked: naive persistence, "smart" (24h-lag)
 persistence, hour-of-day climatology, an autoregressive AR(p) model, gradient
 boosting (LightGBM, using same-timestamp weather features — flagged in
-`BENCHMARKS.md` as not a fair comparison against the lagged-input-only rows),
+`benchmarks/BENCHMARKS.md` as not a fair comparison against the lagged-input-only rows),
 and LSTM / CNN / CNN-LSTM neural networks (the latter three explicitly flagged
-in `BENCHMARKS.md` as reduced-epoch / indicative results, not final, due to
+in `benchmarks/BENCHMARKS.md` as reduced-epoch / indicative results, not final, due to
 sandbox runtime limits when they were produced).
 
 **Caveat that must travel with any Papers with Code benchmark entry sourced

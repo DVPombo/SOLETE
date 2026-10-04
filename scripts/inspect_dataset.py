@@ -10,7 +10,7 @@ as much as the column stats.
 
 Usage
 -----
-    python scripts/inspect_dataset.py SOLETE_short.h5
+    python scripts/inspect_dataset.py examples/SOLETE_short.h5
     python scripts/inspect_dataset.py SOLETE_Pombo_60min.h5
     python scripts/inspect_dataset.py SOLETE_Pombo_60min.h5 --csv out.csv
 
@@ -19,7 +19,11 @@ around as a standing tool -- e.g. to re-run against a newly delivered
 resolution file, or after a data refresh, to see what changed.
 """
 import argparse
+import pathlib
 import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # repo root: `import solete` works from any cwd / Spyder
+from solete.paths import resolve_input
 
 import h5py
 import numpy as np
@@ -119,6 +123,7 @@ def main():
 
     combined = []
     for path in args.h5_files:
+        path = str(resolve_input(path))   # bare names are looked up in data/hdf5/ and examples/
         result = inspect_file(path)
         result.insert(0, "file", path)
         combined.append(result)

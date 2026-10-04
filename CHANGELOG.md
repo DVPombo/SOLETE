@@ -5,6 +5,31 @@ All notable changes to the SOLETE platform are documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history and condensed from [releases/](releases/); see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
 
 ## [Unreleased]
+### Changed — repository restructure (breaking: import paths and file locations)
+The dataset-cleaning repository (`SOLETEdataset`) and the platform repository are merged into one. Nothing in the
+numerical code was changed; files moved and every path now resolves through one module. Full old-to-new table:
+`docs/RESTRUCTURE_NOTES.md`.
+- `Functions.py` (re-export shim) and `solete_pipeline/` are replaced by one package, `solete/`. `from Functions import X`
+  becomes `from solete.<module> import X`.
+- `metrics.py` -> `solete/metrics.py`; `bench_common.py` -> `solete/benchmark/common.py`; the `baseline_*.py` and `task*_*.py`
+  scripts -> `benchmarks/` (the `taskN_M_` prefixes are dropped); `splits/`, `results/`, `BENCHMARKS.md` -> `benchmarks/`;
+  `RunMe.py`, `MLForecasting.py` -> `scripts/quickstart/`; `RunMe_matlab.m` -> `matlab/`; `RESOLUTIONS.md` -> `docs/`.
+- The dataset pipeline, diagnostics and documentation of version 4 live under `dataset/`.
+- `SOLETE_Pombo_60min.h5` is no longer in git; it is expected in `data/hdf5/` (v3 file from figshare). `SOLETE_short.h5` moved to `examples/`.
+- Platform-era `QC_SCHEMA.md` / `DATA_DICTIONARY.md` moved to `docs/legacy/` (superseded for the released files by `dataset/docs/`).
+- `README.txt` removed (superseded by `README.md`).
+### Added
+- `solete/paths.py`: the single resolver for the data folder (`data/`, overridable with `SOLETE_DATA_DIR`), samples, and generated outputs
+  (`data/derived/`, `outputs/`). The expected layout is exactly the figshare upload (`hdf5/`, `parquet/`). Missing files raise
+  `DataFileNotFoundError` with the download link.
+- `data/README.md`, `.gitignore` rules keeping data out of git, `.gitattributes` (LF line endings), `pyproject.toml` (`pip install -e .`).
+- `Control_Var['data_version']` ('v3' default). `'v4'` raises `NotImplementedError` until the QC-flag sets are reconciled.
+- Command-line tools in `dataset/` accept bare file names and look them up in `data/hdf5/`; outputs land in `data/hdf5/` and `data/parquet/`.
+- Every runnable script adds the repository root to `sys.path`, so it runs from any folder and from Spyder.
+- Tests that need the v3 hourly file are skipped (not failed) when it is absent (`tests/conftest.py`, `tests/_data.py`).
+### Fixed
+- `solete/postprocess.py`: invalid escape sequence warning in the `error_msg` banner string.
+
 ### Fixed
 - **Phase 0.5** (commit `5eb11d0`) — Three fixes, backfilled here per `KNOWN_ISSUES.md`'s "Already-fixed issues" section and housekeeping gap #9 (see `git show 5eb11d0` for the diff):
   - `PV_Performance_Model()`'s inverter-capacity clamp used whole-DataFrame boolean-mask assignment (`Results[mask] = value`), which applies the scalar to *every* column on the masked rows — silently clobbering `Tm`, `Tc`, `Pmp_panel`, `Pmp_array`, and `eff_inv` alongside the intended `Pac_<pv>` column. Fixed to `Results.loc[mask, 'Pac_' + pv] = value`, confined to the intended column.

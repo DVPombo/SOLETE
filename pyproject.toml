@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solete"
+version = "4.0.0.dev0"
+description = "SOLETE: co-located wind + PV + meteorological dataset, its cleaning pipeline, and a forecasting platform"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Daniel Vazquez Pombo" }]
+requires-python = ">=3.10"
+# Light core. The ML extras (keras/tensorflow) are only needed by solete.modeling.
+dependencies = ["numpy", "pandas", "tables", "scikit-learn", "matplotlib", "joblib", "CoolProp", "h5py"]
+
+[project.optional-dependencies]
+ml = ["tensorflow", "keras", "lightgbm"]
+dataset = ["pyarrow", "pvlib"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["solete*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

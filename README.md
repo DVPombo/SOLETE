@@ -9,6 +9,8 @@ ORCID: https://orcid.org/0000-0001-5664-9421
 
 See [CHANGELOG.md](CHANGELOG.md) for release history, including the v3.0 corrigendum.
 
+**This repository is the one-stop home of the whole SOLETE project**: the cleaning and quality-control pipeline behind version 4 of the dataset, and the forecasting platform and benchmarks built on it. (The data files themselves live on figshare, see below.)
+
 This repository used to be complementary material to its twin "Data in Brief" article [1], and a series of papers covering Solar PV power forecasting [2, 3, 4]. The objective is to increase the transparency of my work, which is one of the main limitations of Machine Learning in general.
 However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
 I included a number of functions that can be used by beginners to kickstart their projects with solar power, machine learning, forecasting, or simply python.
@@ -19,45 +21,91 @@ The papers were developed under the PhD thesis Operation and Planning of Isolate
 Version v1.0 was released during the PhD thus, Copyright 2021 Technical University of Denmark.
 Version v2.0 was released months after finalising my employment at DTU, therefore, Copyright belongs to me (yeah baby!).
 
+# What is where
+
+| I want to… | Go to |
+|---|---|
+| **get the data** | figshare: <https://doi.org/10.11583/DTU.17040767> → unzip into [`data/`](data/README.md) |
+| understand the columns and quality flags | [`dataset/docs/DATA_DICTIONARY.md`](dataset/docs/DATA_DICTIONARY.md), [`dataset/docs/QC_SCHEMA.md`](dataset/docs/QC_SCHEMA.md) |
+| see how the raw data became version 4 | [`dataset/`](dataset/README.md): `pipeline/` (the code), `docs/CLEANING_DECISIONS.md` (every rule and why), `diagnostics/` (the investigations) |
+| train forecasting models | [`solete/`](solete/) (the package) and [`scripts/quickstart/MLForecasting.py`](scripts/quickstart/MLForecasting.py) |
+| reproduce or extend the benchmarks | [`benchmarks/`](benchmarks/BENCHMARKS.md) |
+| learn by example | the notebooks in [`examples/`](examples/) (they run on a tiny sample, no download needed) |
+
+```
+SOLETE/
+├── data/          <- put the figshare files here (git-ignored; see data/README.md)
+│   ├── hdf5/
+│   └── parquet/
+├── dataset/       cleaning + quality-control pipeline, its documentation and diagnostics
+├── solete/        the importable package: paths, io, qc, physics, preprocessing, modeling, metrics, ...
+├── benchmarks/    baselines and benchmark scripts, fixed splits, stored results
+├── scripts/       quickstart/RunMe.py, quickstart/MLForecasting.py, dataset inspection tools
+├── examples/      notebooks + tiny sample files
+├── matlab/  R/    loaders for MATLAB and R users
+├── tests/  docs/
+```
+
 # Dependencies
-The pinned dependency versions live in `requirements.txt` -- see the Setup section below. Target interpreter: Python 3.13 (the newest Python that every pinned package currently ships wheels for). You will also need:
-9. The SOLETE dataset [1] -> https://doi.org/10.11583/DTU.17040767 
+The pinned dependency versions live in `requirements.txt`. Target interpreter: Python 3.13 (the newest Python that every pinned package currently ships wheels for). The dataset-cleaning scripts need less: see `dataset/requirements.txt`.
 
 ## Setup
 ```
 pip install -r requirements.txt
+pip install -e .          # optional: makes `import solete` work from any folder
+```
+Without `pip install -e .` everything still works: every script adds the repository root to the Python path itself, so you can press F5 in Spyder from wherever the script is.
+
+# Where the code looks for the data
+
+Everything goes through [`solete/paths.py`](solete/paths.py); no script depends on the folder you run it from.
+
+1. Download the figshare files and unzip them into `data/`, keeping the `hdf5/` and `parquet/` sub-folders (the layout of the figshare upload — no renaming).
+2. Check what the code sees: `python -m solete.paths`
+3. Prefer a different location (external drive, cluster)? Set the environment variable `SOLETE_DATA_DIR`.
+
+```python
+from solete.paths import find_data_file
+import pandas as pd
+df = pd.read_parquet(find_data_file("1h", version="v4", fmt="parquet"))   # cleaned data with quality flags
 ```
 
+Which version does the platform read? The forecasting platform and the benchmarks were built on the **version 3 hourly file** (`SOLETE_Pombo_60min.h5`, kept in `data/hdf5/`) and read it by default. Making them consume the cleaned version 4 files requires reconciling two quality-flag code sets first; until then `import_SOLETE_data` raises a clear error if you ask for `data_version='v4'`. Details in [`docs/RESTRUCTURE_NOTES.md`](docs/RESTRUCTURE_NOTES.md).
+
 # How to use
-1. Store the SOLETE dataset in the same folder as the scripts from this repository 
-2. Open the **RunMe.py** file. This allows you to load SOLETE and sneak a peek at its contents.
-3. Open the  **MLForecasting.py** file. This allows you to configure Random Forest (RF), Support Vector Machine (SVM), and three kinds of Artificial Neuronal Networks: Convolutional Neuronal Network (CNN), Long-Short Term Memory (LSTM), and a Hybrid (CNN-LSTM).
+1. Put the SOLETE data in `data/` (see above). The first script works without it, on the small sample in `examples/`.
+2. Open **scripts/quickstart/RunMe.py**. This allows you to load SOLETE and sneak a peek at its contents.
+3. Open **scripts/quickstart/MLForecasting.py**. This allows you to configure Random Forest (RF), Support Vector Machine (SVM), and three kinds of Artificial Neuronal Networks: Convolutional Neuronal Network (CNN), Long-Short Term Memory (LSTM), and a Hybrid (CNN-LSTM).
    - The file itself contains notes explaining how to use it.
    - The main objective is to introduce the SOLETE dataset and help people learning basics of time series forecasting based on Machine Learning
    - You can basically replicate most of the methodology from [2, 3, 4] and build on top.
    - I included some error messages to debug what I expect are the most common errors when running stuff.
+   - Trained models and result files are written to `outputs/` (git-ignored).
    - Let me know if you like it or what needs to be fixed.
 4. Have Fun!
 
 You can of course use your own dataset, you will have to adapt things here and there, but you will be able to reuse most of the code.
 
-Note that the latest version of the SOLETE dataset includes a 1sec resolution version. The file is quite large, which might meant that you PC is not able to open it. Please consider only reading part of it if you really want to play with that resolution. Alternatively, drop it in an HPC and enjoy yourself. :D 
+Note that the dataset includes a 1sec resolution version. The file is quite large, which might meant that you PC is not able to open it. Please consider only reading part of it if you really want to play with that resolution. Alternatively, drop it in an HPC and enjoy yourself. :D
+
+### Reproducing the version 4 cleaning
+See [`dataset/README.md`](dataset/README.md). In short, from the repository root:
+```
+pip install -r dataset/requirements.txt
+python dataset/pipeline/clean_solete_1sec.py SOLETE_Pombo_1sec.h5
+python dataset/pipeline/resample_solete.py   SOLETE_clean_1sec.h5
+python dataset/pipeline/export_parquet.py    SOLETE_clean_1sec.h5     # and the other resolutions
+```
 
 ### Notes for _MATLAB_ users ###
 I have been reached out by several people complaining that hdf5 can't be imported in MATLAB. That is not true, they weren't doing properly. Nevertheless, worry not dear user. Your peers have asked and I answer:
-1. Open the file **RunMe_matlab.m** in MATLAB and hit F5. That will import SOLETE as a _table_.
+1. Open the file **matlab/RunMe_matlab.m** in MATLAB and hit F5. That will import SOLETE as a _table_ (it finds `data/hdf5/` by itself).
 2. Alternatively, you can run the Python scripts from MATLAB, which I find a bit weird... but hey! You do you baby!
 
 *I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
 
-### A note on Functions.py
-
-The functions used throughout this repo now live in the `solete_pipeline/` package
-(one module per concern: I/O, physics, QC, preprocessing, ML model training,
-postprocessing) — see `CONTRIBUTING.md`'s "Code layout" section for the full map.
-`Functions.py` still exists and still works exactly as before, so none of the
-instructions above change; it's now a thin re-export shim over `solete_pipeline`
-kept for backward compatibility.
+### Code layout
+One module per concern inside the `solete/` package (I/O, paths, physics, QC, preprocessing, ML model training, postprocessing, metrics) — see `CONTRIBUTING.md`'s "Code layout" section. The old `Functions.py` and `solete_pipeline/` no longer exist; `from Functions import X` becomes `from solete.<module> import X` (migration table in [`docs/RESTRUCTURE_NOTES.md`](docs/RESTRUCTURE_NOTES.md)).
 
 # Examples
 New to SOLETE? The notebooks in `examples/` walk through the dataset on a small sample file, so you can get a feel for it without downloading the full dataset first. Each has an "Open in Colab" badge to run it straight in the browser.
@@ -66,7 +114,7 @@ New to SOLETE? The notebooks in `examples/` walk through the dataset on a small 
 - [`examples/02_data_quality.ipynb`](examples/02_data_quality.ipynb) — walks through the QC flag layer and the data-quality issues it catches.
 - [`examples/03_pv_forecasting.ipynb`](examples/03_pv_forecasting.ipynb) — a small persistence-vs-Random-Forest forecasting demo for solar PV power.
 - [`examples/04_wind_forecasting.ipynb`](examples/04_wind_forecasting.ipynb) — the same forecasting demo for wind power, including a data note on the turbine's near-zero output in this dataset.
-- [`examples/05_hybrid_forecasting.ipynb`](examples/05_hybrid_forecasting.ipynb) — hybrid wind+solar forecasting (`P_hybrid[kW]`). Honestly scoped: this dataset's wind record is too sparse to demonstrate wind-solar complementarity, so the notebook documents the infrastructure and methodology (derived column, joint-vs-independent comparison, ramp-rate tooling) for reuse once better-populated wind data is available, rather than a positive complementarity claim. See `BENCHMARKS.md`'s hybrid section and `KNOWN_ISSUES.md` #10.
+- [`examples/05_hybrid_forecasting.ipynb`](examples/05_hybrid_forecasting.ipynb) — hybrid wind+solar forecasting (`P_hybrid[kW]`). Honestly scoped: this dataset's wind record is too sparse to demonstrate wind-solar complementarity, so the notebook documents the infrastructure and methodology (derived column, joint-vs-independent comparison, ramp-rate tooling) for reuse once better-populated wind data is available, rather than a positive complementarity claim. Needs the full v3 hourly file in `data/hdf5/`. See `benchmarks/BENCHMARKS.md`'s hybrid section and `KNOWN_ISSUES.md` #10.
 
 # How to cite this:
 Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:
@@ -116,5 +164,5 @@ I can only apologize for these mistakes, which have been corrected in versions v
 # Run with Docker
 ```
 docker build -t solete .
-docker run --rm -v $(pwd)/data:/app/data solete
+docker run --rm -v $(pwd)/data:/app/data solete     # mounts your data/ folder (hdf5/ + parquet/ inside)
 ```

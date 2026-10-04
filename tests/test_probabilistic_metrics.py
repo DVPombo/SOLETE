@@ -22,8 +22,8 @@ import pathlib
 
 # Same convention as tests/test_metrics.py / tests/test_qc_flags.py: stub out
 # keras/tensorflow so this file has no dependency on those heavy, unrelated
-# packages (Functions.py imports them at module level; metrics.py only needs
-# Functions.import_PV_WT_data(), which never touches keras).
+# packages (the platform modules used to import them at module level; metrics.py only needs
+# solete.io.import_PV_WT_data(), which never touches keras).
 for _modname in ["keras", "keras.models", "keras.layers"]:
     sys.modules.setdefault(_modname, types.ModuleType(_modname))
 sys.modules["keras.models"].Sequential = object
@@ -37,10 +37,10 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from metrics import mae, pinball_loss, crps_from_quantiles, interval_coverage, sharpness
+from _data import v3_60min_path
+from solete.metrics import mae, pinball_loss, crps_from_quantiles, interval_coverage, sharpness
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-REAL_FILE = REPO_ROOT / "SOLETE_Pombo_60min.h5"
 
 
 # ---------------------------------------------------------------------------
@@ -56,10 +56,10 @@ def real_quantile_forecast():
     quantile spread = that same window's own persistence-residual quantiles
     added on top. This is a real, self-consistent quantile forecast built
     from real data -- not the actual Session 6 LightGBM model (that's
-    task7_6_probabilistic_forecast.py's job) -- good enough to exercise the
+    benchmarks/probabilistic_forecast.py's job) -- good enough to exercise the
     metrics against real numbers rather than invented ones.
     """
-    df = pd.read_hdf(REAL_FILE).sort_index()  # KNOWN_ISSUES.md #8: must sort
+    df = pd.read_hdf(v3_60min_path()).sort_index()  # KNOWN_ISSUES.md #8: must sort
     window = df.loc["2019-06-01":"2019-06-03", "P_Solar[kW]"]
     assert len(window) == 72
 

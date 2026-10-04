@@ -24,11 +24,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+RUN pip install --no-cache-dir --no-deps -e .
 
-# The full SOLETE dataset itself is not included in the image (see README) --
-# mount it at runtime, e.g. `docker run --rm -v $(pwd)/data:/app/data solete`.
-# The small SOLETE_short.h5 sample IS baked into the image (see .dockerignore).
+# The full SOLETE dataset itself is not included in the image (see data/README.md) --
+# mount your data folder (with hdf5/ and parquet/ inside) at runtime:
+#     docker run --rm -v $(pwd)/data:/app/data solete
+# solete/paths.py finds it at /app/data. The small examples/SOLETE_short.h5 sample IS
+# baked into the image (see .dockerignore).
 
 # Default command runs the example script. Swap for `CMD ["bash"]` if you'd
 # rather drop into a shell and run things manually.
-CMD ["python", "RunMe.py"]
+CMD ["python", "scripts/quickstart/RunMe.py"]

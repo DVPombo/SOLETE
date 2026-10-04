@@ -18,14 +18,14 @@ point of reference; see `CHANGELOG.md` and git history (`git show 5eb11d0`) for 
 detail on each.
 
 ### 1. `PV_Performance_Model` DataFrame-wide masking bug — **FIXED**
-- **What it was:** In `Functions.py::PV_Performance_Model()`, the inverter-capacity clamp
+- **What it was:** In `solete/physics.py::PV_Performance_Model()`, the inverter-capacity clamp
   used `Results[mask] = value` (boolean-mask assignment on the whole DataFrame) instead
   of `Results.loc[mask, 'Pac_<pv>'] = value`. Because `Results[mask] = value` applies the
   scalar to *every* column of `Results` on the masked rows, it was silently clobbering
   `Tm`, `Tc`, `Pmp_panel`, `Pmp_array`, and `eff_inv` on those rows too, not just the
   intended `Pac_<pv>` column.
 - **Status:** Fixed — now uses `.loc[mask, 'Pac_' + pv]`, confined to the intended
-  column. See the inline `#NOTE:` comment at `Functions.py` line ~309.
+  column. See the inline `#NOTE:` comment at `solete/` (formerly `solete/` line ~309).
 - **What a user should do in the meantime:** Nothing — this is fixed in the current code.
   Anyone who ran an older version of `PV_Performance_Model` and kept the output should be
   aware `Tm`/`Tc`/derived columns could have been silently wrong on inverter-clamped rows.
@@ -36,7 +36,7 @@ detail on each.
   positional indexing for non-integer (DatetimeIndex) indexes. Modern pandas (3.0+) no
   longer does that fallback and raises `KeyError` instead.
 - **Status:** Fixed — the loop now works on plain `numpy` arrays (`.to_numpy()`) so `[i]`
-  is unambiguously positional. See the inline comment at `Functions.py` line ~366.
+  is unambiguously positional. See the inline comment at `solete/` (formerly `solete/` line ~366).
 - **What a user should do in the meantime:** Nothing — fixed in current code.
 
 ### 3. Silent `P_Solar[kW]`/`Pac` substitution in `ExpandSOLETE` — **FIXED (flag added)**
@@ -44,8 +44,8 @@ detail on each.
   where `Pac >= 1.5 * P_Solar[kW]`, as a noise/curtailment-cleaning step. This happened
   silently — there was no way to tell, downstream, which rows had been substituted.
 - **Status:** Fixed — a new boolean column, `P_Solar_model_substituted`, is now added
-  alongside the substitution, so it's traceable. See `Functions.py` line ~208 and the
-  `P_Solar_model_substituted` entry in `DATA_DICTIONARY.md`.
+  alongside the substitution, so it's traceable. See `solete/` (formerly `solete/` line ~208) and the
+  `P_Solar_model_substituted` entry in `docs/legacy/DATA_DICTIONARY_platform_v3.md`.
 - **What a user should do in the meantime:** Nothing to fix, but **do** check this flag
   before treating `P_Solar[kW]` (post-`ExpandSOLETE`) as a pure sensor reading — see the
   real substitution rates below.
@@ -58,7 +58,7 @@ detail on each.
 - **What it is:** In `SOLETE_Pombo_60min.h5`, 10,477 of 10,969 rows (95.5%) hold exactly
   `1000.000000` mbar, 477 rows (4.3%) hold exactly `2000.0`, and 2 rows hold `3000.0`.
   Only ~13 rows carry a plausible, non-round atmospheric pressure value (992–998 mbar).
-  `SOLETE_short.h5`'s pressure column, by contrast, varies smoothly and realistically
+  `examples/SOLETE_short.h5`'s pressure column, by contrast, varies smoothly and realistically
   (1013.26–1017.47 mbar) across all 24 rows.
 - **Where it lives:** `SOLETE_Pombo_60min.h5`, column `Pressure[mbar]`.
 - **Current status:** Open — not fixed, not previously documented anywhere found in the
@@ -75,7 +75,7 @@ detail on each.
 - **What it is:** `HUMIDITY[%]` is stored as a fraction on [0, 1] (confirmed by
   `Rincon_Pombo_ThermodynamicModel`'s own `if humidity[i] > 1: humidity[i] = 1.0` clip
   before passing it to CoolProp). In `SOLETE_Pombo_60min.h5`, 188 of 10,969 rows (1.7%)
-  exceed 1.0, up to 2.7. `SOLETE_short.h5` has no such rows (small sample, though).
+  exceed 1.0, up to 2.7. `examples/SOLETE_short.h5` has no such rows (small sample, though).
 - **Where it lives:** `SOLETE_Pombo_60min.h5`, column `HUMIDITY[%]`.
 - **Current status:** Open. The existing clip in `Rincon_Pombo_ThermodynamicModel` only
   protects that one function's internal calculation — it does not fix or flag the
@@ -88,10 +88,10 @@ detail on each.
 
 ### 6. `WIND_DIR[deg]` exceeds valid compass range (>360°) in the 60min file — **OPEN**
 - **What it is:** 103 of 10,969 rows (0.94%) in `SOLETE_Pombo_60min.h5` have
-  `WIND_DIR[deg]` above 360°, up to 639.34°. `SOLETE_short.h5`'s wind direction stays
+  `WIND_DIR[deg]` above 360°, up to 639.34°. `examples/SOLETE_short.h5`'s wind direction stays
   within [0°, 360°) throughout its 24 rows.
 - **Where it lives:** `SOLETE_Pombo_60min.h5`, column `WIND_DIR[deg]`.
-- **Current status:** Open. See `RESOLUTIONS.md` for the full writeup — this pattern is
+- **Current status:** Open. See `docs/RESOLUTIONS.md` for the full writeup — this pattern is
   consistent with (but not conclusively proven to be caused by) a non-circular mean used
   when aggregating finer-resolution wind-direction readings into this file, since no
   aggregation code or finer-resolution source file exists in this repo to check against.
@@ -104,7 +104,7 @@ detail on each.
 
 ### 7. `Azimuth[deg]` / `Elevation[deg]` effectively unpopulated in the 60min file — **OPEN**
 - **What it is:** Both columns exist only in `SOLETE_Pombo_60min.h5` (not in the short
-  file), are not referenced anywhere in `Functions.py`/`RunMe.py`/`MLForecasting.py`, and
+  file), are not referenced anywhere in `solete/`/`scripts/quickstart/RunMe.py`/`scripts/quickstart/MLForecasting.py`, and
   are not in `Control_Var['PossibleFeatures']`. 99.9% of rows in both columns are exactly
   `0.0`; the only non-zero values (10 rows for Azimuth, 9 for Elevation) fall on a single
   calendar day, 2019-01-16, out of the ~15-month file.
@@ -127,9 +127,9 @@ detail on each.
 - **Where it lives:** `SOLETE_Pombo_60min.h5` (not observed in the 24-row short file,
   which is too small a window to show reordering either way).
 - **Current status:** Open for Python users. `CHANGELOG.md`'s v2.2 entry already notes
-  `RunMe_matlab.m` "re-sorts the SOLETE file by timestamp on import" — i.e. this
+  `matlab/RunMe_matlab.m` "re-sorts the SOLETE file by timestamp on import" — i.e. this
   reordering is a known, long-standing characteristic of the delivered files, but the
-  fix so far only exists on the MATLAB import path. Nothing in `Functions.py`'s
+  fix so far only exists on the MATLAB import path. Nothing in `solete/`'s
   `import_SOLETE_data()` (the Python import path) sorts the index.
   `<!-- TODO: confirm with maintainer -->` whether a Python-side sort should be added to
   `import_SOLETE_data()` too — that would be a code change, out of scope for this
@@ -144,13 +144,13 @@ detail on each.
 
 ## `P_Solar_model_substituted` — real substitution rates (new measurement this phase)
 
-Computed by loading each real file, running `Functions.py::PV_Performance_Model()` on it
+Computed by loading each real file, running `solete/physics.py::PV_Performance_Model()` on it
 with the PV parameters from `import_PV_WT_data()`, and reproducing the exact substitution
 condition from `ExpandSOLETE()` (`Pac >= 1.5 * P_Solar[kW]`):
 
 | File | Rows | Rows substituted | Substitution rate |
 |---|---|---|---|
-| `SOLETE_short.h5` | 24 | 5 | **20.83%** |
+| `examples/SOLETE_short.h5` | 24 | 5 | **20.83%** |
 | `SOLETE_Pombo_60min.h5` | 10,969 | 4,204 | **38.33%** |
 
 **These rates differ by nearly 2×, and that gap is worth flagging rather than treating as
@@ -169,7 +169,7 @@ higher than anticipated.
 
 ## Wind-direction aggregation (Task 1.2 cross-reference)
 
-See item 6 above and the full discussion in `RESOLUTIONS.md`. Filed as **open /
+See item 6 above and the full discussion in `docs/RESOLUTIONS.md`. Filed as **open /
 unconfirmed root cause** — real out-of-range values exist in the delivered file, but
 this repo has no aggregation code or finer-resolution source file to pin down why.
 
@@ -180,11 +180,11 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
   the full real 15-month record. The only non-zero readings are 24 rows on 2018-08-31 and
   24 rows on 2019-05-25 (48 rows, 0.44%) — despite thousands of hours elsewhere with wind
   speed above the turbine's 3.5 m/s cut-in. This was already flagged as a benchmark
-  caveat in `splits/README.md` (Phase 5); this entry is about *why*.
+  caveat in `benchmarks/splits/README.md` (Phase 5); this entry is about *why*.
 - **Test-split-specific numbers (Phase 6, Task 6.0, computed directly against
-  `splits/v1.json`'s test block, 2,953 rows, 2019-05-01 to 2019-09-01):**
+  `benchmarks/splits/v1.json`'s test block, 2,953 rows, 2019-05-01 to 2019-09-01):**
   - Wind-active rows: 24 of 2,953 (**0.81%**) — all on 2019-05-25, the split's only
-    wind-active day (by design, see `splits/README.md`'s boundary-choice rationale).
+    wind-active day (by design, see `benchmarks/splits/README.md`'s boundary-choice rationale).
   - Wind's share of `P_hybrid[kW] = P_Solar[kW] + P_Gaia[kW]` total **energy**: **3.86%**.
   - Wind's share of `P_hybrid[kW]` **variance**: **11.36%** — notably higher than its
     energy share, because the handful of active-day readings include some large spikes
@@ -200,11 +200,11 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
      plausible (11 kW research turbines at a single site can sit idle for maintenance,
      grid-connection, or project reasons for long stretches), but nothing in this repo
      (logbook, maintenance record, status column) confirms it either way.
-  2. **Resolution/aggregation pipeline artifact.** `RESOLUTIONS.md` already found a related,
+  2. **Resolution/aggregation pipeline artifact.** `docs/RESOLUTIONS.md` already found a related,
      *confirmed-symptom* problem in the same aggregation pipeline: `WIND_DIR[deg]` in this
      same 60min file holds 103 rows (0.94%) above the physically-valid 360° compass range,
      a pattern consistent with a non-circular-mean bug in whatever built the coarser
-     resolution files from the finer ones (see `RESOLUTIONS.md` and finding #6 above). No
+     resolution files from the finer ones (see `docs/RESOLUTIONS.md` and finding #6 above). No
      aggregation code or finer-resolution (`1sec`/`1min`/`5min`) source file exists in this
      repo to check directly against, for either `WIND_DIR[deg]` or `P_Gaia[kW]` — so this
      explanation is equally unconfirmed, not equally unlikely. A pipeline step that zeroes
@@ -216,12 +216,12 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
   verified directly against the real file; *why* it's that way is not established.
   `<!-- TODO: confirm with maintainer -->` — the maintainer's stated plan (2026-09) is to
   pursue raw/finer-resolution data from the original SYSLAB/DTU project to settle this
-  empirically, the same way a finer-resolution file would let `RESOLUTIONS.md`'s
+  empirically, the same way a finer-resolution file would let `docs/RESOLUTIONS.md`'s
   wind-direction question be checked directly instead of left circumstantial.
 - **What a user should do in the meantime:** Treat any wind or hybrid (`P_hybrid[kW]`)
   result on this dataset as **infrastructure/methodology**, not a demonstrated finding
   about wind behavior or wind-solar complementarity, until this is resolved — see
-  `examples/05_hybrid_forecasting.ipynb` and `BENCHMARKS.md`'s hybrid section for the full
+  `examples/05_hybrid_forecasting.ipynb` and `benchmarks/BENCHMARKS.md`'s hybrid section for the full
   scoping. Do not cite a "joint beats independent" or "ramp-smoothing" result from this
   phase as general evidence about SOLETE's wind turbine or Danish wind-solar
   complementarity broadly — at most it's evidence about two specific calendar days.
@@ -281,4 +281,4 @@ this repo has no aggregation code or finer-resolution source file to pin down wh
 | 8 | Unsorted row order on disk | `SOLETE_Pombo_60min.h5` | Open (usage caveat) |
 | 9 | CHANGELOG/tests missing for Phase 0.5 fixes | n/a (process) | Housekeeping, open |
 | 10 | `P_Gaia[kW]` near-total zero-degeneracy, root cause unconfirmed | `SOLETE_Pombo_60min.h5` | Open |
-| 11 | Fully-vectorized power-law term in thermodynamic model — precision regression | `Functions.py` | Resolved (not adopted) |
+| 11 | Fully-vectorized power-law term in thermodynamic model — precision regression | `solete/` | Resolved (not adopted) |

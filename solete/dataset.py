@@ -8,18 +8,18 @@ Minimal `SOLETE` wrapper class exposing:
     X_train, y_train, X_test, y_test = dataset.forecasting(horizon="1h")
 
 Wraps:
-    - splits/v1.json's train/val/test boundaries (via bench_common.py,
+    - benchmarks/splits/v1.json's train/val/test boundaries (via solete/benchmark/common.py,
       which itself just reads the JSON -- no boundary is hardcoded twice)
     - metrics.py's qc_mask() exclusion logic (via the `qc_exclude` flag)
-    - Functions.import_SOLETE_data's real HDF5 loading (via
+    - solete.io.import_SOLETE_data's real HDF5 loading (via
       bench_common.load_full_df(), the same canonical recipe used by every
       other Phase 5 script -- not a second/parallel loading path)
 
 Kept additive: does not change import_SOLETE_data's own behaviour, and does
-not touch MLForecasting.py / Functions.py.
+not touch scripts/quickstart/MLForecasting.py / solete/.
 
 Scope of this first version (documented rather than silently assumed):
-    - resolution: "60min" only (the only resolution splits/v1.json covers).
+    - resolution: "60min" only (the only resolution benchmarks/splits/v1.json covers).
     - split: "v1" only (the only split version that exists right now).
     - horizon: "1h" only (1 step ahead at 60min resolution -- matches the
       horizon used throughout Tasks 5.3-5.6 for comparability). Other
@@ -33,16 +33,11 @@ Scope of this first version (documented rather than silently assumed):
       uses it for.
 """
 
-import os
-import sys
-
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import bench_common as bc
-import metrics as M
+from solete.benchmark import common as bc
+from solete import metrics as M
 
 SUPPORTED_RESOLUTIONS = ("60min",)
 SUPPORTED_SPLITS = ("v1",)
@@ -57,7 +52,7 @@ class SOLETE:
         if resolution not in SUPPORTED_RESOLUTIONS:
             raise NotImplementedError(
                 f"resolution={resolution!r} not supported yet -- only {SUPPORTED_RESOLUTIONS} "
-                "(splits/v1.json only covers 60min). Extending this requires a new splits/ "
+                "(benchmarks/splits/v1.json only covers 60min). Extending this requires a new splits/ "
                 "version for that resolution first -- ASK FIRST before adding one."
             )
         if target not in bc.TARGETS:

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Unit tests for solete_pipeline's split-out modules (Phase 7, Session 8).
+Unit tests for solete's split-out modules (Phase 7, Session 8).
 
 These are new coverage, not a port of an existing test file: the whole point
-of splitting Functions.py was to make functions like PV_Performance_Model
+of splitting solete/ was to make functions like PV_Performance_Model
 and Rincon_Pombo_ThermodynamicModel importable and testable in isolation,
 without going through the full import_SOLETE_data -> ExpandSOLETE pipeline
 and without pulling in keras/tensorflow. These tests exercise exactly that:
-importing solete_pipeline.physics / solete_pipeline.qc directly (not via
-Functions.py), and checking that doing so has none of the heavy-dependency
-cost Functions.py itself still has.
+importing solete.physics / solete.qc directly (not via
+solete/), and checking that doing so has none of the heavy-dependency
+cost solete/ itself still has.
 
 Real-data-grounded per the same convention as tests/test_qc_flags.py: the PV
 input row is a real row from SOLETE_Pombo_60min.h5 (not fabricated), and
@@ -30,6 +30,8 @@ import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+
+from _data import short_sample_path, v3_60min_path
 
 
 # ---------------------------------------------------------------------------
@@ -60,38 +62,34 @@ def _no_heavy_deps_after_import(import_line):
 
 def test_qc_module_imports_without_keras_or_tensorflow():
     heavy = _no_heavy_deps_after_import(
-        "from solete_pipeline.qc import apply_qc_flags, build_raw_value_qc_rules"
+        "from solete.qc import apply_qc_flags, build_raw_value_qc_rules"
     )
-    assert heavy == [], f"solete_pipeline.qc pulled in heavy deps: {heavy}"
+    assert heavy == [], f"solete.qc pulled in heavy deps: {heavy}"
 
 
 def test_physics_module_imports_without_keras_or_tensorflow():
     heavy = _no_heavy_deps_after_import(
-        "from solete_pipeline.physics import PV_Performance_Model, "
+        "from solete.physics import PV_Performance_Model, "
         "Rincon_Pombo_ThermodynamicModel"
     )
-    assert heavy == [], f"solete_pipeline.physics pulled in heavy deps: {heavy}"
+    assert heavy == [], f"solete.physics pulled in heavy deps: {heavy}"
 
 
-def test_Functions_shim_still_needs_keras_and_tensorflow_same_as_before():
-    # Functions.py itself is unchanged in scope -- it still re-exports the ML
-    # training functions, so it should still trigger the same keras/tensorflow
-    # import cost it always had. This isn't a regression; it pins the
-    # backward-compatibility expectation so nobody "fixes" Functions.py's
-    # import cost in a way that silently drops symbols downstream scripts rely on.
-    heavy = _no_heavy_deps_after_import("import Functions")
-    assert any(m.startswith("keras") for m in heavy)
-    assert any(m.startswith("tensorflow") for m in heavy)
+def test_paths_module_imports_without_heavy_deps():
+    # The dataset-cleaning scripts under dataset/ import solete.paths only, and
+    # rely on it pulling in neither keras/tensorflow nor sklearn.
+    heavy = _no_heavy_deps_after_import("from solete.paths import find_data_file")
+    assert heavy == [], f"solete.paths pulled in heavy deps: {heavy}"
 
 
 # ---------------------------------------------------------------------------
-# solete_pipeline.physics -- PV_Performance_Model, in isolation
+# solete.physics -- PV_Performance_Model, in isolation
 # (no HDF5 read, no QC layer, no ExpandSOLETE)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
 def pv_info():
-    from solete_pipeline.io import import_PV_WT_data
+    from solete.io import import_PV_WT_data
     PVinfo, _WTinfo = import_PV_WT_data()
     return PVinfo
 
@@ -101,14 +99,14 @@ def real_daytime_row():
     # Real row: 2018-11-17 11:00:00 from SOLETE_Pombo_60min.h5 -- the first
     # row in the file with POA Irr[kW1m2] > 0.5, i.e. genuine daytime
     # production, not a degenerate all-zero night row.
-    df = pd.read_hdf(REPO_ROOT / "SOLETE_Pombo_60min.h5")
+    df = pd.read_hdf(v3_60min_path())
     row = df.loc[["2018-11-17 11:00:00"]].copy()
     assert row["POA Irr[kW1m2]"].iloc[0] == pytest.approx(0.6844341973890644)
     return row
 
 
 def test_pv_performance_model_isolated_real_row(pv_info, real_daytime_row):
-    from solete_pipeline.physics import PV_Performance_Model
+    from solete.physics import PV_Performance_Model
 
     Pac, Pdc, Tm, Tc = PV_Performance_Model(real_daytime_row, pv_info)
 
@@ -123,7 +121,7 @@ def test_pv_performance_model_isolated_real_row(pv_info, real_daytime_row):
 
 
 def test_pv_performance_model_isolated_zero_irradiance_synthetic(pv_info):
-    from solete_pipeline.physics import PV_Performance_Model
+    from solete.physics import PV_Performance_Model
 
     # SYNTHETIC: a hand-built all-zero-irradiance row. Isolates the
     # zero-production boundary directly (King's model should return exactly
@@ -141,15 +139,15 @@ def test_pv_performance_model_isolated_zero_irradiance_synthetic(pv_info):
 
 
 # ---------------------------------------------------------------------------
-# solete_pipeline.physics -- Rincon_Pombo_ThermodynamicModel, in isolation,
+# solete.physics -- Rincon_Pombo_ThermodynamicModel, in isolation,
 # cross-checked bit-for-bit against the pre-split behavior on real data
 # (mirrors the rigor Session 2's own validation used).
 # ---------------------------------------------------------------------------
 
 def test_rincon_pombo_isolated_matches_full_pipeline_real_data(pv_info):
-    from solete_pipeline.physics import PV_Performance_Model, Rincon_Pombo_ThermodynamicModel
+    from solete.physics import PV_Performance_Model, Rincon_Pombo_ThermodynamicModel
 
-    df = pd.read_hdf(REPO_ROOT / "SOLETE_short.h5")
+    df = pd.read_hdf(short_sample_path())
     Pac, Pdc, TempModule, TempCell = PV_Performance_Model(df, pv_info)
     df = df.copy()
     df["TEMPERATURE[degC]_orig_placeholder"] = df["TEMPERATURE[degC]"]
@@ -166,12 +164,12 @@ def test_rincon_pombo_isolated_matches_full_pipeline_real_data(pv_info):
 
 
 # ---------------------------------------------------------------------------
-# solete_pipeline.qc -- constants and rule builders, directly, without
-# going through Functions.py or the full import pipeline.
+# solete.qc -- constants and rule builders, directly, without
+# going through solete/ or the full import pipeline.
 # ---------------------------------------------------------------------------
 
 def test_qc_constants_importable_directly():
-    from solete_pipeline.qc import (
+    from solete.qc import (
         QC_VALID, QC_MISSING, QC_FLAG_PRECEDENCE, KNOWN_PRESSURE_SENTINELS,
     )
     assert QC_VALID == 0
@@ -180,9 +178,9 @@ def test_qc_constants_importable_directly():
 
 
 def test_apply_qc_flags_isolated_real_pressure_sentinel():
-    from solete_pipeline.qc import apply_qc_flags, build_raw_value_qc_rules, QC_PHYSICALLY_IMPLAUSIBLE
+    from solete.qc import apply_qc_flags, build_raw_value_qc_rules, QC_PHYSICALLY_IMPLAUSIBLE
 
-    df = pd.read_hdf(REPO_ROOT / "SOLETE_Pombo_60min.h5")
+    df = pd.read_hdf(v3_60min_path())
     row = df.loc[["2019-01-01 01:00:00"]].copy()  # same real sentinel row as test_qc_flags.py
     assert row["Pressure[mbar]"].iloc[0] == 1000.0
     apply_qc_flags(row, build_raw_value_qc_rules(row))

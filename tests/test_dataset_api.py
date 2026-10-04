@@ -6,7 +6,7 @@ Covers:
     1. Correct shapes from SOLETE(...).forecasting()
     2. Correct QC-flag exclusion, matching metrics.qc_mask()'s documented policy
     3. Exact-reproduction round trip: scoring a persistence baseline through
-       this API reproduces Task 5.3's already-computed results/persistence.json
+       this API reproduces Task 5.3's already-computed benchmarks/results/persistence.json
        numbers EXACTLY (not approximately) -- the regression guard that the
        API wrapper didn't subtly change the split or metric behaviour it
        wraps.
@@ -20,7 +20,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import metrics as M
+from solete import metrics as M
 from solete.dataset import SOLETE
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,9 +78,9 @@ def test_persistence_round_trip_matches_task_5_3_exactly():
     Task 5.8.3's regression guard: build the plain-persistence prediction
     (y_hat(t) = y(t-1), i.e. this API's `lag_1` column) from this wrapper's
     test block and confirm the resulting MAE/RMSE/nRMSE match
-    results/persistence.json's pv_power numbers EXACTLY.
+    benchmarks/results/persistence.json's pv_power numbers EXACTLY.
     """
-    results_path = os.path.join(REPO_ROOT, "results", "persistence.json")
+    results_path = os.path.join(REPO_ROOT, "benchmarks", "results", "persistence.json")
     with open(results_path) as f:
         expected = json.load(f)["targets"]["pv_power"]
 

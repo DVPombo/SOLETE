@@ -16,16 +16,16 @@ venv/
 env/
 ENV/
 
-# Large/external data files. The full SOLETE dataset is fetched/mounted
-# separately at runtime (see README) -- but the small SOLETE_short.h5 sample
-# that ships with the repo (~9 KB) is intentionally kept, since RunMe.py reads
-# it by default and it's harmless to bake into the image.
+# Large/external data files. The full SOLETE dataset is mounted at runtime (see
+# data/README.md) -- but the small sample files in examples/ (~9 KB) are kept,
+# since scripts/quickstart/RunMe.py reads one by default.
 *.h5
-!SOLETE_short.h5
+!examples/*.h5
 *.hdf5
 *.csv
 *.mat
 data/
+outputs/
 
 # Editors / OS cruft
 .vscode/

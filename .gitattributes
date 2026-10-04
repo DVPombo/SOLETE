@@ -1,0 +1,6 @@
+# Normalise line endings so Windows and Linux checkouts produce identical diffs.
+* text=auto eol=lf
+*.h5 binary
+*.parquet binary
+*.png binary
+*.bat text eol=crlf

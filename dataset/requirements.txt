@@ -1,0 +1,5 @@
+numpy
+pandas>=2.0
+tables      # PyTables, needed to read/write the .h5 files
+pyarrow     # Parquet export
+pvlib       # solar position (clean_solete_1sec.py)
