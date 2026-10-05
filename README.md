@@ -72,7 +72,16 @@ df = pd.read_parquet(find_data_file("1h", version="v4", fmt="parquet"))   # clea
 
 Which version does the platform read? The forecasting platform and the benchmarks were built on the **version 3 hourly file** (`SOLETE_Pombo_60min.h5`, kept in `data/hdf5/`) and read it by default. Making them consume the cleaned version 4 files requires reconciling two quality-flag code sets first; until then `import_SOLETE_data` raises a clear error if you ask for `data_version='v4'`. Details in [`docs/RESTRUCTURE_NOTES.md`](docs/RESTRUCTURE_NOTES.md).
 
-# How to use
+# Examples for Beginners
+New to SOLETE? The notebooks in `examples/` walk through the dataset on a small sample file, so you can get a feel for it without downloading the full dataset first. Each has an "Open in Colab" badge to run it straight in the browser.
+
+- [`examples/01_dataset_overview.ipynb`](examples/01_dataset_overview.ipynb) — first look at SOLETE: loading the sample data and exploring its columns and structure.
+- [`examples/02_data_quality.ipynb`](examples/02_data_quality.ipynb) — walks through the QC flag layer and the data-quality issues it catches.
+- [`examples/03_pv_forecasting.ipynb`](examples/03_pv_forecasting.ipynb) — a small persistence-vs-Random-Forest forecasting demo for solar PV power.
+- [`examples/04_wind_forecasting.ipynb`](examples/04_wind_forecasting.ipynb) — the same forecasting demo for wind power, including a data note on the turbine's near-zero output in this dataset.
+- [`examples/05_hybrid_forecasting.ipynb`](examples/05_hybrid_forecasting.ipynb) — hybrid wind+solar forecasting (`P_hybrid[kW]`). Honestly scoped: this dataset's wind record is too sparse to demonstrate wind-solar complementarity, so the notebook documents the infrastructure and methodology (derived column, joint-vs-independent comparison, ramp-rate tooling) for reuse once better-populated wind data is available, rather than a positive complementarity claim. Needs the full v3 hourly file in `data/hdf5/`. See `benchmarks/BENCHMARKS.md`'s hybrid section and `KNOWN_ISSUES.md` #10.
+  
+# How to Use the Forecasting Platform
 1. Put the SOLETE data in `data/` (see above). The first script works without it, on the small sample in `examples/`.
 2. Open **scripts/quickstart/RunMe.py**. This allows you to load SOLETE and sneak a peek at its contents.
 3. Open **scripts/quickstart/MLForecasting.py**. This allows you to configure Random Forest (RF), Support Vector Machine (SVM), and three kinds of Artificial Neuronal Networks: Convolutional Neuronal Network (CNN), Long-Short Term Memory (LSTM), and a Hybrid (CNN-LSTM).
@@ -106,15 +115,6 @@ I have been reached out by several people complaining that hdf5 can't be importe
 
 ### Code layout
 One module per concern inside the `solete/` package (I/O, paths, physics, QC, preprocessing, ML model training, postprocessing, metrics) — see `CONTRIBUTING.md`'s "Code layout" section. The old `Functions.py` and `solete_pipeline/` no longer exist; `from Functions import X` becomes `from solete.<module> import X` (migration table in [`docs/RESTRUCTURE_NOTES.md`](docs/RESTRUCTURE_NOTES.md)).
-
-# Examples
-New to SOLETE? The notebooks in `examples/` walk through the dataset on a small sample file, so you can get a feel for it without downloading the full dataset first. Each has an "Open in Colab" badge to run it straight in the browser.
-
-- [`examples/01_dataset_overview.ipynb`](examples/01_dataset_overview.ipynb) — first look at SOLETE: loading the sample data and exploring its columns and structure.
-- [`examples/02_data_quality.ipynb`](examples/02_data_quality.ipynb) — walks through the QC flag layer and the data-quality issues it catches.
-- [`examples/03_pv_forecasting.ipynb`](examples/03_pv_forecasting.ipynb) — a small persistence-vs-Random-Forest forecasting demo for solar PV power.
-- [`examples/04_wind_forecasting.ipynb`](examples/04_wind_forecasting.ipynb) — the same forecasting demo for wind power, including a data note on the turbine's near-zero output in this dataset.
-- [`examples/05_hybrid_forecasting.ipynb`](examples/05_hybrid_forecasting.ipynb) — hybrid wind+solar forecasting (`P_hybrid[kW]`). Honestly scoped: this dataset's wind record is too sparse to demonstrate wind-solar complementarity, so the notebook documents the infrastructure and methodology (derived column, joint-vs-independent comparison, ramp-rate tooling) for reuse once better-populated wind data is available, rather than a positive complementarity claim. Needs the full v3 hourly file in `data/hdf5/`. See `benchmarks/BENCHMARKS.md`'s hybrid section and `KNOWN_ISSUES.md` #10.
 
 # How to cite this:
 Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:
