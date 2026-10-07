@@ -65,8 +65,8 @@ v3 benchmark behavior is unchanged.
 
 - **Benchmark results are v3.** `benchmarks/results/*.json` and `BENCHMARKS.md` were computed on the v3 hourly file. The persistence, climatology and AR
   results were regenerated after the move and their parsed JSON content is identical to the stored files; the others were not re-run. They must be re-run on v4 once item 2 is done.
-- **Splits.** `benchmarks/splits/v1.json` is defined on the v3 hourly index. Check that the v4 `1h` file has the same boundaries before reusing it.
-- **v4 `1h` timestamps** are labelled "start of interval"; confirm the platform's lag/feature code assumes the same convention.
+- **Splits.** `benchmarks/splits/v1.json` is defined on the v3 hourly index. Check that `SOLETE_Pombo_60min_v4.h5` has the same boundaries before reusing it.
+- **v4 `60min` timestamps** are labelled "start of interval"; confirm the platform's lag/feature code assumes the same convention.
 - **Figshare description / `LANDING.txt`** must carry the final repository URL (`github.com/DVPombo/SOLETE` assumed here) and the placeholder `.v4` DOI must be replaced after publishing.
 - **Docker**: the Dockerfile was updated but, as before, not built (no Docker in the authoring environment).
 - **`examples/` Colab setup cell** clones the `main` branch of `DVPombo/SOLETE`; it only works once this restructure is merged there.
@@ -76,6 +76,7 @@ v3 benchmark behavior is unchanged.
 
 - `pytest`: 62 passed with the v3 file in `data/hdf5/`; 30 passed / 32 skipped without it; 62 passed with the data in a folder pointed to by `SOLETE_DATA_DIR`.
 - Dataset pipeline (clean -> resample -> export_parquet -> a diagnostic) run end-to-end from a different working directory with bare file names, on a **synthetic** 3-hour 1-second file (the real 3.5 GB file was not available here). This verifies path handling, not the cleaning results.
+- The v4 release builder ran end-to-end on a two-day synthetic 1-second file with shuffled daily blocks and stateful runs crossing a slice boundary. All HDF/Parquet round trips and reproducibility rebuilds were exact after normalizing timestamp comparison to nanoseconds. Peak stage RSS was 0.389 GiB. The real release build was not run.
 - `baseline_persistence`, `baseline_climatology_ar`: re-run from another folder; outputs identical to the stored results.
 - `RunMe.py`, `inspect_dataset.py`, `availability_report.py` run from another folder. The five notebooks execute end to end.
 - **Not run**: `MLForecasting.py` and `lstm_cnn_harness.py` (need keras/TensorFlow, not installed here; their imports were checked up to that point), `baseline_gbm`/`probabilistic_forecast`/`hybrid`/`ramp` (import-checked only), the MATLAB script, the Docker build.

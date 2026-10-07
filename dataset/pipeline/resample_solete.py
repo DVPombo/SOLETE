@@ -35,8 +35,8 @@ output files):
         solete.expansion.expand_physical from each target resolution's inputs.
 
 Usage:
-    python dataset/pipeline/resample_solete.py SOLETE_clean_1sec.h5 --key DATA --out-prefix SOLETE_clean
-    # writes SOLETE_clean_1min.h5, SOLETE_clean_5min.h5, SOLETE_clean_1h.h5
+    python dataset/pipeline/resample_solete.py SOLETE_Pombo_1sec_cleaned_v4.h5 \
+        --key DATA --out-prefix SOLETE_Pombo_measured_v4
 """
 import argparse
 import sys
@@ -226,8 +226,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("path")
     parser.add_argument("--key", default="DATA")
-    parser.add_argument("--out-prefix", default="SOLETE_clean")
-    parser.add_argument("--rules", nargs="+", default=["1min", "5min", "1h"])
+    parser.add_argument("--out-prefix", default="SOLETE_Pombo_measured_v4")
+    parser.add_argument("--rules", nargs="+", default=["1min", "5min", "60min"])
     args = parser.parse_args()
     args.path = str(resolve_input(args.path))                 # bare names are looked up in data/hdf5/
     args.out_prefix = resolve_output_prefix(args.out_prefix)  # bare prefixes are written to data/hdf5/

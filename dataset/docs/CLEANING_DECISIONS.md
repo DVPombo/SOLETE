@@ -22,7 +22,8 @@ values assumed local time, one hour off from what the sensors actually
 recorded.
 
 ## 3. WIND_DIR[deg]: wrapped to [0, 360)
-Values above 360° (1,153 rows, 362°–712°, almost all on 2018-11-17) are extra
+Values at or above 360° (1,343 rows, 360°–712°, on 2018-11-17 and
+2018-11-18) are extra
 sensor revolutions, not different bearings (maintainer's call). Fixed with
 `value mod 360`. This also fixes the 103 hourly values above 360° in the
 *original* published hourly file, which turn out not to come from this raw

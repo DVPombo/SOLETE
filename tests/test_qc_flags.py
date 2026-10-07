@@ -153,7 +153,7 @@ def test_import_v4_preserves_pipeline_flags(monkeypatch, tmp_path):
     pv_info, wt_info = import_PV_WT_data()
     source = _sample()
     source["Pressure[mbar]_qc"] = np.int8(2)
-    path = tmp_path / "SOLETE_clean_1sec.h5"
+    path = tmp_path / "SOLETE_Pombo_1sec_cleaned_v4.h5"
     source.to_hdf(path, key="DATA")
     monkeypatch.setattr("solete.io.find_data_file", lambda *args, **kwargs: path)
 

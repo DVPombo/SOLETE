@@ -13,7 +13,7 @@ The data files are **not in the repository**. They are published on figshare
 
 | Format | Use it for |
 |---|---|
-| **Parquet** (`SOLETE_clean_*.parquet`) | Analysis and modelling. The cleaned data with quality flags, in a format every language can read. |
+| **Parquet** (`SOLETE_Pombo_*_v4.parquet`) | Analysis and modelling. The cleaned data with quality flags, in a format every language can read. |
 | **HDF5** (`.h5`) | Transparency and reproduction. The raw 1-second file, the cleaned file and the resampled files exactly as this pipeline produces them. |
 
 Both formats contain the same numbers. Every value that was changed or is
@@ -24,7 +24,7 @@ doubtful carries a quality flag — nothing is silently fixed.
 ```python
 import pandas as pd
 
-df = pd.read_parquet("data/parquet/SOLETE_clean_1h.parquet").set_index("timestamp")   # timestamps are UTC
+df = pd.read_parquet("data/parquet/SOLETE_Pombo_60min_v4.parquet").set_index("timestamp")
 ok = df[df["GHI[kW1m2]_qc_frac_flagged"] < 0.1]                          # hours that are < 10 % flagged
 ```
 
@@ -36,23 +36,22 @@ not measured.
 ## Reproduce the cleaning
 
 ```bash
-# from the repository root; bare file names are looked up in data/hdf5/ and outputs are written there
-pip install -r dataset/requirements.txt
-python dataset/pipeline/clean_solete_1sec.py SOLETE_Pombo_1sec.h5 --out-prefix SOLETE_clean_1sec
-python dataset/pipeline/resample_solete.py   SOLETE_clean_1sec.h5 --out-prefix SOLETE_clean
-python dataset/pipeline/export_parquet.py    SOLETE_clean_1sec.h5      # -> data/parquet/ ; repeat for each resampled .h5
+# from the repository root, using the prepared environment
+examples/.venv/solete-full-template/Scripts/python.exe dataset/pipeline/build_release.py \
+  --raw data/hdf5/SOLETE_Pombo_1sec.h5 --slice-days 1
 ```
 
 Input is the raw 1-second file from version 3 (`SOLETE_Pombo_1sec.h5`, key `DATA`).
-Cleaning loads that file whole (about 3.5 GB) and makes working copies, so plan for
-well over that in free RAM; run it from a plain terminal rather than an IDE.
-The cleaning and resampling scripts print a JSON summary at the end — compare it with
+The builder streams day-aligned slices, runs each heavy stage in a subprocess,
+writes temporary files before atomic replacement, and prints elapsed time and
+peak RSS per stage. Compare its JSON summary with
 [`docs/CLEANING_DECISIONS.md`](docs/CLEANING_DECISIONS.md).
 
 ## Repository layout
 
 ```
 dataset/pipeline/       the code that produces the released files
+  build_release.py       one-command v4 release build and verification
   clean_solete_1sec.py   raw 1 s file -> sorted, cleaned, flagged 1 s file
   resample_solete.py     cleaned 1 s file -> 1 min / 5 min / 1 h files
   export_parquet.py      any of the .h5 files -> .parquet

@@ -74,7 +74,7 @@ solar_position.compute_solar_position_bulk) and can take several minutes for
 USAGE (best from a plain terminal rather than an IDE, to leave the most RAM
 free):
     python dataset/pipeline/clean_solete_1sec.py SOLETE_Pombo_1sec.h5 --key DATA \\
-        --out-prefix SOLETE_clean_1sec
+        --out-prefix SOLETE_Pombo_1sec_cleaned_v4
 
 A JSON summary is printed at the end of the run (samples touched per rule,
 flag value counts, verification checks). Compare it with
@@ -217,11 +217,90 @@ def flag_p_gaia(index, active_days, report):
     return flag
 
 
+def clean_dataframe(
+    df,
+    *,
+    dropout_max_run=5,
+    glitch_max_run=3,
+    pressure_flatline_min_run=300,
+    solar_chunk_rows=2_000_000,
+    solar_verbose=True,
+):
+    """Apply all cleaning rules to one chronological frame.
+
+    Callers slicing a larger data set must include enough rows on both sides
+    to cover the longest stateful rule, then discard that overlap.
+    """
+    if not df.index.is_monotonic_increasing:
+        raise ValueError("clean_dataframe requires a chronological index")
+    df = df.copy()
+    report = {}
+    n = len(df)
+    qc_columns = [WD, PRES, WS, HUM, TEMP, GHI, POA, PG, AZ, EL]
+    qc = pd.DataFrame(QC_OK, index=df.index, columns=qc_columns, dtype=np.int64)
+
+    wd = df[WD].to_numpy()
+    wrapped = np.mod(wd, 360.0)
+    qc[WD] = np.where(wrapped != wd, 1, QC_OK)
+    df[WD] = wrapped
+    report["wind_dir_n_wrapped"] = int((wrapped != wd).sum())
+
+    df[PRES], qc[PRES] = apply_pressure_sentinels(
+        df[PRES], report, pressure_flatline_min_run
+    )
+    dropout_report = {}
+    df[WS], qc[WS], df[HUM], qc[HUM] = apply_dropout_fix(
+        df[WS], df[HUM], dropout_max_run, dropout_report
+    )
+    report["dropout"] = dropout_report
+
+    glitch_report = {}
+    for col, (low, high) in BOUNDS.items():
+        values = df[col]
+        already = (
+            qc[col].to_numpy() != QC_OK
+            if col in (WS, HUM, PRES)
+            else np.zeros(n, dtype=bool)
+        )
+        hidden = values.to_numpy(dtype=np.float64).copy()
+        hidden[already] = np.nan
+        fixed, glitch_flag = apply_glitch_fix(
+            col,
+            pd.Series(hidden, index=values.index),
+            low,
+            high,
+            glitch_max_run,
+            glitch_report,
+        )
+        take = ~already
+        df.loc[take, col] = fixed[take]
+        flagged = take & (glitch_flag != QC_OK)
+        qc.loc[flagged, col] = glitch_flag[flagged]
+    report["glitch"] = glitch_report
+
+    pgaia_report = {}
+    qc[PG] = flag_p_gaia(df.index, P_GAIA_ACTIVE_DAYS, pgaia_report)
+    report["p_gaia"] = pgaia_report
+
+    position = compute_solar_position_bulk(
+        df.index, chunk_rows=solar_chunk_rows, verbose=solar_verbose
+    )
+    df[AZ] = position["azimuth_south"].to_numpy()
+    df[EL] = position["elevation"].to_numpy()
+    qc[AZ] = QC_RECOMPUTED
+    qc[EL] = QC_RECOMPUTED
+
+    for col in qc_columns:
+        df[f"{col}_qc"] = qc[col].to_numpy().astype(np.int8)
+    report["qc_columns_merged"] = [f"{col}_qc" for col in qc_columns]
+    return df, report
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("path")
     ap.add_argument("--key", default="DATA")
-    ap.add_argument("--out-prefix", default="SOLETE_clean_1sec")
+    ap.add_argument("--out-prefix", default="SOLETE_Pombo_1sec_cleaned_v4")
     ap.add_argument("--dropout-max-run", type=int, default=5)
     ap.add_argument("--glitch-max-run", type=int, default=3)
     ap.add_argument("--pressure-flatline-min-run", type=int, default=300,
@@ -249,68 +328,16 @@ def main():
     df = reorder_chronologically(df)
     report["sorted_is_monotonic"] = bool(df.index.is_monotonic_increasing)
 
-    # QC columns are tracked separately during processing (int64 is easier to
-    # do arithmetic/comparisons on) and only cast down to int8 -- the release
-    # dtype -- right before writing, once every code is final. Merged into
-    # `df` as `<column>_qc`, one per treated source column (no companion file).
-    QC_COLS = [WD, PRES, WS, HUM, TEMP, GHI, POA, PG, AZ, EL]
-    qc = pd.DataFrame(QC_OK, index=df.index, columns=QC_COLS, dtype=np.int64)
-
-    print("Wrapping WIND_DIR ...")
-    wd = df[WD].to_numpy()
-    wrapped = np.mod(wd, 360.0)
-    qc[WD] = np.where(wrapped != wd, 1, QC_OK)  # QC_WRAPPED == 1
-    df[WD] = wrapped
-    report["wind_dir_n_wrapped"] = int((wrapped != wd).sum())
-
-    print("Pressure sentinels ...")
-    df[PRES], qc[PRES] = apply_pressure_sentinels(df[PRES], report, args.pressure_flatline_min_run)
-
-    print("WIND_SPEED/HUMIDITY joint dropout ...")
-    dropout_report = {}
-    df[WS], qc[WS], df[HUM], qc[HUM] = apply_dropout_fix(df[WS], df[HUM], args.dropout_max_run, dropout_report)
-    report["dropout"] = dropout_report
-
-    print("Generic glitch pass ...")
-    glitch_report = {}
-    for col, (low, high) in BOUNDS.items():
-        vals = df[col]
-        # For humidity/pressure, don't re-flag seconds already handled above.
-        already = qc[col].to_numpy() != QC_OK if col in (WS, HUM, PRES) else np.zeros(n, dtype=bool)
-        v = vals.to_numpy(dtype=np.float64).copy()
-        v[already] = np.nan  # temporarily hide already-treated points from the bound check
-        fixed, gflag = apply_glitch_fix(col, pd.Series(v, index=vals.index), low, high, args.glitch_max_run, glitch_report)
-        take = ~already
-        df.loc[take, col] = fixed[take]
-        qc.loc[take & (gflag != QC_OK), col] = gflag[take & (gflag != QC_OK)]
-    report["glitch"] = glitch_report
-
-    print("P_Gaia flags (values unchanged) ...")
-    pgaia_report = {}
-    qc[PG] = flag_p_gaia(df.index, P_GAIA_ACTIVE_DAYS, pgaia_report)
-    report["p_gaia"] = pgaia_report
-
-    print("Recomputing Azimuth/Elevation (this can take a few minutes for 39M rows) ...")
-    pos = compute_solar_position_bulk(df.index, chunk_rows=args.chunk_rows)
-    df[AZ] = pos["azimuth_south"].to_numpy()
-    df[EL] = pos["elevation"].to_numpy()
-    qc[AZ] = QC_RECOMPUTED
-    qc[EL] = QC_RECOMPUTED
-    report["azimuth_elevation"] = {
-        "convention": "UTC timestamps, azimuth south-referenced (0=south, east negative), apparent elevation, not clipped at night",
-        "n_rows": n, "elevation_min": float(df[EL].min()), "elevation_max": float(df[EL].max()),
-    }
-
-    print("Merging <column>_qc flag columns (int8) into the output frame ...")
-    qc_col_names = []
-    for col in QC_COLS:
-        qc_name = f"{col}_qc"
-        df[qc_name] = qc[col].to_numpy().astype(np.int8)
-        qc_col_names.append(qc_name)
-    report["qc_columns_merged"] = qc_col_names
-    report["qc_flag_value_counts"] = {
-        col: {int(k): int(v) for k, v in qc[col].value_counts().sort_index().items()} for col in QC_COLS
-    }
+    print("Applying cleaning and QC rules ...")
+    df, cleaning_report = clean_dataframe(
+        df,
+        dropout_max_run=args.dropout_max_run,
+        glitch_max_run=args.glitch_max_run,
+        pressure_flatline_min_run=args.pressure_flatline_min_run,
+        solar_chunk_rows=args.chunk_rows,
+    )
+    report.update(cleaning_report)
+    qc_col_names = cleaning_report["qc_columns_merged"]
 
     if os.path.exists(out_data):
         os.remove(out_data)

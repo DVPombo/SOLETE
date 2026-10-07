@@ -13,9 +13,9 @@ The data files are NOT in git. Download them from figshare and unzip so that
 the folder structure is preserved:
 
     <repo>/data/
-        hdf5/       SOLETE_Pombo_1sec.h5   SOLETE_clean_1sec.h5   SOLETE_clean_1min.h5
-                    SOLETE_clean_5min.h5   SOLETE_clean_1h.h5     (+ v3 files, see below)
-        parquet/    SOLETE_clean_1sec.parquet ... SOLETE_clean_1h.parquet
+        hdf5/       SOLETE_Pombo_1sec_original_v4.h5
+                SOLETE_Pombo_<res>_v4.h5 (+ v3 files, see below)
+        parquet/    the same v4 stems with .parquet
         derived/    created by the code: expanded caches (never edit by hand)
 
 That is exactly the layout of the figshare upload, so "drag the contents of
@@ -28,8 +28,10 @@ hdf5/ parquet/ structure is expected inside it.
 
 FILE VERSIONS
 -------------
-    "v4"  SOLETE_clean_<res>.h5 / .parquet     res in 1sec, 1min, 5min, 1h
-          (cleaned, with <column>_qc flags -- the figshare version 4 files)
+    "v4"  SOLETE_Pombo_<res>_v4.h5 / .parquet
+          res in 1sec, 1min, 5min, 60min (the figshare version 4 files)
+          SOLETE_Pombo_1sec_original_v4.h5 / .parquet is the sorted,
+          uncleaned release input
     "v3"  SOLETE_Pombo_<res>.h5                res in 1sec, 1min, 5min, 60min
           (the originals; 1h in v4 is called 60min in v3)
 
@@ -63,7 +65,6 @@ RESULTS_DIR = BENCHMARKS_DIR / "results"
 RESOLUTIONS = ("1sec", "1min", "5min", "60min")
 _ALIASES = {"1h": "60min", "60min": "60min", "1hour": "60min",
             "1sec": "1sec", "1s": "1sec", "1min": "1min", "5min": "5min"}
-_V4_RES = {"1sec": "1sec", "1min": "1min", "5min": "5min", "60min": "1h"}
 _V3_RES = {"1sec": "1sec", "1min": "1min", "5min": "5min", "60min": "60min"}
 
 
@@ -79,11 +80,25 @@ def normalize_resolution(resolution: str) -> str:
         ) from None
 
 
-def data_filename(resolution: str, version: str = "v3", fmt: str = "hdf5") -> str:
-    """File name of the SOLETE file for a resolution / version / format."""
+def data_filename(
+    resolution: str,
+    version: str = "v3",
+    fmt: str = "hdf5",
+    *,
+    original: bool = False,
+) -> str:
+    """Return the canonical SOLETE filename for a release artefact.
+
+    ``1h`` remains accepted as an input alias, but generated v4 filenames
+    always use ``60min``. The original release artefact exists only at 1 s.
+    """
     res = normalize_resolution(resolution)
+    if fmt not in {"hdf5", "parquet"}:
+        raise ValueError(f"fmt must be 'hdf5' or 'parquet', got {fmt!r}")
+    if original and (version != "v4" or res != "1sec"):
+        raise ValueError("original=True is valid only for version='v4', resolution='1sec'.")
     if version == "v4":
-        stem = f"SOLETE_clean_{_V4_RES[res]}"
+        stem = f"SOLETE_Pombo_{res}{'_original' if original else ''}_v4"
     elif version == "v3":
         stem = f"SOLETE_Pombo_{_V3_RES[res]}"
         if fmt != "hdf5":
@@ -117,9 +132,15 @@ def _not_found(what: str, searched) -> DataFileNotFoundError:
     )
 
 
-def find_data_file(resolution: str, version: str = "v3", fmt: str = "hdf5") -> Path:
+def find_data_file(
+    resolution: str,
+    version: str = "v3",
+    fmt: str = "hdf5",
+    *,
+    original: bool = False,
+) -> Path:
     """Locate a SOLETE data file by resolution; raise a helpful error if absent."""
-    name = data_filename(resolution, version, fmt)
+    name = data_filename(resolution, version, fmt, original=original)
     dirs = _search_dirs(fmt)
     for d in dirs:
         p = d / name
@@ -165,7 +186,7 @@ def resolve_output_prefix(prefix: str, kind: str = "hdf5") -> str:
     """Where a pipeline script should write '<prefix>.h5' (or '<prefix>_<rule>.h5').
 
     A prefix that already contains a directory is used as given. A bare prefix
-    (the default, e.g. 'SOLETE_clean_1sec') goes into data/hdf5 so the outputs
+    A bare prefix goes into data/hdf5 so the outputs
     land exactly where the figshare layout expects them. Creates the folder."""
     p = Path(prefix)
     if p.parent != Path("."):

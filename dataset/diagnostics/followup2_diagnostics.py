@@ -31,7 +31,7 @@ CLEANING_DECISIONS.md section 3)?
 
 Usage:
     python followup2_diagnostics.py SOLETE_Pombo_1sec.h5 SOLETE_Pombo_60min.h5 \
-        --clean SOLETE_Pombo_1sec_clean.h5
+        --clean SOLETE_Pombo_1sec_v4.h5
     # Jupyter: !python3 followup2_diagnostics.py ... > f2.txt 2>&1
 
 Memory: only the four columns of interest are loaded from each 1-second file.

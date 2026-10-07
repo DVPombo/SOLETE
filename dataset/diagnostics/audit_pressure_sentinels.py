@@ -8,8 +8,8 @@ clean_solete_1sec.py's behaviour is not touched. Whether to change the
 detector based on this output is the maintainer's call.
 
 Usage:
-    python audit_pressure_sentinels.py SOLETE_Pombo_1sec_clean.h5 --key DATA
-    # Jupyter:  !python3 audit_pressure_sentinels.py SOLETE_Pombo_1sec_clean.h5 > audit.txt 2>&1
+    python audit_pressure_sentinels.py SOLETE_Pombo_1sec_v4.h5 --key DATA
+    # Jupyter:  !python3 audit_pressure_sentinels.py SOLETE_Pombo_1sec_v4.h5 > audit.txt 2>&1
 
 Memory: two columns of the ~39M-row file (~400 MB), not the whole frame.
 

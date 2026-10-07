@@ -82,6 +82,18 @@ def test_paths_module_imports_without_heavy_deps():
     assert heavy == [], f"solete.paths pulled in heavy deps: {heavy}"
 
 
+@pytest.mark.parametrize("unit", ["ms", "ns"])
+def test_hdf_axis_timestamp_units_normalize_to_nanoseconds(unit):
+    from solete.expansion import _datetime_index_from_hdf_axis
+
+    expected = pd.date_range("2019-03-31", periods=2, freq="1s")
+    encoded = expected.as_unit(unit).asi8
+    actual = _datetime_index_from_hdf_axis(encoded)
+
+    assert actual.dtype == np.dtype("datetime64[ns]")
+    assert actual.equals(expected)
+
+
 # ---------------------------------------------------------------------------
 # solete.physics -- PV_Performance_Model, in isolation
 # (no HDF5 read, no QC layer, no ExpandSOLETE)

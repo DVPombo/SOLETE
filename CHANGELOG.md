@@ -5,6 +5,17 @@ All notable changes to the SOLETE platform are documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history; see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
 
 ## [Unreleased]
+
+- Stream release index verification and lock the verify stage to keep reproducibility checks below the memory ceiling and prevent concurrent scratch-file corruption.
+### Added — reproducible v4 release builder
+- Added `dataset/pipeline/build_release.py`, which creates the exact `SOLETE_Pombo_<resolution>_v4` HDF5/Parquet file set plus the sorted nine-column `_original`, `SHA256SUMS.txt`, and `manifest.json`.
+- Cleaning uses overlapped day slices and exact whole-versus-sliced boundary tests; resampling is day-aligned; physical model columns are recomputed at each resolution. Heavy stages run in subprocesses and report elapsed time and peak RSS.
+- Parquet timestamps are explicitly `timestamp[ns, UTC]` under pandas 3, including when source indexes use millisecond or microsecond resolution. Export embeds v4 QC and per-column provenance metadata.
+- Validation rebuilds every release file, checks per-resolution expansion idempotence, compares the original against sorted raw values, and performs exact HDF5/Parquet round trips.
+- The raw file's final unique `2019-09-01 00:00:00` sample is retained. Inclusive v4 row counts are 39,484,801 / 658,081 / 131,617 / 10,969; the coarser files include a final single-sample bucket.
+- Corrected the real `WIND_DIR[deg]` wrap inventory to 1,343 rows at or above 360 degrees (360-712 degrees across 2018-11-17 and 2018-11-18), measured directly from the raw file. This changes documentation and verification expectations, not the modulo-360 rule.
+- Retired active `SOLETE_clean_*`/`1h` release names in favor of canonical `SOLETE_Pombo_*_v4`/`60min` names. `1h` remains an input resolution alias.
+
 ### Changed — canonical QC and deterministic release expansion
 - Added `solete/qc_codes.py` as the single v4 code/severity vocabulary. Code 6 is `QC_MODEL_SUBSTITUTED`; dataset-pipeline rules cannot emit it.
 - Added `solete.expansion.expand_physical`, a vectorized, row-wise and idempotent physical expansion. Release frames retain measured `P_Solar[kW]` and add `P_Solar_clean[kW]`; `P_hybrid[kW]` uses the clean column.

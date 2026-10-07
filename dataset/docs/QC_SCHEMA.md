@@ -91,7 +91,7 @@ touched.
 ## 5. Delivery format: merged, not a companion file
 
 Every `<column>_qc` column ships **merged into the same HDF5 file** as the
-data (`SOLETE_Pombo_1sec_clean.h5` and everything regenerated from it via
+data (`SOLETE_Pombo_1sec_v4.h5` and everything regenerated from it via
 `resample_solete.py`), dtype `int8`. An earlier draft of this pipeline wrote
 a separate `*_qcflags.h5` companion file; that's been dropped because a companion
 file is one more thing to keep in sync and one more thing a consumer can

@@ -2,7 +2,7 @@
 followup_diagnostics.py -- second-round checks, written after the first real run.
 
 Usage (Spyder):
-    %run followup_diagnostics.py SOLETE_Pombo_1sec.h5 SOLETE_Pombo_60min.h5 SOLETE_clean_1h.h5
+    %run followup_diagnostics.py SOLETE_Pombo_1sec.h5 SOLETE_Pombo_60min.h5 SOLETE_Pombo_60min_v4.h5
 
 Prints six report blocks (paste them all back, BEGIN/END lines included):
   followup_A_index_order        why the 1-s index is non-monotonic; is the grid complete?

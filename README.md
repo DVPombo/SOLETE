@@ -67,7 +67,7 @@ Everything goes through [`solete/paths.py`](solete/paths.py); no script depends 
 ```python
 from solete.paths import find_data_file
 import pandas as pd
-df = pd.read_parquet(find_data_file("1h", version="v4", fmt="parquet"))   # cleaned data with quality flags
+df = pd.read_parquet(find_data_file("60min", version="v4", fmt="parquet"))
 ```
 
 Which version does the platform read? The forecasting platform and the benchmarks were built on the **version 3 hourly file** (`SOLETE_Pombo_60min.h5`, kept in `data/hdf5/`) and read it by default. Making them consume the cleaned version 4 files requires reconciling two quality-flag code sets first; until then `import_SOLETE_data` raises a clear error if you ask for `data_version='v4'`. Details in [`docs/RESTRUCTURE_NOTES.md`](docs/RESTRUCTURE_NOTES.md).
@@ -102,8 +102,8 @@ See [`dataset/README.md`](dataset/README.md). In short, from the repository root
 ```
 pip install -r dataset/requirements.txt
 python dataset/pipeline/clean_solete_1sec.py SOLETE_Pombo_1sec.h5
-python dataset/pipeline/resample_solete.py   SOLETE_clean_1sec.h5
-python dataset/pipeline/export_parquet.py    SOLETE_clean_1sec.h5     # and the other resolutions
+examples/.venv/solete-full-template/Scripts/python.exe dataset/pipeline/build_release.py \
+  --raw data/hdf5/SOLETE_Pombo_1sec.h5 --slice-days 1
 ```
 
 ### Notes for _MATLAB_ users ###

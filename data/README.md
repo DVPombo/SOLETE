@@ -9,16 +9,13 @@ Download the files and unzip them **into this folder, keeping the sub-folders**,
 ```
 data/
 ├── hdf5/
-│   ├── SOLETE_Pombo_1sec.h5      original 1-second file (v3, unchanged) – start of the cleaning
-│   ├── SOLETE_clean_1sec.h5      cleaned 1 s data with quality flags
-│   ├── SOLETE_clean_1min.h5
-│   ├── SOLETE_clean_5min.h5
-│   └── SOLETE_clean_1h.h5        (what version 3 called 60min)
+│   ├── SOLETE_Pombo_1sec_original_v4.h5
+│   ├── SOLETE_Pombo_1sec_v4.h5
+│   ├── SOLETE_Pombo_1min_v4.h5
+│   ├── SOLETE_Pombo_5min_v4.h5
+│   └── SOLETE_Pombo_60min_v4.h5
 ├── parquet/
-│   ├── SOLETE_clean_1sec.parquet
-│   ├── SOLETE_clean_1min.parquet
-│   ├── SOLETE_clean_5min.parquet
-│   └── SOLETE_clean_1h.parquet
+│   └── the same five stems with .parquet
 └── derived/                      created by the code (caches). Safe to delete.
 ```
 
@@ -33,7 +30,7 @@ Everything goes through [`solete/paths.py`](../solete/paths.py) — nothing depe
 from solete.paths import find_data_file
 import pandas as pd
 
-df = pd.read_parquet(find_data_file("1h", version="v4", fmt="parquet"))   # cleaned, with flags
+df = pd.read_parquet(find_data_file("60min", version="v4", fmt="parquet"))
 df = pd.read_hdf(find_data_file("60min", version="v3"))                    # v3 hourly, used by the platform/benchmarks
 ```
 
@@ -43,13 +40,22 @@ Check what the code sees:
 python -m solete.paths
 ```
 
-Command-line tools accept a bare file name and look it up here:
+The v4 `_original` file is the raw v3 1-second data sorted chronologically,
+restricted to the nine measured columns. Values are unchanged. The published
+`Azimuth[deg]` and `Elevation[deg]` columns are omitted because the pipeline
+recomputes them from UTC timestamps and site coordinates.
+
+Build all ten release files, checksums and the manifest in one command:
 
 ```bash
-python dataset/pipeline/clean_solete_1sec.py SOLETE_Pombo_1sec.h5      # reads data/hdf5/, writes data/hdf5/SOLETE_clean_1sec.h5
-python dataset/pipeline/resample_solete.py   SOLETE_clean_1sec.h5
-python dataset/pipeline/export_parquet.py    SOLETE_clean_1h.h5        # writes data/parquet/SOLETE_clean_1h.parquet
+examples/.venv/solete-full-template/Scripts/python.exe dataset/pipeline/build_release.py --raw data/hdf5/SOLETE_Pombo_1sec.h5 --slice-days 1
 ```
+
+In Spyder, open `dataset/pipeline/build_release.py`, choose **Run >
+Configuration per file > Execute in an external system terminal**, and put
+`--raw data/hdf5/SOLETE_Pombo_1sec.h5 --slice-days 1` in the command-line
+options field. Add `--overwrite` only when intentionally replacing a prior
+build; use `--skip-existing` to resume completed stages.
 
 ## Keeping the data somewhere else
 

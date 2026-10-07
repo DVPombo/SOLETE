@@ -16,19 +16,18 @@ Differences between the two, by design:
     embedded under the key b"solete" so the file documents itself.
 
 Usage:
-    python dataset/pipeline/export_parquet.py SOLETE_clean_1sec.h5
-    python dataset/pipeline/export_parquet.py SOLETE_clean_1sec.h5 out/SOLETE_clean_1sec.parquet
-    python dataset/pipeline/export_parquet.py SOLETE_clean_1h.h5 --compression zstd --level 9
+    python dataset/pipeline/export_parquet.py SOLETE_Pombo_1sec_v4.h5
+    python dataset/pipeline/export_parquet.py SOLETE_Pombo_60min_v4.h5 --compression zstd --level 9
 
 Or from Python:
     from export_parquet import h5_to_parquet
-    h5_to_parquet("SOLETE_clean_1sec.h5", "SOLETE_clean_1sec.parquet")
+    h5_to_parquet("SOLETE_Pombo_1sec_v4.h5", "SOLETE_Pombo_1sec_v4.parquet")
 
 Reading the result:
     import pandas as pd
-    df = pd.read_parquet("SOLETE_clean_1sec.parquet").set_index("timestamp")
+    df = pd.read_parquet("SOLETE_Pombo_1sec_v4.parquet").set_index("timestamp")
     # or, for a time slice without loading everything (DuckDB):
-    #   duckdb.sql("SELECT * FROM 'SOLETE_clean_1sec.parquet' WHERE timestamp >= '2019-01-16' AND timestamp < '2019-01-17'")
+    #   duckdb.sql("SELECT * FROM 'SOLETE_Pombo_1sec_v4.parquet' WHERE timestamp >= '2019-01-16' AND timestamp < '2019-01-17'")
 
 Memory: files stored in HDF5 `table` format (the cleaned 1-second file) are
 streamed in chunks of --chunk-rows rows, so the ~39M-row file never has to fit
@@ -38,6 +37,7 @@ are loaded whole.
 Requires: pip install pandas numpy tables pyarrow
 """
 import argparse
+from datetime import date
 import json
 import os
 import sys
@@ -58,7 +58,7 @@ TIMESTAMP_COL = "timestamp"
 
 def _prepare(df: pd.DataFrame, keep_naive: bool) -> pd.DataFrame:
     """Index -> `timestamp` column; localize naive timestamps to UTC."""
-    idx = pd.DatetimeIndex(df.index)
+    idx = pd.DatetimeIndex(df.index).as_unit("ns")
     if not keep_naive:
         idx = idx.tz_localize("UTC") if idx.tz is None else idx.tz_convert("UTC")
     out = df.reset_index(drop=True)
@@ -67,14 +67,41 @@ def _prepare(df: pd.DataFrame, keep_naive: bool) -> pd.DataFrame:
 
 
 def _metadata(src: str, keep_naive: bool, n_rows: int, columns) -> dict:
+    measured = {
+        "TEMPERATURE[degC]", "HUMIDITY[%]", "WIND_SPEED[m1s]",
+        "WIND_DIR[deg]", "GHI[kW1m2]", "POA Irr[kW1m2]",
+        "P_Gaia[kW]", "P_Solar[kW]", "Pressure[mbar]",
+    }
+    model = {
+        "Pac", "Pdc", "TempModule", "TempCell", "P_Solar_model_substituted",
+        "P_Solar_clean[kW]", "P_Solar[kW]_qc", "P_hybrid[kW]",
+        "P_hybrid[kW]_qc", "P_hybrid[kW]_qc_source",
+    }
+    provenance = {}
+    for column in columns:
+        if column in model:
+            provenance[column] = "computed at this resolution"
+        elif column in {"Azimuth[deg]", "Elevation[deg]"}:
+            provenance[column] = "recomputed by the pipeline"
+        elif column in measured:
+            provenance[column] = "measured; resampled from cleaned 1 s when coarser"
+        elif column.endswith("_qc_worst") or column.endswith("_qc_frac_flagged"):
+            provenance[column] = "resampled from pipeline-owned 1 s QC"
+        elif column.endswith("_qc"):
+            provenance[column] = "pipeline-owned QC"
+        else:
+            provenance[column] = "pipeline output"
     meta = {
         "dataset": DATASET_NAME,
+        "version": "v4",
+        "build_date": date.today().isoformat(),
         "source_file": os.path.basename(src),
         "n_rows": n_rows,
         "timestamp_timezone": "naive (values are UTC)" if keep_naive else "UTC",
         "timestamp_label": "start of interval, [T, T+period) for resampled files; instant for 1-second data",
         "qc_columns": [c for c in columns if c.endswith("_qc") or c.endswith("_qc_worst")],
         "qc_codes": {str(k): v for k, v in QC_LABELS.items()},
+        "column_provenance": provenance,
         "documentation": "docs/DATA_DICTIONARY.md, docs/QC_SCHEMA.md",
     }
     return {b"solete": json.dumps(meta).encode("utf-8")}
@@ -90,6 +117,7 @@ def h5_to_parquet(
     keep_naive=False,
     overwrite=False,
     verbose=True,
+    use_byte_stream_split=True,
 ):
     """Convert `h5_path` to Parquet. Returns the output path and the row count."""
     h5_path = str(h5_path)
@@ -139,8 +167,18 @@ def h5_to_parquet(
             table = pa.Table.from_pandas(_prepare(chunk, keep_naive), preserve_index=False)
             if writer is None:
                 schema = table.schema.with_metadata(_metadata(h5_path, keep_naive, n_rows, chunk.columns))
+                byte_stream_columns = (
+                    [field.name for field in schema if pa.types.is_floating(field.type)]
+                    if use_byte_stream_split
+                    else False
+                )
                 writer = pq.ParquetWriter(
-                    tmp_path, schema, compression=compression, compression_level=compression_level
+                    tmp_path,
+                    schema,
+                    compression=compression,
+                    compression_level=compression_level,
+                    use_byte_stream_split=byte_stream_columns,
+                    write_statistics=True,
                 )
             writer.write_table(table.cast(writer.schema), row_group_size=1_000_000)
             written += len(chunk)

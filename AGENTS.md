@@ -5,6 +5,11 @@ This repository is the whole SOLETE project: `dataset/` (cleaning and quality co
 
 Rules that apply everywhere:
 
+0. **Python environment.** Use the prepared Windows Python 3.13 environment at
+   `examples/.venv/solete-full-template` directly for every Python, pytest, script, and notebook command. Do not copy,
+   recreate, upgrade, install into, or otherwise modify this environment. Invoke its interpreter explicitly as
+   `examples/.venv/solete-full-template/Scripts/python.exe`. If it is absent or unusable, stop and report the problem
+   instead of creating or modifying an environment.
 1. **Paths.** Never hard-code a data path, never rely on the current directory. Use `solete/paths.py`
    (`find_data_file`, `resolve_input`, `resolve_output_prefix`, `derived_path`, `output_path`). Data lives in `data/` (git-ignored, figshare layout `hdf5/` + `parquet/`).
 2. **Never modify a data file in place.** Outputs go to new files. Raw inputs are read-only.

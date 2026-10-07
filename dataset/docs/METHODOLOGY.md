@@ -1,8 +1,8 @@
 # Resampling methodology
 
 How `pipeline/resample_solete.py` turns the cleaned 1-second file into the
-1-minute, 5-minute and 1-hour files. (`1h` is the same resolution the
-original release called `60min`.)
+1-minute, 5-minute and 60-minute files. `1h` remains accepted only as an
+input alias; v4 release filenames always use `60min`.
 
 **Interval convention.** Left-closed, left-labelled: the bucket labelled `T`
 covers `[T, T+period)`. The hourly row stamped `2019-01-01 03:00:00` is the
@@ -87,6 +87,18 @@ the order of minutes. A 1-second substitution flag must not be interpreted as
 equivalent to an hourly one.
 
 ## Bounded-memory execution
+
+`pipeline/build_release.py` slices cleaning and expansion by complete UTC
+days. Cleaning uses 300 rows of overlap on each side, covering the longest
+stateful rule; resampling starts on UTC day boundaries, which align with all
+three bucket widths. Every writer appends to a temporary HDF5 table or
+Parquet writer and renames only after success. Heavy stages run in separate
+subprocesses, report peak RSS, and fail if it exceeds `--max-ram-gb`.
+
+On the two-day synthetic acceptance file (172,800 one-second rows, shuffled
+daily blocks, boundary-crossing runs, and the 2019 DST transition), the full
+build and exact verification peaked at 0.389 GiB. This is not a real-file RAM
+measurement; the maintainer's real build report is authoritative.
 
 `solete.expansion.iter_hdf_slices` reads both pandas fixed-format v3 files
 and table-format pipeline files in bounded row slices.

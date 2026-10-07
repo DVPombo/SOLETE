@@ -8,16 +8,25 @@ system and a weather station.
 
 | File family | Rows (expected) | One row is |
 |---|---|---|
-| `*_1sec` | 39,484,800 | one second; 457 complete days, **2018-06-01 00:00:00 → 2019-08-31 23:59:59** |
-| `*_1min` | 658,080 | one minute |
-| `*_5min` | 131,616 | five minutes |
-| `*_1h` | 10,968 | one hour (called `60min` in v3) |
+| `*_1sec` | 39,484,801 | one second; **2018-06-01 00:00:00 → 2019-09-01 00:00:00**, inclusive |
+| `*_1min` | 658,081 | one minute |
+| `*_5min` | 131,617 | five minutes |
+| `SOLETE_Pombo_60min_v4` | 10,969 | one hour |
 
 - **Timestamps are UTC**, not local time (evidence: `CLEANING_DECISIONS.md` §2).
   In the `.h5` files the index is stored tz-naive; in the `.parquet` files it is
   the column `timestamp`, typed `timestamp[ns, UTC]`.
 - Resampled rows are labelled by the **start** of their interval, `[T, T+period)`.
+- The final `2019-09-01 00:00:00` measurement is retained. It starts one
+  additional, single-sample terminal bucket in each coarser file.
 - Missing values are `NaN`. The 1-second grid itself has no gaps or duplicates.
+
+`SOLETE_Pombo_1sec_original_v4` contains only the nine measured columns in
+the table below. It is the v3 raw 1-second input sorted chronologically, with
+values unchanged. Sorting and removal of the published `Azimuth[deg]` and
+`Elevation[deg]` columns are its only differences from v3; those two columns
+are recomputed by the pipeline. The other four v4 files are expanded release
+files. Every HDF5 stem has a matching Parquet file.
 
 ## Data columns
 

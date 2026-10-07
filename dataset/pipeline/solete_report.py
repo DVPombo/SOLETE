@@ -9,6 +9,8 @@ one produced it.
 """
 import json
 import datetime
+import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -63,3 +65,15 @@ def print_report(name: str, payload) -> None:
     print(json.dumps(clean_payload, indent=2, allow_nan=False))
     print(f"=====END SOLETE REPORT: {name}=====")
     print()
+
+
+def save_report(path, payload) -> None:
+    """Atomically save a sanitized report as strict JSON."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(
+        json.dumps(_sanitize(payload), indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)

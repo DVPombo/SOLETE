@@ -2,6 +2,7 @@
 # data/ is the folder where users put the figshare files; only its README is tracked.
 data/*
 !data/README.md
+!data/figshare_README.txt
 !data/hdf5/
 data/hdf5/*
 !data/hdf5/.gitkeep

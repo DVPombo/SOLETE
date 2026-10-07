@@ -29,7 +29,16 @@ def _decode_hdf_labels(values):
     return [value.decode("utf-8") if isinstance(value, bytes) else value for value in values]
 
 
-def iter_hdf_slices(path, key="DATA", chunk_rows=2_678_400):
+def _datetime_index_from_hdf_axis(values):
+    """Decode integer HDF datetime axes written at ms, us, or ns precision."""
+    values = np.asarray(values)
+    finite = np.abs(values[values != np.iinfo(np.int64).min])
+    magnitude = int(finite.max()) if finite.size else 0
+    unit = "ns" if magnitude >= 10**17 else "us" if magnitude >= 10**14 else "ms"
+    return pd.DatetimeIndex(pd.to_datetime(values, unit=unit)).as_unit("ns")
+
+
+def iter_hdf_slices(path, key="DATA", chunk_rows=2_678_400, start=0, stop=None):
     """Yield bounded-memory row slices from pandas fixed or table HDF files."""
     path = Path(path)
     if chunk_rows <= 0:
@@ -42,8 +51,13 @@ def iter_hdf_slices(path, key="DATA", chunk_rows=2_678_400):
         nrows = storer.nrows
 
     if format_type == "table":
-        for start in range(0, nrows, chunk_rows):
-            yield pd.read_hdf(path, key=key, start=start, stop=min(start + chunk_rows, nrows))
+        stop = nrows if stop is None else min(stop, nrows)
+        if start < 0 or start > stop:
+            raise ValueError("expected 0 <= start <= stop")
+        for position in range(start, stop, chunk_rows):
+            yield pd.read_hdf(
+                path, key=key, start=position, stop=min(position + chunk_rows, stop)
+            )
         return
 
     group_name = str(key).lstrip("/")
@@ -51,6 +65,9 @@ def iter_hdf_slices(path, key="DATA", chunk_rows=2_678_400):
         group = h5[group_name]
         columns = _decode_hdf_labels(group["axis0"][:])
         nrows = len(group["axis1"])
+        stop = nrows if stop is None else min(stop, nrows)
+        if start < 0 or start > stop:
+            raise ValueError("expected 0 <= start <= stop")
         blocks = []
         block_number = 0
         while f"block{block_number}_values" in group:
@@ -58,16 +75,16 @@ def iter_hdf_slices(path, key="DATA", chunk_rows=2_678_400):
             blocks.append((block_columns, group[f"block{block_number}_values"]))
             block_number += 1
 
-        for start in range(0, nrows, chunk_rows):
-            stop = min(start + chunk_rows, nrows)
+        for position in range(start, stop, chunk_rows):
+            chunk_stop = min(position + chunk_rows, stop)
             data = {}
             for block_columns, values in blocks:
-                block = values[start:stop]
-                if block.shape[0] != stop - start:
+                block = values[position:chunk_stop]
+                if block.shape[0] != chunk_stop - position:
                     block = block.T
-                for position, column in enumerate(block_columns):
-                    data[column] = block[:, position]
-            index = pd.to_datetime(group["axis1"][start:stop], unit="ns")
+                for column_position, column in enumerate(block_columns):
+                    data[column] = block[:, column_position]
+            index = _datetime_index_from_hdf_axis(group["axis1"][position:chunk_stop])
             yield pd.DataFrame(data, index=index)[columns]
 
 

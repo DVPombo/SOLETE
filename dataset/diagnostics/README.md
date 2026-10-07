@@ -15,5 +15,5 @@ changes nothing on disk. They import helpers from `../pipeline/`, so run them fr
 | `compare_resolutions.py` | Does a freshly resampled file agree with a published one, once interval labelling is accounted for? | a resampled file, a v3 file |
 
 ```
-python dataset/diagnostics/data_quality_profile.py SOLETE_clean_1sec.h5 --key DATA
+python dataset/diagnostics/data_quality_profile.py SOLETE_Pombo_1sec_v4.h5 --key DATA
 ```
