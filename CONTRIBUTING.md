@@ -40,7 +40,9 @@ The repository has two halves that share one data folder and one flag-code vocab
 - **`solete/`** — the importable package behind the forecasting platform, one module per concern:
   - `paths.py` — **where every file lives** (data folder, examples, outputs). Never build a data path by hand;
     use `find_data_file()`, `resolve_input()`, `output_path()`, ... so nothing depends on the working directory.
-  - `qc.py` — QC flag constants and `apply_qc_flags`/`build_*_qc_rules`
+  - `qc_codes.py` — canonical v4 QC values, ownership lists and severity order
+  - `qc.py` — reads release QC columns and adds model-substitution code 6
+  - `expansion.py` — deterministic row-wise physical expansion used by releases and the platform
   - `physics.py` — `PV_Performance_Model`, `Rincon_Pombo_ThermodynamicModel`
   - `preprocessing.py` — `ExpandSOLETE`, `PreProcessDataset`, `series_to_forecast`
   - `io.py` — `import_SOLETE_data`, `import_SOLETE_sample`, `import_PV_WT_data`
@@ -49,7 +51,7 @@ The repository has two halves that share one data folder and one flag-code vocab
   - `metrics.py`, `dataset.py`, `benchmark/common.py` — metrics, the `SOLETE` convenience class, shared benchmark harness
 - **`benchmarks/`**, **`scripts/`**, **`examples/`** — runnable things built on the package.
 
-Import from the specific submodule you need: `from solete.qc import apply_qc_flags`. `solete/__init__.py`
+Import from the specific submodule you need: `from solete.expansion import expand_physical`. `solete/__init__.py`
 re-exports nothing on purpose, so importing `solete.qc`, `solete.physics` or `solete.paths` costs nothing beyond
 `pandas`/`numpy` — only `solete.modeling` pulls in `keras`/`tensorflow`. The dataset scripts rely on this
 (they import `solete.paths` only), and `tests/test_solete_pipeline_units.py` guards it.

@@ -33,10 +33,10 @@ FILE VERSIONS
     "v3"  SOLETE_Pombo_<res>.h5                res in 1sec, 1min, 5min, 60min
           (the originals; 1h in v4 is called 60min in v3)
 
-The forecasting platform and the benchmarks in this repository were built on
-the v3 hourly file and still read it by default (version="v3"). Reading the v4
-files through the platform needs the QC-flag reconciliation described in
-docs/RESTRUCTURE_NOTES.md first -- see that file before switching.
+The forecasting platform and benchmarks were built on the v3 hourly file and
+still read it by default (version="v3"). Version 4 files are also loadable;
+their pipeline flags are preserved and deterministic model columns are
+recomputed at the selected resolution.
 """
 
 from __future__ import annotations

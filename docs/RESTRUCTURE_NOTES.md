@@ -31,7 +31,7 @@ Working notes for the maintainer. Safe to delete once the open items below are s
 Historical text (CHANGELOG entries, `KNOWN_ISSUES.md` history, the legacy documents) still uses the old names in places; they describe
 the past and were left as written, except for mechanical path updates in the active docs.
 
-## 2. Open item: the two QC code sets (the one real design decision)
+## 2. Resolved: one QC vocabulary and per-resolution expansion
 
 The platform (`solete/qc.py`) and the dataset pipeline (`dataset/pipeline/qc_flags.py`) use **different meanings for the same numbers**:
 
@@ -46,12 +46,20 @@ The platform (`solete/qc.py`) and the dataset pipeline (`dataset/pipeline/qc_fla
 | 6 | suspected curtailment / model-substituted | (unused) |
 | 7-10 | - | unverified provenance / recomputed / glitch long NaN / active day |
 
-The v4 files already contain `<column>_qc` columns. `apply_qc_flags()` in the platform writes columns with the same names, so reading a v4
-file through `import_SOLETE_data` would silently overwrite the dataset's flags with platform codes. That is why `data_version='v4'`
-currently raises `NotImplementedError`. Suggested resolution: keep the v4 code set as the only vocabulary (one module, e.g. `solete/qc_codes.py`,
-imported by both halves), give "model-substituted" a new v4 code (code 6 is free), and reduce the platform's `qc.py` to
-(a) reading the `_qc` columns that are present and (b) adding only the substitution flag. `metrics.qc_mask()` and `benchmarks/` assume
-code 6 for substitution, so they need no change if 6 is kept for that meaning.
+The resolution is implemented in `solete/qc_codes.py`: the v4 values and one
+severity order are imported by both halves, and code 6 means
+`QC_MODEL_SUBSTITUTED`. Dataset-pipeline rules cannot emit code 6. The
+platform preserves release flags and adds only substitution; v4 loading no
+longer raises `NotImplementedError`.
+
+Measured columns and pipeline-owned flags are resampled from cleaned 1-second
+data. Model columns are excluded from resampling and recomputed by
+`solete.expansion.expand_physical` from each target resolution's own cleaned
+inputs. This is required because the PV model, clipping and substitution
+threshold do not commute with averaging. Measured `P_Solar[kW]` remains in
+release frames; `P_Solar_clean[kW]` is the substituted value. The legacy
+platform wrapper assigns the clean column to its in-memory working target so
+v3 benchmark behavior is unchanged.
 
 ## 3. Other open items
 

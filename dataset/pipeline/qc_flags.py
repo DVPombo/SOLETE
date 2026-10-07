@@ -2,12 +2,11 @@
 qc_flags.py -- shared quality-flag codes and generic helpers for the SOLETE
 cleaning pipeline.
 
-This is the dataset side's half of a single flag axis shared with the
-SOLETE forecasting platform (the SOLETEplatform repo). Code 6 is deliberately left unassigned here --
-it belongs to the platform's QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED,
-which is not a property of the raw sensor stream and can't be derived from
-this repo. Do not repurpose 6 for anything dataset-side; a future rule that
-needs a new code takes the next free number after 10, not 6.
+The canonical flag axis is defined in solete.qc_codes and shared with the
+forecasting platform. Code 6 belongs to the platform's model-substitution
+rule, which is not a property of the raw sensor stream. No pipeline rule in
+this module imports or emits it; a future pipeline rule takes the next free
+number after 10.
 
 One int8 `<column>_qc` column is emitted per treated source column, MERGED
 into the same DataFrame as the cleaned data (see clean_solete_1sec.py) --
@@ -18,55 +17,19 @@ and in this dataset the issues we found don't overlap on the same second).
 """
 import numpy as np
 
-QC_OK = 0                          # untouched, no issue detected
-QC_WRAPPED = 1                      # WIND_DIR only: value was mod-360 wrapped
-QC_PLACEHOLDER = 2                  # sentinel value detected and replaced with NaN
-QC_DROPOUT_SHORT_FIXED = 3          # WS/HUM joint-zero dropout, run short enough to interpolate
-QC_DROPOUT_LONG_UNTREATED = 4       # same, but run too long -- value kept as recorded (still a
-                                     # plausible reading, e.g. 0), flagged for manual review
-QC_GLITCH_SHORT_FIXED = 5           # isolated out-of-bound value(s), interpolated
-# 6 is RESERVED for the platform repo's QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED.
-# Not used, not defined, not emitted by anything in this repo.
-QC_UNVERIFIED_PROVENANCE = 7        # value is plausible and UNCHANGED, but its cause is not
-                                     # established (currently: P_Gaia zero outside the two
-                                     # confirmed-active days)
-QC_RECOMPUTED = 8                   # value fully replaced by a model computation (Azimuth/Elevation)
-QC_GLITCH_LONG_UNTREATED_NAN = 9    # out-of-bound run too long to interpolate -- set to NaN
-                                     # (not fabricated, not left physically impossible), flagged
-QC_ACTIVE_DAY = 10                  # P_Gaia on a day with confirmed real telemetry
-
-QC_LABELS = {
-    QC_OK: "ok",
-    QC_WRAPPED: "wrapped_mod_360",
-    QC_PLACEHOLDER: "placeholder_set_to_nan",
-    QC_DROPOUT_SHORT_FIXED: "dropout_short_run_interpolated",
-    QC_DROPOUT_LONG_UNTREATED: "dropout_long_run_untreated",
-    QC_GLITCH_SHORT_FIXED: "glitch_short_run_interpolated",
-    # 6: platform-owned, deliberately absent here.
-    QC_UNVERIFIED_PROVENANCE: "unverified_provenance",
-    QC_RECOMPUTED: "recomputed_replacing_measurement",
-    QC_GLITCH_LONG_UNTREATED_NAN: "glitch_long_run_untreated_set_to_nan",
-    QC_ACTIVE_DAY: "p_gaia_confirmed_active_day",
-}
-
-# Severity precedence for aggregating flags to coarser resolutions (see
-# resample_solete.py's `<column>_qc_worst`), highest severity first. A
-# collapsed bucket reports the single worst code present in it. Code 6 is
-# included so a resampled file that later gets a platform-computed
-# substitution column merged in can share one precedence list; nothing in
-# this repo emits 6 today.
-QC_SEVERITY_ORDER = (
-    QC_GLITCH_LONG_UNTREATED_NAN,   # data now missing (physically-impossible run, unfixable)
-    QC_PLACEHOLDER,                 # data now missing (sentinel run, unfixable)
-    QC_DROPOUT_LONG_UNTREATED,      # value kept but reliability unresolved (long dropout)
-    6,                               # QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED (platform-owned)
-    QC_UNVERIFIED_PROVENANCE,       # value kept, cause of the reading not established
-    QC_RECOMPUTED,                  # not a measurement at all, but trustworthy (model output)
-    QC_GLITCH_SHORT_FIXED,          # interpolated over a short run
-    QC_DROPOUT_SHORT_FIXED,         # interpolated over a short run
-    QC_WRAPPED,                     # trivial, fully-determined correction
-    QC_ACTIVE_DAY,                  # confirmed good; informational only
-    QC_OK,                          # untouched, no issue
+from solete.qc_codes import (
+    QC_ACTIVE_DAY,
+    QC_DROPOUT_LONG_UNTREATED,
+    QC_DROPOUT_SHORT_FIXED,
+    QC_GLITCH_LONG_UNTREATED_NAN,
+    QC_GLITCH_SHORT_FIXED,
+    QC_LABELS,
+    QC_OK,
+    QC_PLACEHOLDER,
+    QC_RECOMPUTED,
+    QC_SEVERITY_ORDER,
+    QC_UNVERIFIED_PROVENANCE,
+    QC_WRAPPED,
 )
 
 

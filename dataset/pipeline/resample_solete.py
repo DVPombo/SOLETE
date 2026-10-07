@@ -31,6 +31,8 @@ output files):
                                  that were not QC_OK, so a consumer can pick
                                  their own tolerance threshold instead of
                                  inheriting the resampler's.
+    - Model-derived columns and code 6 are excluded. They are recomputed by
+        solete.expansion.expand_physical from each target resolution's inputs.
 
 Usage:
     python dataset/pipeline/resample_solete.py SOLETE_clean_1sec.h5 --key DATA --out-prefix SOLETE_clean
@@ -46,8 +48,17 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root: gives `import solete.paths`
 from solete.paths import resolve_input, resolve_output_prefix  # noqa: E402
-from qc_flags import QC_OK, QC_SEVERITY_ORDER
-from solete_report import print_report
+from solete.qc_codes import (  # noqa: E402
+    MODEL_DERIVED_COLUMNS,
+    PIPELINE_QC_COLUMNS,
+    QC_OK,
+    QC_MODEL_SUBSTITUTED,
+    QC_SEVERITY_ORDER,
+)
+try:
+    from .solete_report import print_report
+except ImportError:
+    from solete_report import print_report
 
 # Columns that represent a compass bearing / angle wrapping at 360 degrees.
 # Extend this if a column list check reveals others (e.g. a recomputed
@@ -106,20 +117,31 @@ def build_agg_dict(columns) -> dict:
     return {
         col: "mean"
         for col in columns
-        if not col.endswith(QC_SUFFIX) and col not in ANGULAR_COLUMNS
+        if (not col.endswith(QC_SUFFIX)
+            and col not in ANGULAR_COLUMNS
+            and col not in MODEL_DERIVED_COLUMNS)
     }
 
 
 def resample_dataframe(df: pd.DataFrame, rule: str) -> pd.DataFrame:
-    plain_cols = [c for c in df.columns if not c.endswith(QC_SUFFIX) and c not in ANGULAR_COLUMNS]
-    angular_cols = [c for c in df.columns if c in ANGULAR_COLUMNS]
+    plain_cols = [
+        column for column in df.columns
+        if (not column.endswith(QC_SUFFIX)
+            and column not in ANGULAR_COLUMNS
+            and column not in MODEL_DERIVED_COLUMNS)
+    ]
+    angular_cols = [column for column in df.columns if column in ANGULAR_COLUMNS]
     agg = build_agg_dict(df.columns)
     resampled = df[plain_cols].resample(rule, label="left", closed="left").agg(agg)
     for col in angular_cols:
         resampled[col] = resample_angular_column(df[col], rule)
     if angular_cols:
-        resampled = resampled[[c for c in df.columns if not c.endswith(QC_SUFFIX)]]  # restore original column order
-    qc_cols = [c for c in df.columns if c.endswith(QC_SUFFIX)]
+        output_columns = [
+            column for column in df.columns
+            if not column.endswith(QC_SUFFIX) and column not in MODEL_DERIVED_COLUMNS
+        ]
+        resampled = resampled[output_columns]
+    qc_cols = [column for column in df.columns if column in PIPELINE_QC_COLUMNS]
     if qc_cols:
         qc_resampled = resample_qc_columns(df[qc_cols], rule)
         resampled = resampled.join(qc_resampled, how="left")
@@ -148,6 +170,7 @@ def resample_qc_columns(qc_df: pd.DataFrame, rule: str) -> pd.DataFrame:
     both fields from the mean()/min() of nothing, automatically -- no
     separate branch needed, unlike the old per-group version.
     """
+    qc_df = qc_df.replace(QC_MODEL_SUBSTITUTED, QC_OK)
     is_flagged = (qc_df != QC_OK).astype(np.float64)
     frac = is_flagged.resample(rule, label="left", closed="left").mean()
     frac.columns = [f"{c}_frac_flagged" for c in qc_df.columns]
@@ -162,8 +185,11 @@ def resample_qc_columns(qc_df: pd.DataFrame, rule: str) -> pd.DataFrame:
 
 
 def write_methodology_doc(path: str, columns_seen) -> None:
-    data_cols = [c for c in columns_seen if not c.endswith(QC_SUFFIX)]
-    qc_cols = [c for c in columns_seen if c.endswith(QC_SUFFIX)]
+    data_cols = [
+        column for column in columns_seen
+        if not column.endswith(QC_SUFFIX) and column not in MODEL_DERIVED_COLUMNS
+    ]
+    qc_cols = [column for column in columns_seen if column in PIPELINE_QC_COLUMNS]
     angular_present = sorted(ANGULAR_COLUMNS & set(data_cols))
     other_present = sorted(set(data_cols) - ANGULAR_COLUMNS)
     with open(path, "w") as f:
@@ -177,10 +203,16 @@ def write_methodology_doc(path: str, columns_seen) -> None:
                 f"- QC flag columns ({sorted(qc_cols)}) are NOT averaged. Each "
                 "`<column>_qc` becomes two fields per bucket: `<column>_qc_worst` "
                 "(highest-severity code present, per QC_SEVERITY_ORDER in "
-                "qc_flags.py) and `<column>_qc_frac_flagged` (fraction of seconds "
+                "solete/qc_codes.py) and `<column>_qc_frac_flagged` (fraction of seconds "
                 "in the bucket that were not QC_OK). A bucket with zero source "
                 "samples (a real gap) gets NaN in both, distinguishable from a "
                 "genuinely all-OK bucket (`_worst` == 0, `_frac_flagged` == 0.0).\n"
+            )
+        excluded = sorted(set(columns_seen) & MODEL_DERIVED_COLUMNS)
+        if excluded:
+            f.write(
+                f"- Model-derived columns ({excluded}) are excluded from resampling "
+                "and must be recomputed at this resolution with expand_physical.\n"
             )
         f.write(
             "- If comparing against a previously-published file and values don't "

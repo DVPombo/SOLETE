@@ -62,7 +62,7 @@ def _no_heavy_deps_after_import(import_line):
 
 def test_qc_module_imports_without_keras_or_tensorflow():
     heavy = _no_heavy_deps_after_import(
-        "from solete.qc import apply_qc_flags, build_raw_value_qc_rules"
+        "from solete.qc import add_substitution_flag, qc_columns"
     )
     assert heavy == [], f"solete.qc pulled in heavy deps: {heavy}"
 
@@ -169,19 +169,14 @@ def test_rincon_pombo_isolated_matches_full_pipeline_real_data(pv_info):
 # ---------------------------------------------------------------------------
 
 def test_qc_constants_importable_directly():
-    from solete.qc import (
-        QC_VALID, QC_MISSING, QC_FLAG_PRECEDENCE, KNOWN_PRESSURE_SENTINELS,
-    )
-    assert QC_VALID == 0
-    assert QC_MISSING in QC_FLAG_PRECEDENCE
-    assert 1000.0 in KNOWN_PRESSURE_SENTINELS
+    from solete.qc_codes import QC_MODEL_SUBSTITUTED, QC_OK, QC_SEVERITY_ORDER
+    assert QC_OK == 0
+    assert QC_MODEL_SUBSTITUTED == 6
+    assert QC_MODEL_SUBSTITUTED in QC_SEVERITY_ORDER
 
 
-def test_apply_qc_flags_isolated_real_pressure_sentinel():
-    from solete.qc import apply_qc_flags, build_raw_value_qc_rules, QC_PHYSICALLY_IMPLAUSIBLE
+def test_qc_columns_reads_existing_flags():
+    from solete.qc import qc_columns
 
-    df = pd.read_hdf(v3_60min_path())
-    row = df.loc[["2019-01-01 01:00:00"]].copy()  # same real sentinel row as test_qc_flags.py
-    assert row["Pressure[mbar]"].iloc[0] == 1000.0
-    apply_qc_flags(row, build_raw_value_qc_rules(row))
-    assert row["Pressure[mbar]_qc"].iloc[0] == QC_PHYSICALLY_IMPLAUSIBLE
+    frame = pd.DataFrame({"Pressure[mbar]_qc": [2], "Pressure[mbar]": [np.nan]})
+    assert qc_columns(frame) == ["Pressure[mbar]_qc"]

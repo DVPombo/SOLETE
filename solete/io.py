@@ -15,7 +15,6 @@ import pandas as pd
 
 from .paths import data_filename, find_data_file, derived_path, resolve_sample
 from .preprocessing import ExpandSOLETE
-from .qc import apply_qc_flags, build_raw_value_qc_rules
 from .postprocess import error_msg
 
 
@@ -43,19 +42,13 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
     
     print("___The SOLETE Platform___\n")
     
-    if Control_Var['resolution'] not in ['1sec', '1min', '5min', '60min']:            
+    if Control_Var['resolution'] not in ['1sec', '1min', '5min', '60min', '1h']:
         error_msg(key = "resolution")
     else:
         # Which file version to read: 'v3' (default, the original SOLETE_Pombo_<res>.h5
         # files the platform and benchmarks were built on) or 'v4' (cleaned figshare
         # v4 files). Where the files live is decided in solete/paths.py (data/hdf5/).
         data_version = Control_Var.get('data_version', 'v3')
-        if data_version == 'v4':
-            raise NotImplementedError(
-                "The platform cannot read the cleaned v4 files yet: they already carry "
-                "<column>_qc flags with the v4 code set (dataset/docs/QC_SCHEMA.md), which "
-                "apply_qc_flags() below would overwrite using the older platform code set. "
-                "See docs/RESTRUCTURE_NOTES.md (QC reconciliation) before using v4 here.")
         name_stem = data_filename(Control_Var['resolution'], data_version)[:-3]
         name_import = name_stem + '_Expanded.h5'   # cached under data/derived/, see paths.derived_path
         
@@ -70,12 +63,6 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         Control_Var['OriginalFeatures']=list(df.columns)
         
         print("SOLETE was imported with a resolution of: ", Control_Var['resolution'], "\n")
-        
-        #QC flags for raw-value issues (Phase 2, see docs/legacy/QC_SCHEMA_platform_v3.md). Computed here,
-        #directly on the raw columns, rather than deferred into ExpandSOLETE --
-        #none of these rules depend on anything ExpandSOLETE derives.
-        _, qc_counts = apply_qc_flags(df, build_raw_value_qc_rules(df))
-        print("QC flags applied:", qc_counts, "\n")
         
         ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
         
@@ -93,17 +80,8 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         print("    -resolution: ", Control_Var['resolution'])
         print("    -version: Expanded. ")
         
-        #QC flags (Phase 2): recomputed from the raw columns rather than trusted
-        #from disk. This is deliberately self-healing -- if a saved _Expanded.h5
-        #file ever had its _qc columns dropped below (because they weren't listed
-        #in Control_Var['PossibleFeatures'], the same registration gap that
-        #already affects P_Solar_model_substituted, see docs/legacy/QC_SCHEMA_platform_v3.md section 7),
-        #this regenerates them here from the still-present raw columns instead of
-        #silently going without. Note this only sticks if the caller's
-        #PossibleFeatures *also* lists the _qc columns -- otherwise the drop loop
-        #a few lines down removes them again immediately after.
-        _, qc_counts = apply_qc_flags(df, build_raw_value_qc_rules(df))
-        print("QC flags (re)applied on Import:", qc_counts)
+        if data_version == 'v4' and 'P_Solar_clean[kW]' in df.columns:
+            df['P_Solar[kW]'] = df['P_Solar_clean[kW]']
         
         for col in Control_Var['PossibleFeatures']: #if the possiblefeature includes
         #something that was not in the import file, execution is killed with an error message
@@ -156,12 +134,6 @@ def import_SOLETE_sample(path, Control_Var, PVinfo, WTinfo):
     print(f"    {len(df)} rows, {df.index.min()} .. {df.index.max()}\n")
 
     Control_Var['OriginalFeatures'] = list(df.columns)
-
-    #Same raw-value QC flags as import_SOLETE_data()'s 'Build' branch
-    #(see docs/legacy/QC_SCHEMA_platform_v3.md) -- computed here so the notebooks demonstrate the
-    #real entry point rather than bypassing it with a bare pd.read_hdf.
-    _, qc_counts = apply_qc_flags(df, build_raw_value_qc_rules(df))
-    print("QC flags applied:", qc_counts, "\n")
 
     ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
 

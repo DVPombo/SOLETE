@@ -39,9 +39,9 @@ import pandas as pd
 def qc_mask(qc_column, exclude_flags=(6,)):
     """
     Build a boolean "keep this row" mask from a `<column>_qc` Series
-    (see docs/legacy/QC_SCHEMA_platform_v3.md for the flag value set: 0=valid, 1=missing,
-    2=sensor_error, 3=physically_implausible, 4=interpolated,
-    5=aggregation_affected_by_gaps, 6=suspected_curtailment_or_model_substituted).
+    using the canonical v4 values in dataset/docs/QC_SCHEMA.md. Code 6 is
+    `QC_MODEL_SUBSTITUTED`; codes 0-5 and 7-10 describe pipeline cleaning
+    and provenance outcomes.
 
     Parameters
     ----------

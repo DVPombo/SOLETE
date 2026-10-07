@@ -4,7 +4,7 @@ availability_report.py
 
 Per-column-per-file completeness and QC-flag report, built on top of
 inspect_dataset.py's HDF5-key discovery and the QC flag layer
-(solete.qc.apply_qc_flags / docs/legacy/QC_SCHEMA_platform_v3.md).
+(solete.qc / dataset/docs/QC_SCHEMA.md).
 
 For every column in every file/key, reports two related-but-distinct things:
   - completeness: expected sample count (inferred from the file's own time
@@ -21,10 +21,8 @@ Usage
     python scripts/availability_report.py examples/SOLETE_short.h5 SOLETE_Pombo_60min.h5 \
         --csv my_report.csv
 
-Note: this imports solete/ to reuse apply_qc_flags/build_*_qc_rules and
-(for the P_Solar[kW]_qc breakdown) PV_Performance_Model -- so it shares
-solete/'s dependency footprint (scikit-learn, keras/TensorFlow,
-CoolProp; see requirements.txt), not just h5py/pandas/numpy.
+The report consumes QC columns already present in v4 files and computes only
+the platform-owned P_Solar substitution flag when needed.
 """
 import argparse
 import pathlib
@@ -43,28 +41,10 @@ from inspect_dataset import discover_keys  # Phase 1, reused as-is
 from solete.paths import resolve_input
 from solete.io import import_PV_WT_data
 from solete.physics import PV_Performance_Model
-from solete.qc import (  # Phase 2
-    apply_qc_flags,
-    build_raw_value_qc_rules,
-    build_substitution_qc_rule,
-    QC_VALID,
-    QC_MISSING,
-    QC_SENSOR_ERROR,
-    QC_PHYSICALLY_IMPLAUSIBLE,
-    QC_INTERPOLATED,
-    QC_AGGREGATION_AFFECTED_BY_GAPS,
-    QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED,
-)
+from solete.qc import add_substitution_flag
+from solete.qc_codes import QC_LABELS, QC_OK
 
-QC_FLAG_NAMES = {
-    QC_VALID: "valid",
-    QC_MISSING: "missing",
-    QC_SENSOR_ERROR: "sensor_error",
-    QC_PHYSICALLY_IMPLAUSIBLE: "physically_implausible",
-    QC_INTERPOLATED: "interpolated",
-    QC_AGGREGATION_AFFECTED_BY_GAPS: "aggregation_affected_by_gaps",
-    QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED: "suspected_curtailment_or_model_substituted",
-}
+QC_FLAG_NAMES = QC_LABELS
 
 
 def infer_resolution(index: pd.DatetimeIndex) -> pd.Timedelta:
@@ -83,17 +63,14 @@ def infer_resolution(index: pd.DatetimeIndex) -> pd.Timedelta:
 
 
 def add_qc_columns(df: pd.DataFrame, pv_info: dict) -> pd.DataFrame:
-    """Run the full Phase 2 QC layer on a copy of df, mirroring what
-    import_SOLETE_data()/ExpandSOLETE() do, so the report reflects the same
-    flags a real Build would produce -- without mutating the caller's df."""
+    """Read release QC columns and add model substitution on a copy."""
     df = df.copy()
-    apply_qc_flags(df, build_raw_value_qc_rules(df))
 
     if "P_Solar[kW]" in df.columns:
         Pac, _, _, _ = PV_Performance_Model(df, pv_info)
         df["Pac"] = Pac
         df["P_Solar_model_substituted"] = df["Pac"] >= 1.5 * df["P_Solar[kW]"]
-        apply_qc_flags(df, [build_substitution_qc_rule()])
+        add_substitution_flag(df, df["P_Solar_model_substituted"])
 
     return df
 
@@ -136,7 +113,7 @@ def report_for_file(path: str, pv_info: dict) -> pd.DataFrame:
                 for flag_value, flag_name in QC_FLAG_NAMES.items():
                     row[f"qc_{flag_name}_count"] = int(counts.get(flag_value, 0))
                 row["qc_flagged_pct_of_nonnull"] = round(
-                    100 * (n_nonnull - counts.get(QC_VALID, 0)) / n_nonnull, 3
+                    100 * (n_nonnull - counts.get(QC_OK, 0)) / n_nonnull, 3
                 )
             else:
                 for flag_name in QC_FLAG_NAMES.values():

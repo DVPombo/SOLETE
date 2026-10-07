@@ -5,6 +5,16 @@ All notable changes to the SOLETE platform are documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history; see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
 
 ## [Unreleased]
+### Changed — canonical QC and deterministic release expansion
+- Added `solete/qc_codes.py` as the single v4 code/severity vocabulary. Code 6 is `QC_MODEL_SUBSTITUTED`; dataset-pipeline rules cannot emit it.
+- Added `solete.expansion.expand_physical`, a vectorized, row-wise and idempotent physical expansion. Release frames retain measured `P_Solar[kW]` and add `P_Solar_clean[kW]`; `P_hybrid[kW]` uses the clean column.
+- `import_SOLETE_data(..., data_version='v4')` now works without replacing release flags. The platform uses `P_Solar_clean[kW]` as its in-memory working target, preserving legacy benchmark behavior.
+- Resampling is restricted to measured columns and named pipeline-owned flags. Model columns and code 6 are recomputed independently at each resolution.
+- `P_hybrid[kW]_qc` now inherits severity from the canonical order without `np.vectorize`. `TempModule_RP` remains an opt-in sequential ML feature.
+- Verified exact legacy value parity on the real 10,969-row v3 hourly file; the only intentional schema differences are `P_Solar_clean[kW]` and removal of synthesized platform-era raw-value QC columns. Hybrid QC values do not change on v3.
+- Added bounded-memory fixed/table HDF iterators. The supplied real v3 1-second file processed all 39,484,801 rows in 15 month-sized slices in 42.24 seconds at 1,712.9 MiB measured peak RSS on Windows; inputs were not modified and no full result was retained.
+- Validation: 51 tests pass with supplied real data; without external data, 33 pass and 18 skip. The actual LSTM, CNN and CNN-LSTM trainers completed one in-memory TensorFlow epoch with finite predictions and no repository artifacts. The CNN quickstart also completed its real-hourly-data expansion, three training epochs, prediction, scoring, and post-processing workflow.
+
 ### Changed — repository restructure (breaking: import paths and file locations)
 The dataset-cleaning repository (`SOLETEdataset`) and the platform repository are merged into one. Nothing in the
 numerical code was changed; files moved and every path now resolves through one module. Full old-to-new table:

@@ -8,11 +8,11 @@ chosen specifically to contain real examples of the QC issues documented in
 
 Both files are produced by slicing `SOLETE_Pombo_60min.h5` **after** sorting its index
 (`KNOWN_ISSUES.md` finding #8: the file's rows are not stored in chronological order on
-disk). Both keep the raw, as-delivered columns only — the QC `_qc` columns and PV-model
-expansion columns (`Pac`, `Pdc`, `P_Solar_model_substituted`, etc.) are added at load time
-by `Functions.py::import_SOLETE_sample()` (a new convenience wrapper, see below),
-the same way `import_SOLETE_data()` adds them for the full-size files — not baked into the
-saved file.
+disk). Both keep the raw, as-delivered columns only. Deterministic PV-model
+expansion columns (`Pac`, `Pdc`, `P_Solar_model_substituted`, etc.) and
+substitution code 6 are added by `solete.io.import_SOLETE_sample()`;
+platform-era raw-value QC flags are no longer synthesized. Version 4 release
+files carry the canonical pipeline flags in `dataset/docs/QC_SCHEMA.md`.
 
 ## `SOLETE_sample.h5` — main Phase 3 sample (Tasks 3.2, 3.3, 3.4)
 
@@ -25,9 +25,8 @@ saved file.
   January 2019. Given that, the deciding factor was the notebook use case: Dec–Feb gives
   the forecasting notebooks (Tasks 3.4/3.5) the most history of the options considered,
   while staying small enough to load and run in well under a minute.
-- **Issue-type coverage, verified by running the sample through
-  `apply_qc_flags`/`build_raw_value_qc_rules` and the substitution-flag logic in
-  `ExpandSOLETE()`** (exact counts, out of 2,160 rows):
+- **Historical platform-era issue-type coverage** (exact counts under the
+  retired v3 detector vocabulary, out of 2,160 rows):
 
   | Flag type | Column | Rows flagged |
   |---|---|---|
