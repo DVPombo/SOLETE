@@ -11,14 +11,14 @@ If it stops (power cut, Ctrl+C, an error), fix the cause and run again: SKIP_EXI
 Equivalent terminal command: python dataset/pipeline/build_release.py --raw <RAW> --skip-existing ...
 """
 # ----------------------------------------------------------------------------- SETTINGS (edit these)
-DATA_DIR = r"D:\solete\data"                         # where hdf5/ and parquet/ are written; "" = the repo's data/ folder
-RAW = r"D:\solete\SOLETE_Pombo_1sec.h5"              # the raw v3 1-second file (read only, never modified)
+DATA_DIR = ""
+RAW = ""
 SLICE_DAYS = 31                                      # 31 is about 1.8 GB peak; use 7 for a machine with little RAM
 REBUILD_CHECK = "sample"                             # "sample" (default), "full" (second full build: do it once before publishing), "none"
 KEEP_INTERMEDIATE = False                            # True keeps the scratch folder (several GB) after a successful build
 SKIP_EXISTING = True                                 # resume: skip a stage whose outputs already exist
 OVERWRITE = False                                    # True replaces existing outputs (needed to redo a stage)
-DRY_RUN = True                                       # True: plan + disk estimate only, nothing is written
+DRY_RUN = False                                       # True: plan + disk estimate only, nothing is written
 # -----------------------------------------------------------------------------------------------------
 import os
 import sys
@@ -30,6 +30,8 @@ sys.path.insert(0, str(HERE.parents[1]))             # repo root
 
 if DATA_DIR:
     os.environ["SOLETE_DATA_DIR"] = DATA_DIR         # must be set BEFORE solete.paths is imported
+else:
+    os.environ.pop("SOLETE_DATA_DIR", None)          # "" = the repo's data/ folder; Spyder's kernel would otherwise keep an earlier value
 for name in [m for m in sys.modules if m == "solete" or m.startswith("solete.") or m == "build_release"]:
     del sys.modules[name]                            # Spyder keeps modules between runs: drop stale paths
 
