@@ -6,16 +6,22 @@ system and a weather station.
 
 ## Files and time axis
 
-| File | Rows (expected) | One row is | Columns |
-|---|---|---|---|
-| `SOLETE_Pombo_1sec_original_v4` | 39,484,800 | one second; 457 complete days, **2018-06-01 00:00:00 → 2019-08-31 23:59:59** | 9 (measured only) |
-| `SOLETE_Pombo_1sec_v4` | 39,484,800 | one second | 28 |
-| `SOLETE_Pombo_1min_v4` | 658,080 | one minute | 36 |
-| `SOLETE_Pombo_5min_v4` | 131,616 | five minutes | 36 |
-| `SOLETE_Pombo_60min_v4` | 10,968 | one hour (`60min`; `1h` is accepted by the code as an input alias only) | 36 |
+| File | One row is | Columns |
+|---|---|---|
+| `SOLETE_Pombo_1sec_original_v4` | one second | 9 (measured only) |
+| `SOLETE_Pombo_1sec_v4` | one second | 28 |
+| `SOLETE_Pombo_1min_v4` | one minute | 36 |
+| `SOLETE_Pombo_5min_v4` | five minutes | 36 |
+| `SOLETE_Pombo_60min_v4` | one hour (`60min`; `1h` is accepted by the code as an input alias only) | 36 |
 
-Each exists as `.h5` (in `data/hdf5/`) and `.parquet` (in `data/parquet/`, one more column: `timestamp`). The v4 hourly file has **10,968** rows
-and no boundary row; the v3 hourly file has 10,969: never compare row counts between them.
+Each exists as `.h5` (in `data/hdf5/`) and `.parquet` (in `data/parquet/`, one more column: `timestamp`).
+
+**Rows.** The record starts at 2018-06-01 00:00:00 UTC and covers 457 full days (457 x 86,400 = 39,484,800 seconds). The raw v3 files also hold the
+**boundary second 2019-09-01 00:00:00** (the v3 hourly file has 10,969 rows, ending 2019-09-01 00:00:00; the raw 1 s file has 39,484,801 rows).
+Nothing is removed, so the v4 files keep it, and the coarse files have one more (partial) bucket for it: with the boundary second
+**39,484,801 / 658,081 / 131,617 / 10,969** rows (1 s / 1 min / 5 min / 60 min), without it 39,484,800 / 658,080 / 131,616 / 10,968. The
+last bucket of each coarse file then contains a single second. The build derives the expected counts from the file's own span and checks
+the grid is gap-free; the actual counts are in `manifest.json` and in `data/figshare_README.txt`.
 
 - **Timestamps are UTC**, not local time (evidence: `CLEANING_DECISIONS.md` §2). There is no local-time column.
   In the `.h5` files the index is stored tz-naive; in the `.parquet` files it is the first column `timestamp`, typed `timestamp[ns, tz=UTC]` (the unit is pinned in code).

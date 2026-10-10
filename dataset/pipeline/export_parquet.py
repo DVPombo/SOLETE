@@ -20,7 +20,7 @@ Differences between the two, by design:
     release_meta.py).
   * Row groups of 1,000,000 rows with column statistics; zstd compression. `--trial` measures zstd
     levels 3, 9, 15 with and without byte_stream_split on the first million rows and prints the table;
-    `--auto` applies the smallest result that is not more than 4x slower than zstd-3.
+    `--auto` applies the smallest result that is not more than 4x slower than zstd-3 and at least 2 % smaller than it (else zstd-3).
 
 Usage:
     python dataset/pipeline/export_parquet.py SOLETE_Pombo_1sec_v4.h5          # -> data/parquet/SOLETE_Pombo_1sec_v4.parquet
@@ -119,11 +119,14 @@ def compression_trial(h5_path, key="DATA", n_rows=1_000_000, levels=(3, 9, 15), 
     return rows
 
 
-def choose_settings(trial, max_slowdown=4.0):
-    """The smallest trial result whose write time is within `max_slowdown` x the zstd-3 / no-BSS time."""
+def choose_settings(trial, max_slowdown=4.0, min_gain=0.02):
+    """The smallest trial result whose write time is within `max_slowdown` x the zstd-3 / no-BSS time, but only if it
+    is at least `min_gain` (2 %) smaller than zstd-3; otherwise zstd-3 (a slower setting must earn its time)."""
     base = next(r for r in trial if r["level"] == 3 and not r["byte_stream_split"])
     ok = [r for r in trial if r["write_seconds"] <= max_slowdown * max(base["write_seconds"], 1e-3)]
     best = min(ok, key=lambda r: (r["size_bytes"], r["level"]))
+    if best["size_bytes"] > (1 - min_gain) * base["size_bytes"]:
+        best = base
     return {"compression": best["compression"], "compression_level": best["level"],
             "byte_stream_split": best["byte_stream_split"]}
 

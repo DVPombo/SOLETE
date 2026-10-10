@@ -34,13 +34,18 @@ import resample_solete as rs  # noqa: E402
 from release_meta import ANGLE_COLUMNS  # noqa: E402
 
 KEY = "DATA"
-REAL_ROWS = {"1sec": 39_484_800, "1min": 658_080, "5min": 131_616, "60min": 10_968}
-REAL_SPAN = (pd.Timestamp("2018-06-01 00:00:00"), pd.Timestamp("2019-08-31 23:59:59"))
+# The real record starts 2018-06-01 00:00:00 and covers 457 full days; the raw v3 file may or may not also hold the
+# boundary second 2019-09-01 00:00:00 (the v3 hourly file does: 10,969 rows). Both are accepted; row counts are
+# DERIVED from the span (expected_rows), never hard-coded.
+REAL_START = pd.Timestamp("2018-06-01 00:00:00")
+REAL_ENDS = (pd.Timestamp("2019-08-31 23:59:59"), pd.Timestamp("2019-09-01 00:00:00"))
 STEP = {"1sec": pd.Timedelta("1s"), "1min": pd.Timedelta("1min"), "5min": pd.Timedelta("5min"), "60min": pd.Timedelta("60min")}
 MODEL_FLOAT = ["Pac", "Pdc", "TempModule", "TempCell", "P_Solar_clean[kW]", "P_hybrid[kW]"]
-# documented in dataset/docs/CLEANING_DECISIONS.md (real file only)
-DOCUMENTED = {"wind_dir_rows_wrapped": 1153, "pressure_days_with_real_value": ["2019-01-16"],
-              "p_gaia_active_days": ["2018-08-31", "2019-05-25"]}
+# documented in dataset/docs/CLEANING_DECISIONS.md (real file only). The wind-direction figure documented there (1,153)
+# counts values ABOVE 360 degrees only; code 1 also covers values below 0 and exactly 360, so it is compared as an INFO
+# and the code-1 count is asserted against the counts taken from `_original` instead (cleaning_counts).
+DOCUMENTED = {"pressure_days_with_real_value": ["2019-01-16"], "p_gaia_active_days": ["2018-08-31", "2019-05-25"]}
+DOCUMENTED_WIND_DIR_ABOVE_360 = 1153
 
 
 class Results:
@@ -117,17 +122,29 @@ def compare_h5(a_path, b_path, chunk_rows=2_000_000):
 # ---------------------------------------------------------------------------------------------
 # individual checks
 # ---------------------------------------------------------------------------------------------
-def check_grid(path, res):
+def is_real_span(first, last):
+    return first == REAL_START and last in REAL_ENDS
+
+
+def expected_rows(res, first, last):
+    """Rows of a gap-free file of resolution `res` that covers the 1 s span [first, last] (whole-file resample grid)."""
+    return int((last.floor(STEP[res]) - first.floor(STEP[res])) / STEP[res]) + 1
+
+
+def check_grid(path, res, like=None):
+    """Grid check of one file. `like` = (first, last) of the 1 s file the coarse file must cover (default: itself)."""
     idx = read_index(path, KEY)
     assert idx.is_monotonic_increasing and idx.is_unique, "index not strictly increasing"
     steps = np.diff(idx.values)
     assert (steps == STEP[res].to_timedelta64()).all(), f"{int((steps != STEP[res].to_timedelta64()).sum())} gaps/irregular steps on the {res} grid"
+    first, last = like if like else (idx[0], idx[-1])
+    want = expected_rows(res, first, last)
+    assert len(idx) == want, f"{len(idx):,} rows but the span {first} .. {last} needs {want:,} at {res}"
     detail = f"{len(idx):,} rows, {idx[0]} .. {idx[-1]}, unique, monotonic, gap-free"
-    if (idx[0], idx[-1]) == REAL_SPAN:
-        assert len(idx) == REAL_ROWS[res], f"real span but {len(idx):,} rows (expected {REAL_ROWS[res]:,})"
-        detail += f"; matches the documented {REAL_ROWS[res]:,}"
+    if is_real_span(first, last):
+        detail += ("; real record span" + (" incl. the boundary second 2019-09-01 00:00:00" if last == REAL_ENDS[1] else ", no boundary second"))
     else:
-        detail += "; span is not the real one, documented row counts not applicable"
+        detail += "; span is not the real one"
     return detail
 
 
@@ -222,6 +239,18 @@ def model_vs_resampled_effect(final_1s, final_coarse, res, slice_days=31):
                   "rel_mean_abs_diff_pct": float(100 * np.abs(d[ok]).mean() / base.mean()) if ok.any() and base.mean() > 0 else None,
                   "max_abs_diff": float(np.abs(d[ok]).max()) if ok.any() else None, "n_buckets": int(ok.sum())}
     return out
+
+
+def wind_dir_outside_counts(original, chunk_rows=2_000_000):
+    """From the raw measurements: how many WIND_DIR values are above 360, below 0, or exactly 360."""
+    n = h5_info(original, KEY)["nrows"]
+    gt = lt = eq = 0
+    for s in range(0, n, chunk_rows):
+        v = read_rows(original, KEY, s, min(s + chunk_rows, n), columns=["WIND_DIR[deg]"])["WIND_DIR[deg]"].to_numpy()
+        gt += int((v > 360).sum())
+        lt += int((v < 0).sum())
+        eq += int((v == 360).sum())
+    return {"above_360": gt, "below_0": lt, "equal_360": eq}
 
 
 def cleaning_counts(final_1s, chunk_rows=2_000_000):
@@ -340,8 +369,10 @@ def verify(files, raw=None, scratch=None, rebuild_check="sample", state=None, sl
     else:
         R.add("original: identical to the raw file", "original", "SKIP", "raw file not available and no build record")
 
+    i1 = read_index(files["1sec"], KEY)
+    span1 = (i1[0], i1[-1])
     for res in ("1sec",) + st.COARSE:
-        R.run("rows / span / grid", res, check_grid, files[res], res)
+        R.run("rows / span / grid", res, check_grid, files[res], res, span1)
         R.run("column set (no Azimuth/Elevation flag columns)", res, check_columns, files[res], res, orig_cols)
         R.run("expand_physical idempotent", res, check_idempotent, files[res], res)
     R.run("dtypes", "1sec", check_dtypes_1sec, files["1sec"])
@@ -399,12 +430,25 @@ def verify(files, raw=None, scratch=None, rebuild_check="sample", state=None, sl
 
     counts = cleaning_counts(files["1sec"])
     extras["cleaning_counts"] = counts
-    real = (read_index(files["1sec"], KEY)[0], read_index(files["1sec"], KEY)[-1]) == REAL_SPAN
-    for k, v in counts.items():
-        doc = DOCUMENTED[k]
+    real = is_real_span(*span1)
+    wd = None
+    try:
+        wd = wind_dir_outside_counts(files["original"])
+    except Exception as e:
+        R.add("wind direction: code-1 rows vs the raw values outside [0, 360)", "1sec", "FAIL", f"{type(e).__name__}: {e}")
+    if wd is not None:
+        extras["wind_dir_outside_counts_original"] = wd
+        outside = sum(wd.values())
+        R.add("wind direction: code-1 rows == raw values above 360 + below 0 + equal 360", "1sec",
+              "PASS" if counts["wind_dir_rows_wrapped"] == outside else "FAIL",
+              f"code 1: {counts['wind_dir_rows_wrapped']}; raw: above 360 = {wd['above_360']}, below 0 = {wd['below_0']}, "
+              f"equal 360 = {wd['equal_360']}")
+        R.add("wind direction: raw values above 360 vs CLEANING_DECISIONS.md", "1sec", "INFO",
+              f"{wd['above_360']} (documented {DOCUMENTED_WIND_DIR_ABOVE_360})")
+    for k in ("pressure_days_with_real_value", "p_gaia_active_days"):
+        v, doc = counts[k], DOCUMENTED[k]
         if real:
-            R.add(f"cleaning count vs CLEANING_DECISIONS.md: {k}", "1sec", "PASS" if v == doc else "FAIL",
-                  f"{v} (documented {doc})")
+            R.add(f"cleaning count vs CLEANING_DECISIONS.md: {k}", "1sec", "PASS" if v == doc else "FAIL", f"{v} (documented {doc})")
         else:
             R.add(f"cleaning count: {k} (synthetic data: documented value not applicable)", "1sec", "INFO", f"{v}")
 

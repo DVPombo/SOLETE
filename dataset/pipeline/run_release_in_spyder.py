@@ -14,7 +14,7 @@ Equivalent terminal command: python dataset/pipeline/build_release.py --raw <RAW
 DATA_DIR = ""
 RAW = ""
 SLICE_DAYS = 31                                      # 31 is about 1.8 GB peak; use 7 for a machine with little RAM
-REBUILD_CHECK = "sample"                             # "sample" (default), "full" (second full build: do it once before publishing), "none"
+REBUILD_CHECK = "full"                             # "sample" (default), "full" (second full build: do it once before publishing), "none"
 KEEP_INTERMEDIATE = False                            # True keeps the scratch folder (several GB) after a successful build
 SKIP_EXISTING = True                                 # resume: skip a stage whose outputs already exist
 OVERWRITE = False                                    # True replaces existing outputs (needed to redo a stage)

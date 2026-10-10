@@ -59,32 +59,36 @@ At 1 s the model columns are instantaneous model estimates, not physically valid
 substitution flag is not comparable with the hourly one. This is an intended design, not a defect.
 
 **Size of the effect.** Difference between `expand(resampled inputs)` (what the files contain) and `resample(expand(1 s inputs))` (the average of the
-1-second model output), from `scripts/expansion_checks.py effect --days 14`. **These numbers are from SYNTHETIC 1-second data**
-(`solete/synthetic.py`; the real 1-second file was not available when this was written) and describe that generator, not the dataset.
-Re-run the script with `--input` on the real cleaned 1-second file to get the real table.
+1-second model output). **Real numbers**, from the `verify` stage of the v4 build on the real record (every bucket of the 15 months, night included;
+`build_summary_v4.json`):
 
-**Model columns:** expand(resampled inputs) vs resample(expand(1 s inputs))
+| resolution | column | mean diff | mean abs diff | rel. mean abs diff % | max abs diff |
+|---|---|---|---|---|---|
+| 1min | `Pac` | +0.00092 | 0.00093 | 0.091 | 0.254 |
+| 1min | `Pdc` | +0.00094 | 0.00094 | 0.090 | 0.259 |
+| 1min | `TempModule` | -0.0066 | 0.0080 | 0.053 | 1.670 |
+| 1min | `TempCell` | -0.0066 | 0.0080 | 0.052 | 1.670 |
+| 1min | `P_Solar_clean[kW]` | -0.000008 | 0.000008 | 0.0007 | 0.033 |
+| 1min | `P_hybrid[kW]` | -0.000008 | 0.000008 | 0.0007 | 0.033 |
+| 5min | `Pac` | +0.0022 | 0.0022 | 0.214 | 0.238 |
+| 5min | `Pdc` | +0.0022 | 0.0022 | 0.213 | 0.242 |
+| 5min | `TempModule` | -0.0087 | 0.0107 | 0.071 | 1.344 |
+| 5min | `TempCell` | -0.0087 | 0.0107 | 0.069 | 1.344 |
+| 5min | `P_Solar_clean[kW]` | -0.000008 | 0.000008 | 0.0008 | 0.0065 |
+| 5min | `P_hybrid[kW]` | -0.000008 | 0.000008 | 0.0008 | 0.0065 |
+| 60min | `Pac` | +0.0055 | 0.0056 | 0.544 | 0.139 |
+| 60min | `Pdc` | +0.0057 | 0.0057 | 0.542 | 0.141 |
+| 60min | `TempModule` | -0.0086 | 0.0137 | 0.091 | 0.484 |
+| 60min | `TempCell` | -0.0086 | 0.0137 | 0.088 | 0.484 |
+| 60min | `P_Solar_clean[kW]` | -0.000016 | 0.000016 | 0.0015 | 0.0010 |
+| 60min | `P_hybrid[kW]` | -0.000016 | 0.000016 | 0.0015 | 0.0010 |
 
-| resolution | column | mean of resampled 1 s model | mean of model at resolution | mean diff | mean abs diff | rel. mean abs diff % | max abs diff |
-|---|---|---|---|---|---|---|---|
-| 1min | `Pac` | 2.0388 | 2.0404 | +0.0015 | 0.0015 | 0.08 | 0.060 |
-| 1min | `Pdc` | 2.0783 | 2.0799 | +0.0016 | 0.0016 | 0.08 | 0.061 |
-| 1min | `TempModule` | 20.3665 | 20.3616 | -0.0049 | 0.0103 | 0.05 | 0.227 |
-| 1min | `TempCell` | 21.2498 | 21.2449 | -0.0049 | 0.0103 | 0.05 | 0.227 |
-| 1min | `P_Solar_clean[kW]` | 1.8914 | 1.8911 | -0.0004 | 0.0012 | 0.06 | 1.378 |
-| 1min | `P_hybrid[kW]` | 1.9325 | 1.9321 | -0.0004 | 0.0012 | 0.06 | 1.378 |
-| 5min | `Pac` | 2.0388 | 2.0416 | +0.0028 | 0.0028 | 0.14 | 0.031 |
-| 5min | `Pdc` | 2.0783 | 2.0811 | +0.0028 | 0.0028 | 0.14 | 0.032 |
-| 5min | `TempModule` | 20.3665 | 20.3593 | -0.0072 | 0.0105 | 0.05 | 0.119 |
-| 5min | `TempCell` | 21.2498 | 21.2426 | -0.0072 | 0.0105 | 0.05 | 0.119 |
-| 5min | `P_Solar_clean[kW]` | 1.8914 | 1.8893 | -0.0021 | 0.0050 | 0.27 | 1.948 |
-| 5min | `P_hybrid[kW]` | 1.9325 | 1.9304 | -0.0021 | 0.0050 | 0.26 | 1.948 |
-| 60min | `Pac` | 2.0388 | 2.0535 | +0.0147 | 0.0147 | 0.72 | 0.162 |
-| 60min | `Pdc` | 2.0783 | 2.0933 | +0.0150 | 0.0150 | 0.72 | 0.165 |
-| 60min | `TempModule` | 20.3665 | 20.3448 | -0.0216 | 0.0620 | 0.30 | 0.637 |
-| 60min | `TempCell` | 21.2498 | 21.2281 | -0.0216 | 0.0620 | 0.29 | 0.637 |
-| 60min | `P_Solar_clean[kW]` | 1.8914 | 1.8575 | -0.0340 | 0.0530 | 2.80 | 1.505 |
-| 60min | `P_hybrid[kW]` | 1.9325 | 1.8985 | -0.0340 | 0.0530 | 2.75 | 1.505 |
+Reading it: `Pac`/`Pdc` differ by about 0.1 % (1 min), 0.2 % (5 min) and 0.5 % (1 h), temperatures by about 0.01 °C. `P_Solar_clean[kW]` differs almost
+not at all because on the real record the substitution rule hardly ever fires (the platform check of the build found no code-6 row at 60 min). The
+`Pac` effect is positive at every scale and grows with the bucket length, as expected from the nonlinearity (clipping at zero).
+
+**The substitution-flag table below is still from SYNTHETIC data** (`solete/synthetic.py`); it describes that generator, not the dataset. Regenerate it with
+`python scripts/expansion_checks.py effect --input <data>/hdf5/SOLETE_Pombo_1sec_v4.h5 --start-row 0 --stop-row 2700000` (it prints both tables).
 
 **Substitution flag (code 6: `Pac >= 1.5 * P_Solar` and `Pac > 0`)**
 
@@ -94,7 +98,7 @@ Re-run the script with `--input` on the real cleaned 1-second file to get the re
 | 5min | 4,032 | 5.36% | 5.63% | 0.20% | 2.85% |
 | 60min | 336 | 5.36% | 6.25% | 2.38% | 19.94% |
 
-Reading the synthetic table: power columns differ by well under 1 % at 1 and 5 minutes and by about 0.7 % (`Pac`) to 2.8 % (`P_Solar_clean[kW]`,
+Reading the synthetic substitution table (the generator flags 5 % of its rows, the real record almost none): power columns differ by well under 1 % at 1 and 5 minutes and by about 0.7 % (`Pac`) to 2.8 % (`P_Solar_clean[kW]`,
 because substitution enters) at one hour; temperatures by 0.01 °C (1–5 min) to 0.06 °C (1 h) on average. The share of rows flagged is similar at every
 scale (5.4 % at 1 s, 5.5–6.3 % at coarser steps), but *which* rows are flagged is not: the hourly flag disagrees with the majority of its seconds in about 2 %
 of hours and with "any second flagged" in about 20 %. Do not read an hourly code 6 as "x % of this hour's seconds were substituted".

@@ -24,7 +24,9 @@ recorded.
 ## 3. WIND_DIR[deg]: wrapped to [0, 360)
 Values above 360° (1,153 rows, 362°–712°, almost all on 2018-11-17) are extra
 sensor revolutions, not different bearings (maintainer's call). Fixed with
-`value mod 360`. This also fixes the 103 hourly values above 360° in the
+`value mod 360`. The flag (code 1) is set on every row whose value changed, which is 1,343 rows in the real 1 s file: the 1,153 values above 360° plus
+190 values that are exactly 360.0 (rewritten to 0.0; due north written two ways, there are no negative values). So a code-1 row is a harmless relabelling in
+190 of 1,343 cases. Checked against `_original` by the build's `verify` stage. This also fixes the 103 hourly values above 360° in the
 *original* published hourly file, which turn out not to come from this raw
 file at all — see `followup_B_wind_dir`: those hourly values exceed the raw
 hour's own max, so they must trace to an earlier/different raw version.

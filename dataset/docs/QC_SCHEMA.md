@@ -83,7 +83,7 @@ rather than a warning.
 
 | Column(s) | Flag(s) | Detection rule |
 |---|---|---|
-| `WIND_DIR[deg]` | 1 `QC_WRAPPED` | `value != value mod 360` (extra sensor revolutions, not different bearings) |
+| `WIND_DIR[deg]` | 1 `QC_WRAPPED` | `value != value mod 360` (extra sensor revolutions, not different bearings; in the real file 1,153 values above 360° and 190 values of exactly 360.0, which become 0.0) |
 | `Pressure[mbar]` | 2 `QC_PLACEHOLDER` | exact multiple of 1000 (any count) **OR** part of a run ≥300 consecutive bit-identical samples |
 | `WIND_SPEED[m1s]`, `HUMIDITY[%]` | 3/4 `QC_DROPOUT_*` | both `WIND_SPEED == 0` and `HUMIDITY < 0.05` in the same second; run ≤5s → 3 (interpolated), run >5s → 4 (kept, flagged) |
 | `TEMPERATURE[degC]`, `HUMIDITY[%]`, `Pressure[mbar]`, `GHI[kW1m2]`, `POA Irr[kW1m2]` | 5/9 `QC_GLITCH_*` | value outside the per-column physical bound (see `CLEANING_DECISIONS.md` §6 for the bound table); run ≤3s → 5 (interpolated), run >3s → 9 (**NaN'd**, flagged) |

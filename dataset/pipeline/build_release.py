@@ -243,9 +243,11 @@ def write_manifest(h5, pq_, a):
     if template.exists():
         text = template.read_text(encoding="utf-8")
         if "[[SIZES-BEGIN]]" in text and "[[SIZES-END]]" in text:
-            rows = []
+            rows = [f"  {'file':<52s}{'rows':>13s}{'columns':>9s}{'size':>13s}"]
             for k, p in list(h5.items()) + list(pq_.items()):
-                rows.append(f"  {Path(p).relative_to(paths.DATA_DIR).as_posix():<52s}{Path(p).stat().st_size / 1e6:>12,.1f} MB")
+                inf = h5_info(h5[k], "DATA")
+                ncol = len(inf["columns"]) + (1 if str(p).endswith(".parquet") else 0)
+                rows.append(f"  {Path(p).relative_to(paths.DATA_DIR).as_posix():<52s}{inf['nrows']:>13,d}{ncol:>9d}{Path(p).stat().st_size / 1e6:>10,.1f} MB")
             head, rest = text.split("[[SIZES-BEGIN]]", 1)
             _, tail = rest.split("[[SIZES-END]]", 1)
             target = paths.DATA_DIR / "figshare_README.txt"

@@ -125,8 +125,10 @@ def test_verify_original_detects_a_changed_value(tmp_path):
 import resample_solete as rs  # noqa: E402
 
 
-def _cleaned_fixture(tmp_path, n_days=5, drop_day=None):
+def _cleaned_fixture(tmp_path, n_days=5, drop_day=None, boundary=False):
     df = raw_defects(n_days)
+    if boundary:                                    # like the real raw file: one extra second at the next midnight
+        df = pd.concat([df, df.iloc[[-1]].set_axis(df.index[-1:] + pd.Timedelta("1s"))])
     if drop_day is not None:                         # a whole missing day -> NaN buckets inside the grid
         d0 = df.index[0].normalize() + pd.Timedelta(days=drop_day)
         df = df[(df.index < d0) | (df.index >= d0 + pd.Timedelta(days=1))]
@@ -136,9 +138,10 @@ def _cleaned_fixture(tmp_path, n_days=5, drop_day=None):
     return cleaned, path
 
 
-@pytest.mark.parametrize("slice_days,drop_day", [(1, None), (2, None), (2, 2), (3, 1), (31, None)])
-def test_sliced_resample_equals_whole_file(tmp_path, slice_days, drop_day):
-    cleaned, path = _cleaned_fixture(tmp_path, 5, drop_day)
+@pytest.mark.parametrize("slice_days,drop_day,boundary", [(1, None, False), (2, None, False), (2, 2, False), (3, 1, False),
+                                                          (31, None, False), (2, None, True), (1, None, True)])
+def test_sliced_resample_equals_whole_file(tmp_path, slice_days, drop_day, boundary):
+    cleaned, path = _cleaned_fixture(tmp_path, 5, drop_day, boundary)
     got = rs.resample_file(path, "DATA", ["1min", "5min", "60min"], slice_days, verbose=False)
     for rule in ("1min", "5min", "60min"):
         want = rs.resample_dataframe(cleaned, rule)
@@ -256,6 +259,7 @@ def test_build_release_end_to_end_resume_refuse_and_tamper(tmp_path):
     (data / "hdf5").mkdir(parents=True)
     elsewhere.mkdir()
     chrono = raw_defects(4, cut_points=[DAY + 43_200, 2 * DAY + 20_000])
+    chrono = pd.concat([chrono, chrono.iloc[[-1]].set_axis(chrono.index[-1:] + pd.Timedelta("1s"))])   # boundary second, like the real raw file
     raw = data / "hdf5" / "SOLETE_Pombo_1sec.h5"
     shuffled_raw(chrono, with_az_el=True).to_hdf(raw, key="DATA", mode="w")
     raw_bytes = raw.read_bytes()
@@ -280,11 +284,13 @@ def test_build_release_end_to_end_resume_refuse_and_tamper(tmp_path):
     assert len(man["files"]) == 12 and "SOLETE_Pombo_v4_RESAMPLING_METHODOLOGY.md" in sums and "figshare_README.txt" in sums
     fig = (data / "figshare_README.txt").read_text()
     assert "[[SIZES" not in fig and "hdf5/SOLETE_Pombo_60min_v4.h5" in fig and " MB" in fig       # real sizes, markers gone
+    assert f"{4 * DAY + 1:,}" in fig and f"{4 * 24 + 1:,}" in fig                                    # real row counts, boundary second included
     for rel, digest in sums.items():
         assert hashlib.sha256((data / rel).read_bytes()).hexdigest() == digest
     one = read_rows(data / "hdf5" / "SOLETE_Pombo_1sec_v4.h5", stop=3)
     assert one.shape[1] == 28 and not any(c.startswith(("Azimuth[deg]_qc", "Elevation[deg]_qc")) for c in one.columns)
     assert list(read_rows(data / "hdf5" / "SOLETE_Pombo_1sec_original_v4.h5", stop=3).columns) == list(chrono.columns)
+    assert h5_info(data / "hdf5" / "SOLETE_Pombo_1sec_v4.h5")["nrows"] == 4 * DAY + 1 and h5_info(data / "hdf5" / "SOLETE_Pombo_60min_v4.h5")["nrows"] == 4 * 24 + 1
 
     # a second run neither overwrites nor silently skips
     before = {p: p.stat().st_mtime_ns for p in (data / "hdf5").glob("*_v4.h5")}
@@ -313,3 +319,33 @@ def test_p_gaia_flag_is_never_ok_so_frac_flagged_is_one(tmp_path):
     r = rs.resample_dataframe(cleaned, "60min")
     assert (r["P_Gaia[kW]_qc_frac_flagged"] == 1.0).all()
     assert not any("Azimuth" in c and c.endswith("_qc") for c in cleaned.columns)
+
+
+def test_grid_check_derives_row_counts_and_accepts_the_boundary_second(tmp_path):
+    import release_verify as rv
+    # the real span with and without the boundary second: counts follow from the span
+    a, b = pd.Timestamp("2018-06-01"), pd.Timestamp("2019-08-31 23:59:59")
+    assert [rv.expected_rows(r, a, b) for r in ("1sec", "1min", "5min", "60min")] == [39_484_800, 658_080, 131_616, 10_968]
+    b2 = pd.Timestamp("2019-09-01 00:00:00")
+    assert [rv.expected_rows(r, a, b2) for r in ("1sec", "1min", "5min", "60min")] == [39_484_801, 658_081, 131_617, 10_969]
+    assert rv.is_real_span(a, b) and rv.is_real_span(a, b2) and not rv.is_real_span(a, pd.Timestamp("2019-09-02"))
+    # a file with the boundary second passes check_grid; a file with a missing second does not
+    cleaned, path = _cleaned_fixture(tmp_path, 2, boundary=True)
+    assert "gap-free" in rv.check_grid(path, "1sec")
+    gap = cleaned.drop(cleaned.index[1000])
+    gp = tmp_path / "gap.h5"
+    gap.to_hdf(gp, key="DATA", mode="w", format="table")
+    with pytest.raises(AssertionError):
+        rv.check_grid(gp, "1sec")
+
+
+def test_compression_chooser_requires_a_real_gain():
+    import export_parquet as ep
+    base = {"compression": "zstd", "byte_stream_split": False, "rows": 10}
+    flat = [dict(base, level=3, size_bytes=1000, write_seconds=1.0), dict(base, level=9, size_bytes=996, write_seconds=1.1),
+            dict(base, level=15, size_bytes=993, write_seconds=2.4), dict(base, level=3, byte_stream_split=True, size_bytes=1076, write_seconds=.5)]
+    assert ep.choose_settings(flat)["compression_level"] == 3                       # 0.7 % is not worth 2.4x the time (your real trial)
+    better = flat[:2] + [dict(base, level=15, size_bytes=900, write_seconds=2.4)]
+    assert ep.choose_settings(better)["compression_level"] == 15
+    slow = flat[:1] + [dict(base, level=15, size_bytes=500, write_seconds=9.0)]       # beyond 4x: refused
+    assert ep.choose_settings(slow)["compression_level"] == 3

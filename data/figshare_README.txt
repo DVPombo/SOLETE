@@ -1,7 +1,7 @@
 SOLETE dataset, version 4
 =========================
 
-15 months (2018-06-01 00:00:00 to 2019-08-31 23:59:59, UTC) of co-located meteorology, wind-turbine power and PV power
+15 months (2018-06-01 to 2019-09-01 00:00:00, UTC) of co-located meteorology, wind-turbine power and PV power
 from DTU SYSLAB (Risoe campus, Denmark; latitude 55.6867 N, longitude 12.0985 E, altitude 10 m), at 1 s, 1 min, 5 min and
 60 min resolution. Code, documentation and the tests that build these files: the SOLETE repository (see the repository URL in the
 record description). Dataset record: https://doi.org/10.11583/DTU.17040767
@@ -9,25 +9,29 @@ Original dataset paper: https://doi.org/10.1016/j.dib.2022.108046
 
 THE FILES (each exists as HDF5 in hdf5/ and as Parquet in parquet/; same numbers, same column names, same row order)
 -----------------------------------------------------------------------------------------------------------------
-  SOLETE_Pombo_1sec_original_v4   39,484,800 rows,  9 columns  the RAW 1 s data, sorted, nothing cleaned, nothing derived
-  SOLETE_Pombo_1sec_v4            39,484,800 rows, 28 columns  cleaned + quality flags + recomputed sun angles + model columns
-  SOLETE_Pombo_1min_v4               658,080 rows, 36 columns  resampled from the cleaned 1 s data, then model columns
-  SOLETE_Pombo_5min_v4               131,616 rows, 36 columns  same, 5 minutes
-  SOLETE_Pombo_60min_v4               10,968 rows, 36 columns  same, one hour
+  SOLETE_Pombo_1sec_original_v4    the RAW 1 s data, sorted, nothing cleaned, nothing derived (9 columns)
+  SOLETE_Pombo_1sec_v4             cleaned + quality flags + recomputed sun angles + model columns (28 columns)
+  SOLETE_Pombo_1min_v4             resampled from the cleaned 1 s data, then model columns (36 columns)
+  SOLETE_Pombo_5min_v4             same, 5 minutes (36 columns)
+  SOLETE_Pombo_60min_v4            same, one hour (36 columns)
   (Parquet files have one more column, `timestamp`, as the first column.)
 
-  File sizes (written by the build from the files it produced; see also manifest.json and SHA256SUMS.txt):
+  The record covers 457 full days from 2018-06-01 00:00:00 UTC plus the boundary second 2019-09-01 00:00:00 that the raw
+  data contain (the last 1 min / 5 min / 60 min row therefore summarises a single second). Nothing was removed.
+
+  Rows, columns and sizes (written by the build from the files it produced; see also manifest.json and SHA256SUMS.txt):
 [[SIZES-BEGIN]]
-  hdf5/SOLETE_Pombo_1sec_original_v4.h5                      467.6 MB
-  hdf5/SOLETE_Pombo_1sec_v4.h5                             1,584.1 MB
-  hdf5/SOLETE_Pombo_1min_v4.h5                                64.8 MB
-  hdf5/SOLETE_Pombo_5min_v4.h5                                14.2 MB
-  hdf5/SOLETE_Pombo_60min_v4.h5                                1.3 MB
-  parquet/SOLETE_Pombo_1sec_original_v4.parquet              332.7 MB
-  parquet/SOLETE_Pombo_1sec_v4.parquet                     1,623.3 MB
-  parquet/SOLETE_Pombo_1min_v4.parquet                        47.8 MB
-  parquet/SOLETE_Pombo_5min_v4.parquet                        12.4 MB
-  parquet/SOLETE_Pombo_60min_v4.parquet                        1.2 MB
+  file                                                         rows  columns         size
+  hdf5/SOLETE_Pombo_1sec_original_v4.h5                  39,484,801        9     467.6 MB
+  hdf5/SOLETE_Pombo_1sec_v4.h5                           39,484,801       28   1,584.1 MB
+  hdf5/SOLETE_Pombo_1min_v4.h5                              658,081       36      64.8 MB
+  hdf5/SOLETE_Pombo_5min_v4.h5                              131,617       36      14.2 MB
+  hdf5/SOLETE_Pombo_60min_v4.h5                              10,969       36       1.3 MB
+  parquet/SOLETE_Pombo_1sec_original_v4.parquet          39,484,801       10     332.7 MB
+  parquet/SOLETE_Pombo_1sec_v4.parquet                   39,484,801       29   1,623.3 MB
+  parquet/SOLETE_Pombo_1min_v4.parquet                      658,081       37      47.8 MB
+  parquet/SOLETE_Pombo_5min_v4.parquet                      131,617       37      12.4 MB
+  parquet/SOLETE_Pombo_60min_v4.parquet                      10,969       37       1.2 MB
 [[SIZES-END]]
 
 Which file should I use?  For analysis: the Parquet files (SOLETE_Pombo_60min_v4.parquet is the usual starting point).

@@ -1,6 +1,6 @@
 {
  "version": "v4",
- "built_utc": "2026-10-10T12:29:55+00:00",
+ "built_utc": "2026-10-10T17:38:19+00:00",
  "python": "3.13.9",
  "platform": "Windows-10-10.0.19045-SP0",
  "packages": {
@@ -112,8 +112,8 @@
    "file": "figshare_README.txt",
    "format": "document",
    "role": "document",
-   "bytes": 8216,
-   "sha256": "685cdc117cdd44e45ea8ff7dd259b8e1021a7e35021b47918c5a71877566b545"
+   "bytes": 8672,
+   "sha256": "91a45f48190400df7eaabc88e8e749a4a687a9a60d339e7ef21d294165c6e9ee"
   }
  ]
 }
