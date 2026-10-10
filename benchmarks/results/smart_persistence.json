@@ -14,11 +14,11 @@
         "nrmse_mean": 0.8731711151232064
       },
       "qc_excluded": {
-        "n": 2202,
-        "mae": 0.7540617326625044,
-        "rmse": 1.3109920731657267,
-        "nrmse_capacity": 0.1762086119846407,
-        "nrmse_mean": 0.7540085121402552
+        "n": 2953,
+        "mae": 0.5623477574655025,
+        "rmse": 1.132079810686927,
+        "nrmse_capacity": 0.15216126487727513,
+        "nrmse_mean": 0.8731711151232064
       }
     },
     "wind_power": {
@@ -30,7 +30,7 @@
         "nrmse_mean": 16.644474037741332
       },
       "qc_excluded": null,
-      "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See splits/README.md."
+      "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See benchmarks/splits/README.md."
     }
   }
 }

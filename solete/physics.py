@@ -13,8 +13,10 @@ Licensed under the MIT License -- see LICENSE at the repo root. If you use this 
 
 import pandas as pd
 import numpy as np
-from CoolProp.HumidAirProp import HAPropsSI
 import sys
+
+# CoolProp is imported lazily inside Rincon_Pombo_ThermodynamicModel (the only user), so that the PV model,
+# solete.expansion and the dataset build do not need it installed.
 
 
 def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]', coltemp='TEMPERATURE[degC]',colwindspeed='WIND_SPEED[m1s]'):
@@ -47,45 +49,68 @@ def PV_Performance_Model(data, PVinfo, colirra='POA Irr[kW1m2]', coltemp='TEMPER
     """
     
     
-    # Obtains the expected solar production based on irradiance, temperature, pv parameters, etc
-    DATA_PV = pd.DataFrame({'Pmp_stc' : PVinfo["Pmp_stc"],
-                            'ganma_mp' : PVinfo['ganma_mp'],
-                            'Ns': PVinfo['Ns'],
-                            'Np': PVinfo['Np'],
-                            'a' : PVinfo['a'],
-                            'b' : PVinfo['b'],
-                            'D_T' : PVinfo['D_T'],
-                            'eff_P' : PVinfo['eff_P'],
-                            'eff_%' : PVinfo['eff_%'],
-                            }, 
-                           index = PVinfo["index"])
-    
-    DATA_PV['eff_max_%'] = [max(DATA_PV['eff_%'].loc['A']), max(DATA_PV['eff_%'].loc['B'])] #maximum inverter efficiency in %
-    DATA_PV['eff_max_P'] = [max(DATA_PV['eff_P'].loc['A']), max(DATA_PV['eff_P'].loc['B'])] #W maximum power output of the inverter
-    
-    Results = pd.DataFrame(index = data.index)
-    
-    for pv in DATA_PV.index:
-        #Temperature Module
-        Results['Tm_' + pv] = data[coltemp] + data[colirra]*1000 *np.exp(DATA_PV.loc[pv,'a']+DATA_PV.loc[pv,'b']*data[colwindspeed]) 
-        #Temperature Cell
-        Results['Tc_' + pv] = Results['Tm_' + pv] + data[colirra]*1000/PVinfo["Estc"] * DATA_PV.loc[pv,'D_T']
-        #power produced in one single pannel
-        Results['Pmp_panel_' + pv] = data[colirra]*1000/PVinfo["Estc"] * DATA_PV.loc[pv, 'Pmp_stc'] * (1+DATA_PV.loc[pv, 'ganma_mp'] * (Results['Tc_' + pv] - PVinfo["Tstc"]) )
-        #power produced by all the panels in the array
-        Results['Pmp_array_' + pv] = DATA_PV.loc[pv, 'Ns'] * DATA_PV.loc[pv, 'Np'] * Results['Pmp_panel_' + pv]
-        #efficiency of the inverter corresponding to the instantaneous power output
-        Results['eff_inv_' + pv] =  np.interp(Results['Pmp_array_' + pv], DATA_PV.loc[pv, 'eff_P'], DATA_PV.loc[pv, 'eff_%'], left=0)/100
-        
-        
-        Results['Pac_' + pv] =  DATA_PV.loc[pv, 'eff_max_%']/100 * Results['Pmp_array_' + pv]
-        #If any of the Pac is > than the maximum capacity of the inverter, then use the max capacity of the inverter.
-        #NOTE: this must only touch the Pac_<pv> column -- Results[mask]=value (without .loc[mask, col]) applies
-        #the scalar to every column of Results for the masked rows, silently clobbering Tm/Tc/Pmp_panel/Pmp_array/eff_inv too.
-        Results.loc[Results['Pac_' + pv]>DATA_PV.loc[pv, 'eff_max_P'], 'Pac_' + pv]=DATA_PV.loc[pv, 'eff_max_P']
-        Results.loc[Results['Pac_' + pv]<0, 'Pac_' + pv]=0
-        
-    return Results[['Pac_A', 'Pac_B']].sum(axis=1)/1000, Results[['Pmp_array_A', 'Pmp_array_B']].sum(axis=1)/1000, Results[['Tm_A', 'Tm_B']].mean(axis=1), Results[['Tc_A', 'Tc_B']].mean(axis=1)
+    Pac, Pdc, Tm, Tc = pv_model_arrays(data[colirra].to_numpy(), data[coltemp].to_numpy(),
+                                       data[colwindspeed].to_numpy(), PVinfo)
+    return (pd.Series(Pac, index=data.index), pd.Series(Pdc, index=data.index),
+            pd.Series(Tm, index=data.index), pd.Series(Tc, index=data.index))
+
+
+def _nansum2(a, b):
+    """Element-wise sum of two arrays skipping NaN, all-NaN -> 0 (pandas `DataFrame.sum(axis=1)`)."""
+    return np.where(np.isnan(a), 0.0, a) + np.where(np.isnan(b), 0.0, b)
+
+
+def _nanmean2(a, b):
+    """Element-wise mean of two arrays skipping NaN, all-NaN -> NaN (pandas `DataFrame.mean(axis=1)`)."""
+    na, nb = np.isnan(a), np.isnan(b)
+    total = np.where(na, 0.0, a) + np.where(nb, 0.0, b)
+    count = (~na).astype(np.float64) + (~nb).astype(np.float64)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        return np.where(count > 0, total / np.where(count > 0, count, 1.0), np.nan)
+
+
+def pv_model_arrays(irradiance, temperature, wind_speed, PVinfo):
+    """
+    King's PV performance model on plain NumPy arrays: strictly row-wise, no dependence on
+    neighbouring rows, no assumption about the time step, so it can be applied to any slice of
+    any resolution and gives the same numbers for a row whatever slice it is in.
+
+    This is the arithmetic of the original `PV_Performance_Model` (same operations in the same
+    order; verified bit-for-bit against a frozen copy of the old implementation in
+    tests/test_expansion.py), without the per-call DataFrame of ~20 intermediate columns.
+    Behaviour kept on purpose: a row with a NaN input gives Pac = Pdc = 0 (the old
+    `DataFrame.sum(axis=1)` skipped NaN) and NaN temperatures.
+
+    Parameters: irradiance in kW/m2 (plane of array), temperature in degC, wind speed in m/s,
+    all 1-D arrays of the same length. Returns (Pac_kW, Pdc_kW, Tm_degC, Tc_degC).
+    """
+    irr = np.asarray(irradiance, dtype=np.float64)
+    temp = np.asarray(temperature, dtype=np.float64)
+    ws = np.asarray(wind_speed, dtype=np.float64)
+
+    Pac_ch, Pmp_ch, Tm_ch, Tc_ch = [], [], [], []
+    for i in range(len(PVinfo['index'])):
+        a, b, d_t = PVinfo['a'][i], PVinfo['b'][i], PVinfo['D_T'][i]
+        eff_max = max(PVinfo['eff_%'][i])      # maximum inverter efficiency in %
+        p_inv_max = max(PVinfo['eff_P'][i])    # W, maximum power output of the inverter
+        n_panels = PVinfo['Ns'][i] * PVinfo['Np'][i]
+
+        irr_w = irr * 1000
+        Tm = temp + irr_w * np.exp(a + b * ws)                                  # module temperature
+        Tc = Tm + irr_w / PVinfo["Estc"] * d_t                                  # cell temperature
+        Pmp_panel = irr_w / PVinfo["Estc"] * PVinfo['Pmp_stc'][i] * (
+            1 + PVinfo['ganma_mp'][i] * (Tc - PVinfo["Tstc"]))                  # one panel
+        Pmp_array = n_panels * Pmp_panel                                        # whole array
+        Pac = eff_max / 100 * Pmp_array
+        # clamp to the inverter capacity, then to >= 0 (NaN stays NaN in both comparisons)
+        Pac = np.where(Pac > p_inv_max, float(p_inv_max), Pac)
+        Pac = np.where(Pac < 0, 0.0, Pac)
+        Pac_ch.append(Pac); Pmp_ch.append(Pmp_array); Tm_ch.append(Tm); Tc_ch.append(Tc)
+
+    if len(Pac_ch) != 2:
+        raise ValueError("pv_model_arrays expects the two inverter channels 'A' and 'B' of PVinfo")
+    return (_nansum2(*Pac_ch) / 1000, _nansum2(*Pmp_ch) / 1000,
+            _nanmean2(*Tm_ch), _nanmean2(*Tc_ch))
 
 def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
     """
@@ -182,6 +207,7 @@ def Rincon_Pombo_ThermodynamicModel(data, pv, verbose=0):
     # CoolProp 8.0.0's HAPropsSI accepts array arguments directly (verified
     # against a scalar-loop call on the same inputs -- bit-for-bit identical,
     # not merely close), so this is 3 calls total instead of 3*N.
+    from CoolProp.HumidAirProp import HAPropsSI   # lazy: see top of file
     mu = HAPropsSI('mu', 'P', p, 'T', T, 'R', humidity)  # dynamic viscosity
     cp = HAPropsSI('cp_ha', 'P', p, 'T', T, 'R', humidity)  # specific heat per unit of humid air
     k = HAPropsSI('k', 'P', p, 'T', T, 'R', humidity)  # thermal conductivity

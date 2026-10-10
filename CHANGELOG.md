@@ -5,27 +5,44 @@ All notable changes to the SOLETE platform are documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history; see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
 
 ## [Unreleased]
+### Added — the v4 release build (`dataset/pipeline/build_release.py`)
+- One command builds all ten files of the figshare release (`SOLETE_Pombo_1sec_original_v4`, `SOLETE_Pombo_{1sec,1min,5min,60min}_v4`, each `.h5` + `.parquet`) plus `SHA256SUMS.txt`, `manifest.json`, the resampling methodology and `build_summary_v4.json`. Stages: `original`, `clean`, `resample`, `expand`, `parquet`, `verify`, `manifest`; each in its own subprocess; resumable (`--skip-existing`), never overwrites without `--overwrite`, `*.tmp` + rename, disk check up front, `--dry-run`, peak RSS and time per stage in the summary.
+- `make_original.py`: raw v3 1 s file -> `SOLETE_Pombo_1sec_original_v4.h5` (sorted, nine measured columns, values bit-identical; verified against the raw file).
+- Everything is sliced: `clean_solete_1sec.py` (slices cut only at boundaries no run-based rule can cross; sliced == whole-file, exactly), `resample_solete.py` (whole days), the expansion (slices of a month), `export_parquet.py` (already streamed). `solete/h5io.py` reads row ranges of `table` and `fixed` files.
+- Verification table (`release_verify.py`): grid and row counts, column sets, dtypes, `_original` vs raw, idempotent expansion, measured columns vs resample, reproducibility rebuild from `_original` (`--rebuild-check sample|full|none`), model-vs-resample effect, platform import of v4, cleaning counts, Parquet round trip.
+- `export_parquet.py`: timestamp unit pinned to `timestamp[ns, tz=UTC]` (pandas 3 wrote microseconds for some inputs), row groups of 1,000,000 with statistics, richer metadata (version, site, angle convention, pvlib version, per-column provenance, code table), `--trial` / `--auto` compression trial (zstd 3/9/15, byte_stream_split), `verify_roundtrip`.
+- `data/figshare_README.txt` (sizes filled in by the manifest stage); `tests/test_release_build.py`; `dataset/pipeline/run_release_in_spyder.py` (edit-and-Run launcher).
+- A stale `SHA256SUMS.txt` / `manifest.json` is deleted whenever release files are about to change or a stage fails, so a checksum list can never sit next to different data.
+### Changed — v4 file names, decision D1, azimuth averaging (behaviour-affecting)
+- **File names:** v4 files are `SOLETE_Pombo_<res>_v4.<ext>` with `60min` (not `1h`), plus `SOLETE_Pombo_1sec_original_v4`; implemented once in `solete/paths.py` (`data_filename`, `release_path`, `release_stems`); `1h` stays an input alias. Old-to-new table: `docs/RESTRUCTURE_NOTES.md` §5a. v3 names unchanged.
+- **D1: `Azimuth[deg]_qc` and `Elevation[deg]_qc` are no longer written** (they were 8 on every row). The 1 s file has 28 columns (9 measured + 2 angles + 8 `_qc` + 9 model); the coarser files 36. Code 8 (`QC_RECOMPUTED`) stays defined in `solete/qc_codes.py`, marked reserved / not emitted by any v4 column. The v3 legacy path (code 11 on its own az/el flags) is untouched. `P_Gaia[kW]_qc_frac_flagged == 1.0` is now the only such constant.
+- **`Azimuth[deg]` in the resampled files is a circular mean** (south-referenced, [-180, 180)); the plain mean was wrong in the bucket around solar midnight. Elevation unchanged.
+- `clean_solete_1sec.py` requires chronologically sorted input (use `_original`); `--in-memory` keeps the old whole-file path (sorts first, ~7 GB). Rules unchanged; masks shared with the cut finder.
+- `solete/physics.py` imports CoolProp lazily (only the Rincon-Pombo thermodynamic model uses it); `import_PV_WT_data` moved to `solete/params.py` (re-exported by `solete.io`), so the dataset build needs neither CoolProp nor scikit-learn. `dataset/requirements.txt` updated and checked in a clean virtual environment.
+- Docs updated: `data/README.md`, `dataset/README.md`, `README.md` (also corrected: v4 loading works), `DATA_DICTIONARY.md`, `METHODOLOGY.md`, `QC_SCHEMA.md`, `CLEANING_DECISIONS.md`, `dataset/AGENTS.md`, `docs/RESTRUCTURE_NOTES.md` §5.
 
-- Stream release index verification and lock the verify stage to keep reproducibility checks below the memory ceiling and prevent concurrent scratch-file corruption.
-### Added — reproducible v4 release builder
-- Added `dataset/pipeline/build_release.py`, which creates the exact `SOLETE_Pombo_<resolution>_v4` HDF5/Parquet file set plus the sorted nine-column `_original`, `SHA256SUMS.txt`, and `manifest.json`.
-- Cleaning uses overlapped day slices and exact whole-versus-sliced boundary tests; resampling is day-aligned; physical model columns are recomputed at each resolution. Heavy stages run in subprocesses and report elapsed time and peak RSS.
-- Parquet timestamps are explicitly `timestamp[ns, UTC]` under pandas 3, including when source indexes use millisecond or microsecond resolution. Export embeds v4 QC and per-column provenance metadata.
-- Validation rebuilds every release file, checks per-resolution expansion idempotence, compares the original against sorted raw values, and performs exact HDF5/Parquet round trips.
-- The raw file's final unique `2019-09-01 00:00:00` sample is retained. Inclusive v4 row counts are 39,484,801 / 658,081 / 131,617 / 10,969; the coarser files include a final single-sample bucket.
-- Corrected the real `WIND_DIR[deg]` wrap inventory to 1,343 rows at or above 360 degrees (360-712 degrees across 2018-11-17 and 2018-11-18), measured directly from the raw file. This changes documentation and verification expectations, not the modulo-360 rule.
-- Retired active `SOLETE_clean_*`/`1h` release names in favor of canonical `SOLETE_Pombo_*_v4`/`60min` names. `1h` remains an input resolution alias.
-
-### Changed — canonical QC and deterministic release expansion
-- Added `solete/qc_codes.py` as the single v4 code/severity vocabulary. Code 6 is `QC_MODEL_SUBSTITUTED`; dataset-pipeline rules cannot emit it.
-- Added `solete.expansion.expand_physical`, a vectorized, row-wise and idempotent physical expansion. Release frames retain measured `P_Solar[kW]` and add `P_Solar_clean[kW]`; `P_hybrid[kW]` uses the clean column.
-- `import_SOLETE_data(..., data_version='v4')` now works without replacing release flags. The platform uses `P_Solar_clean[kW]` as its in-memory working target, preserving legacy benchmark behavior.
-- Resampling is restricted to measured columns and named pipeline-owned flags. Model columns and code 6 are recomputed independently at each resolution.
-- `P_hybrid[kW]_qc` now inherits severity from the canonical order without `np.vectorize`. `TempModule_RP` remains an opt-in sequential ML feature.
-- Verified exact legacy value parity on the real 10,969-row v3 hourly file; the only intentional schema differences are `P_Solar_clean[kW]` and removal of synthesized platform-era raw-value QC columns. Hybrid QC values do not change on v3.
-- Added bounded-memory fixed/table HDF iterators. The supplied real v3 1-second file processed all 39,484,801 rows in 15 month-sized slices in 42.24 seconds at 1,712.9 MiB measured peak RSS on Windows; inputs were not modified and no full result was retained.
-- Validation: 51 tests pass with supplied real data; without external data, 33 pass and 18 skip. The actual LSTM, CNN and CNN-LSTM trainers completed one in-memory TensorFlow epoch with finite predictions and no repository artifacts. The CNN quickstart also completed its real-hourly-data expansion, three training epochs, prediction, scoring, and post-processing workflow.
-
+### Earlier in [Unreleased]
+### Changed — one QC vocabulary, deterministic expansion step, v4 loading (behaviour-affecting; see `docs/RESTRUCTURE_NOTES.md` §2)
+- **Single QC vocabulary** in `solete/qc_codes.py`, imported by `dataset/pipeline/qc_flags.py`, `resample_solete.py` and the platform. Code 6 = `QC_MODEL_SUBSTITUTED`
+  (platform-owned; pipeline rules cannot emit it: `assert_pipeline_codes`). New code 11 `QC_UNTREATED_IMPLAUSIBLE` for the v3 files only.
+- `solete/qc.py` reduced to reading present `<col>_qc` columns, the code-6 substitution flag and the legacy v3 raw-value checks
+  (`build_raw_value_qc_rules` -> `legacy_v3_raw_value_rules`; old `QC_VALID/QC_MISSING/QC_PHYSICALLY_IMPLAUSIBLE/QC_FLAG_PRECEDENCE` removed).
+  **On v3 data, the same rows are flagged as before but with code 11 instead of 3 (pressure, humidity, wind direction) or 1 (azimuth, elevation); flag dtype is int8.**
+  Every other column of the expanded v3 hourly frame is bit-identical to before.
+- `P_hybrid[kW]_qc` inherits by the single severity order (no change on v3: only codes 0 and 6 occur there). In resampled files, which carry `P_Gaia[kW]_qc_worst` instead of `P_Gaia[kW]_qc`, that column is used.
+- `import_SOLETE_data(..., data_version='v4')` works (the `NotImplementedError` is gone) and never overwrites the file's flags; unknown codes raise.
+- `ExpandSOLETE` now calls `expand_physical` first. It still sets the working `P_Solar[kW]` from the cleaned series (benchmark behaviour unchanged) and gains one extra column, `P_Solar_clean[kW]`.
+- `PV_Performance_Model` is now a thin wrapper over the NumPy function `physics.pv_model_arrays` (bit-identical output, verified against a frozen copy of the old code).
+- `resample_solete.py` resamples only measured columns and pipeline-owned flags: model-derived columns (`qc_codes.MODEL_DERIVED_COLUMNS`) are dropped and foreign codes in pipeline flag columns are replaced by `QC_OK`.
+### Added
+- `solete/expansion.py`: `expand_physical` / `compute_physical` — row-wise, chunkable, resolution-agnostic, idempotent, no `np.vectorize`. Never overwrites measured `P_Solar[kW]`; adds `P_Solar_clean[kW]`.
+- `solete/synthetic.py` (synthetic test/diagnostic table), `scripts/expansion_checks.py` (memory and resolution-effect measurements), `tests/test_expansion.py` (35 tests).
+- Docs: model columns are computed per resolution (`dataset/docs/METHODOLOGY.md`, with the effect table, synthetic data), provenance column and model-column table in `dataset/docs/DATA_DICTIONARY.md`, `QC_SCHEMA.md` updated.
+- **Code 6 now also requires `Pac > 0`** (stored Pac, values <= 0.001 are 0). Before, `Pac >= 1.5 * P_Solar` was also true for 0 vs 0, so all 4,204 night rows (38.33 %) of the v3 hourly file were flagged. Now 0 rows are flagged there. Every numeric column (`P_Solar_clean[kW]`, `P_hybrid[kW]`, ...) is bit-identical; only `P_Solar_model_substituted`, `P_Solar[kW]_qc` and `P_hybrid[kW]_qc` change.
+- **Removed redundancies:** the boolean column `P_Solar_model_substituted` (identical to `P_Solar[kW]_qc == 6`; P_Solar has no other flag rule), the alias `QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED`, `qc.build_substitution_qc_rule`, and the `source=` option of `compute_physical`/`expand_physical`. `P_hybrid[kW]_qc_source` is now an `int8` code (0 none, 1 P_Solar, 2 P_Gaia; `qc_codes.SOURCE_LABELS`), always present, instead of text.
+- Audit of every code for usefulness: `dataset/docs/QC_SCHEMA.md` §3b.
+- Consequence for benchmarks: stored `qc_excluded` results were produced with the old rule, so the non-TensorFlow benchmarks were regenerated (2026-10-08): only the `qc_excluded` blocks changed (now equal to `qc_included`, n = 2953); `benchmarks/splits/v1.json` untouched; LSTM/CNN smoke test not re-run (needs TensorFlow). `BENCHMARKS.md` drops the duplicate `qc_excluded` lines.
+- Example notebooks 01-05 updated to the new codes and rule, and re-executed.
 ### Changed — repository restructure (breaking: import paths and file locations)
 The dataset-cleaning repository (`SOLETEdataset`) and the platform repository are merged into one. Nothing in the
 numerical code was changed; files moved and every path now resolves through one module. Full old-to-new table:
@@ -44,7 +61,7 @@ numerical code was changed; files moved and every path now resolves through one 
   (`data/derived/`, `outputs/`). The expected layout is exactly the figshare upload (`hdf5/`, `parquet/`). Missing files raise
   `DataFileNotFoundError` with the download link.
 - `data/README.md`, `.gitignore` rules keeping data out of git, `.gitattributes` (LF line endings), `pyproject.toml` (`pip install -e .`).
-- `Control_Var['data_version']` ('v3' default). `'v4'` raises `NotImplementedError` until the QC-flag sets are reconciled.
+- `Control_Var['data_version']` ('v3' default; 'v4' now works, see above).
 - Command-line tools in `dataset/` accept bare file names and look them up in `data/hdf5/`; outputs land in `data/hdf5/` and `data/parquet/`.
 - Every runnable script adds the repository root to `sys.path`, so it runs from any folder and from Spyder.
 - Tests that need the v3 hourly file are skipped (not failed) when it is absent (`tests/conftest.py`, `tests/_data.py`).

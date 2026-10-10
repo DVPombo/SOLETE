@@ -15,7 +15,7 @@ dependencies = ["numpy", "pandas", "tables", "scikit-learn", "matplotlib", "jobl
 
 [project.optional-dependencies]
 ml = ["tensorflow", "keras", "lightgbm"]
-dataset = ["pyarrow", "pvlib"]
+dataset = ["pyarrow", "pvlib", "psutil"]
 dev = ["pytest"]
 
 [tool.setuptools.packages.find]

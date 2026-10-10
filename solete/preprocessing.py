@@ -17,8 +17,9 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-from .expansion import PHYSICAL_COLUMNS, expand_physical
 from .physics import Rincon_Pombo_ThermodynamicModel
+from .expansion import expand_physical, PHYSICAL_COLUMNS
+from .qc_codes import QC_MODEL_SUBSTITUTED
 
 
 def ExpandSOLETE(data, info, Control_Var):
@@ -44,16 +45,34 @@ def ExpandSOLETE(data, info, Control_Var):
     all_expansions=Control_Var['PossibleFeatures'].copy()
     
         
-    print("Expanding SOLETE with deterministic physical columns")
+    print("Expanding SOLETE with King's PV Performance Model (solete.expansion.expand_physical)")
+    #All deterministic, row-wise, horizon-independent columns come from one function that is also
+    #what the released precomputed files are built with: Pac, Pdc, TempModule, TempCell,
+    #P_Solar[kW]_qc (code 6), P_Solar_clean[kW], P_hybrid[kW] and its flag.
+    #It does NOT touch the measured P_Solar[kW]. Caveat for P_hybrid[kW]: P_Gaia[kW] is genuinely
+    #nonzero on only ~0.4-0.8% of rows (see benchmarks/splits/README.md, KNOWN_ISSUES.md finding #10),
+    #so it is overwhelmingly P_Solar in practice, not a balanced wind+solar signal.
     expand_physical(data, info[0])
     list_expansion.extend(PHYSICAL_COLUMNS)
+    print("    QC flag (substitution, code %d):" % QC_MODEL_SUBSTITUTED,
+          {'P_Solar[kW]_qc': int((data['P_Solar[kW]_qc'] == QC_MODEL_SUBSTITUTED).sum())})
+    print(f"    P_hybrid[kW] QC: {int((data['P_hybrid[kW]_qc'] != 0).sum())} rows flagged "
+          f"(inherited from constituents)")
+
+    #Working-frame convention of the platform (benchmarks and ML features were built on it): the
+    #working P_Solar[kW] IS the cleaned series (model-substituted, zeros smoothed). The measurement
+    #stays available in the released files as P_Solar[kW] there and here it is replaced in memory,
+    #exactly as the old in-place overwrite did. Do not run expand_physical again on this frame:
+    #it would treat the cleaned values as measured. Re-load from the file instead.
     data['P_Solar[kW]'] = data['P_Solar_clean[kW]']
 
     if 'TempModule_RP' in Control_Var['PossibleFeatures']: #advanced thermodynamic model
         data['TempModule_RP'] = Rincon_Pombo_ThermodynamicModel(data, info[0])
         list_expansion.append('TempModule_RP')
     
-    # Register any QC columns loaded from the release file.
+    #Phase 2: also register the raw-value QC columns computed earlier in
+    #import_SOLETE_data() (before ExpandSOLETE ran), so the "features added"
+    #accounting below reflects them too, same treatment as Pac/Pdc/etc.
     list_expansion.extend(c for c in data.columns
                            if c.endswith('_qc') and c not in list_expansion)
 

@@ -2,7 +2,7 @@
 
 Code and documentation behind **version 4** of the SOLETE dataset: 15 months
 (2018-06-01 → 2019-08-31) of co-located meteorology, wind-turbine power and
-PV power from DTU SYSLAB, Denmark, at 1 s, 1 min, 5 min and 1 h resolution.
+PV power from DTU SYSLAB, Denmark, at 1 s, 1 min, 5 min and 60 min resolution.
 
 This folder is the `dataset/` half of the SOLETE repository (the forecasting platform is in `../solete/` and `../benchmarks/`).
 The data files are **not in the repository**. They are published on figshare
@@ -13,8 +13,8 @@ The data files are **not in the repository**. They are published on figshare
 
 | Format | Use it for |
 |---|---|
-| **Parquet** (`SOLETE_Pombo_*_v4.parquet`) | Analysis and modelling. The cleaned data with quality flags, in a format every language can read. |
-| **HDF5** (`.h5`) | Transparency and reproduction. The raw 1-second file, the cleaned file and the resampled files exactly as this pipeline produces them. |
+| **Parquet** (`SOLETE_Pombo_<res>_v4.parquet`) | Analysis and modelling. The cleaned data with quality flags and the model columns, in a format every language can read. |
+| **HDF5** (`.h5`) | Transparency and reproduction. The same files as HDF5, plus `SOLETE_Pombo_1sec_original_v4`: the raw 1-second data, sorted, nothing cleaned. |
 
 Both formats contain the same numbers. Every value that was changed or is
 doubtful carries a quality flag — nothing is silently fixed.
@@ -24,7 +24,7 @@ doubtful carries a quality flag — nothing is silently fixed.
 ```python
 import pandas as pd
 
-df = pd.read_parquet("data/parquet/SOLETE_Pombo_60min_v4.parquet").set_index("timestamp")
+df = pd.read_parquet("data/parquet/SOLETE_Pombo_60min_v4.parquet").set_index("timestamp")   # timestamps are UTC
 ok = df[df["GHI[kW1m2]_qc_frac_flagged"] < 0.1]                          # hours that are < 10 % flagged
 ```
 
@@ -33,28 +33,62 @@ Things worth knowing before you model anything: pressure is valid on a single da
 turbine power is confirmed real on two days, and azimuth/elevation are computed,
 not measured.
 
-## Reproduce the cleaning
+## Building the v4 release
 
 ```bash
-# from the repository root, using the prepared environment
-examples/.venv/solete-full-template/Scripts/python.exe dataset/pipeline/build_release.py \
-  --raw data/hdf5/SOLETE_Pombo_1sec.h5 --slice-days 1
+# from the repository root; every path comes from solete/paths.py (data/ or $SOLETE_DATA_DIR)
+pip install -r dataset/requirements.txt
+python dataset/pipeline/build_release.py --dry-run                      # the plan and the disk estimate, writes nothing
+python dataset/pipeline/build_release.py --raw <folder>/SOLETE_Pombo_1sec.h5 --skip-existing
 ```
 
-Input is the raw 1-second file from version 3 (`SOLETE_Pombo_1sec.h5`, key `DATA`).
-The builder streams day-aligned slices, runs each heavy stage in a subprocess,
-writes temporary files before atomic replacement, and prints elapsed time and
-peak RSS per stage. Compare its JSON summary with
-[`docs/CLEANING_DECISIONS.md`](docs/CLEANING_DECISIONS.md).
+One command produces all ten files (`SOLETE_Pombo_1sec_original_v4`, `SOLETE_Pombo_{1sec,1min,5min,60min}_v4`, each as `.h5` and `.parquet`),
+`SHA256SUMS.txt`, `manifest.json`, the generated resampling methodology and `build_summary_v4.json`. Stages (`--stages`): `original`
+(raw v3 → sorted `_original`), `clean`, `resample`, `expand`, `parquet`, `verify`, `manifest`. Each heavy stage runs in its own
+subprocess; nothing is overwritten without `--overwrite`; `--skip-existing` resumes an interrupted build. The Spyder recipe is in the header
+of [`pipeline/build_release.py`](pipeline/build_release.py). The raw v3 file is read from `--raw` and never modified; someone who only has
+`SOLETE_Pombo_1sec_original_v4.h5` runs `--stages clean,resample,expand,parquet,verify,manifest` (site constants and conventions:
+[`../data/README.md`](../data/README.md)).
+
+**Memory.** Everything is sliced (about a month of 1-second rows per slice, `--slice-days`), so no stage holds the 1-second frame. The
+cleaning rules look at runs of consecutive rows (pressure flatline, dropout and glitch runs), so slices are cut only at a row boundary that
+no run can cross (`clean_solete_1sec.find_safe_cut`); the sliced result is identical to the whole-file result
+(`tests/test_release_build.py` proves it with runs placed across the cut points). Peak memory per stage is printed in the final summary.
+
+**Verification.** The `verify` stage prints a table and fails loudly: grid and row counts, column sets, dtypes, `_original` equal to the raw
+file, idempotence of `expand_physical`, measured columns equal to the resample of the cleaned data, a reproducibility rebuild from `_original`
+(`--rebuild-check sample|full|none`), the platform import, the cleaning counts to compare with
+[`docs/CLEANING_DECISIONS.md`](docs/CLEANING_DECISIONS.md), and the Parquet round trip.
+
+After a build on the real file, replace the synthetic effect table in `docs/METHODOLOGY.md` with
+`python scripts/expansion_checks.py effect --input <a cleaned 1 s slice of the real build>`.
+
+Single steps, for experiments (the build runs exactly these functions):
+
+```bash
+python dataset/pipeline/make_original.py                       # raw v3 -> SOLETE_Pombo_1sec_original_v4.h5
+python dataset/pipeline/clean_solete_1sec.py SOLETE_Pombo_1sec_original_v4.h5 --out-prefix SOLETE_Pombo_1sec_cleaned
+python dataset/pipeline/resample_solete.py   SOLETE_Pombo_1sec_cleaned.h5 --out-prefix SOLETE_resampled
+python dataset/pipeline/export_parquet.py    SOLETE_Pombo_60min_v4.h5 --trial      # measure the compression options
+```
+
+The cleaning and resampling scripts print a JSON summary at the end — compare it with
+[`docs/CLEANING_DECISIONS.md`](docs/CLEANING_DECISIONS.md). They produce the pre-expansion intermediates; the released
+files are the ones `build_release.py` writes after `expand_physical`.
 
 ## Repository layout
 
 ```
 dataset/pipeline/       the code that produces the released files
-  build_release.py       one-command v4 release build and verification
-  clean_solete_1sec.py   raw 1 s file -> sorted, cleaned, flagged 1 s file
-  resample_solete.py     cleaned 1 s file -> 1 min / 5 min / 1 h files
-  export_parquet.py      any of the .h5 files -> .parquet
+  build_release.py       the one command: all stages, subprocesses, verification, manifest
+  make_original.py       raw v3 1 s file -> sorted _original (nine measured columns)
+  clean_solete_1sec.py   _original -> cleaned, flagged 1 s file (every cleaning rule is in clean_block)
+  resample_solete.py     cleaned 1 s file -> 1 min / 5 min / 60 min files
+  export_parquet.py      any of the .h5 files -> .parquet (pinned ns/UTC timestamp, metadata, round trip)
+  release_stages.py      the stages as functions of explicit paths
+  release_verify.py      the verification checks
+  release_meta.py        per-column provenance and file metadata
+  ../solete/h5io.py      slice-wise HDF5 reading/writing (table and fixed format)
   qc_flags.py            flag codes and helpers
   solar_position.py      azimuth/elevation (pvlib)
   solete_report.py       prints the JSON summaries

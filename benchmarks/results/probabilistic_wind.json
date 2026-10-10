@@ -1,7 +1,7 @@
 {
   "model": "probabilistic_gbm",
   "library": "lightgbm",
-  "description": "LightGBM quantile regression (objective='quantile'), one model per quantile level, on the same lagged-target + same-timestamp-weather + calendar feature set as baseline_gbm.py (Task 5.5) -- see that file's own same-timestamp-weather caveat, which applies identically here.",
+  "description": "LightGBM quantile regression (objective='quantile'), one model per quantile level, on the same lagged-target + same-timestamp-weather + calendar feature set as benchmarks/baseline_gbm.py (Task 5.5) -- see that file's own same-timestamp-weather caveat, which applies identically here.",
   "split_version": "v1",
   "horizon": "1 step (1h)",
   "fitting": "fit on train; hyperparameters selected per-quantile on val by pinball loss",
@@ -38,7 +38,7 @@
     ]
   },
   "target": "wind_power",
-  "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See splits/README.md. ASK FIRST outcome (maintainer, 2026-09-18): this wind result was produced anyway, specifically so a working probabilistic pipeline exists to re-point at better wind data later (KNOWN_ISSUES.md #10) -- it is not offered as a meaningful forecast-skill result today.",
+  "caveat": "CAVEAT: P_Gaia[kW] is exactly 0.0 for 99.56% of the full record (only 48 of 10,969 rows, on two isolated calendar days, are non-zero). A wind-power score on this dataset is overwhelmingly a score on an all-zero target; near-perfect wind metrics reflect that, not forecasting skill. See benchmarks/splits/README.md. ASK FIRST outcome (maintainer, 2026-09-18): this wind result was produced anyway, specifically so a working probabilistic pipeline exists to re-point at better wind data later (KNOWN_ISSUES.md #10) -- it is not offered as a meaningful forecast-skill result today.",
   "result": {
     "qc_included": {
       "n": 2953,

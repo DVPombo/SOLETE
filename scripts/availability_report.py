@@ -4,7 +4,7 @@ availability_report.py
 
 Per-column-per-file completeness and QC-flag report, built on top of
 inspect_dataset.py's HDF5-key discovery and the QC flag layer
-(solete.qc / dataset/docs/QC_SCHEMA.md).
+(solete.qc.apply_qc_flags, v3 legacy rules / docs/legacy/QC_SCHEMA_platform_v3.md).
 
 For every column in every file/key, reports two related-but-distinct things:
   - completeness: expected sample count (inferred from the file's own time
@@ -21,8 +21,10 @@ Usage
     python scripts/availability_report.py examples/SOLETE_short.h5 SOLETE_Pombo_60min.h5 \
         --csv my_report.csv
 
-The report consumes QC columns already present in v4 files and computes only
-the platform-owned P_Solar substitution flag when needed.
+Note: this imports solete/ to reuse apply_qc_flags/legacy_v3_raw_value_rules and
+(for the P_Solar[kW]_qc breakdown) solete.expansion.compute_physical -- so it shares
+solete/'s dependency footprint (scikit-learn, keras/TensorFlow,
+CoolProp; see requirements.txt), not just h5py/pandas/numpy.
 """
 import argparse
 import pathlib
@@ -40,11 +42,13 @@ from inspect_dataset import discover_keys  # Phase 1, reused as-is
 
 from solete.paths import resolve_input
 from solete.io import import_PV_WT_data
-from solete.physics import PV_Performance_Model
-from solete.qc import add_substitution_flag
-from solete.qc_codes import QC_LABELS, QC_OK
+from solete.qc import apply_qc_flags, legacy_v3_raw_value_rules  # v3 files only
+from solete.qc_codes import QC_OK, QC_LABELS
+from solete.expansion import compute_physical
 
-QC_FLAG_NAMES = QC_LABELS
+# one vocabulary (solete/qc_codes.py); names shown in the report
+QC_FLAG_NAMES = dict(QC_LABELS)
+QC_VALID = QC_OK
 
 
 def infer_resolution(index: pd.DatetimeIndex) -> pd.Timedelta:
@@ -63,14 +67,17 @@ def infer_resolution(index: pd.DatetimeIndex) -> pd.Timedelta:
 
 
 def add_qc_columns(df: pd.DataFrame, pv_info: dict) -> pd.DataFrame:
-    """Read release QC columns and add model substitution on a copy."""
+    """Run the full Phase 2 QC layer on a copy of df, mirroring what
+    import_SOLETE_data()/ExpandSOLETE() do, so the report reflects the same
+    flags a real Build would produce -- without mutating the caller's df."""
     df = df.copy()
+    apply_qc_flags(df, legacy_v3_raw_value_rules(df))
 
-    if "P_Solar[kW]" in df.columns:
-        Pac, _, _, _ = PV_Performance_Model(df, pv_info)
-        df["Pac"] = Pac
-        df["P_Solar_model_substituted"] = df["Pac"] >= 1.5 * df["P_Solar[kW]"]
-        add_substitution_flag(df, df["P_Solar_model_substituted"])
+    needed = ("POA Irr[kW1m2]", "TEMPERATURE[degC]", "WIND_SPEED[m1s]", "P_Solar[kW]", "P_Gaia[kW]")
+    if all(c in df.columns for c in needed):
+        phys = compute_physical(df, pv_info)
+        for c in ("Pac", "P_Solar[kW]_qc"):
+            df[c] = phys[c].array
 
     return df
 
@@ -89,8 +96,7 @@ def report_for_file(path: str, pv_info: dict) -> pd.DataFrame:
             resolution = None
             expected_count = len(df)
 
-        source_cols = [c for c in df.columns if not c.endswith("_qc") and c != "Pac"
-                       and c != "P_Solar_model_substituted"]
+        source_cols = [c for c in df.columns if not c.endswith("_qc") and c != "Pac"]
 
         for col in source_cols:
             s = df[col]
@@ -113,7 +119,7 @@ def report_for_file(path: str, pv_info: dict) -> pd.DataFrame:
                 for flag_value, flag_name in QC_FLAG_NAMES.items():
                     row[f"qc_{flag_name}_count"] = int(counts.get(flag_value, 0))
                 row["qc_flagged_pct_of_nonnull"] = round(
-                    100 * (n_nonnull - counts.get(QC_OK, 0)) / n_nonnull, 3
+                    100 * (n_nonnull - counts.get(QC_VALID, 0)) / n_nonnull, 3
                 )
             else:
                 for flag_name in QC_FLAG_NAMES.values():

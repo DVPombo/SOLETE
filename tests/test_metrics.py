@@ -128,25 +128,22 @@ def test_skill_score_real_persistence_vs_itself_is_zero(real_pv_window):
     assert skill_score(y_true, y_persistence, y_persistence) == pytest.approx(0.0, abs=1e-10)
 
 
-def test_qc_mask_excludes_flagged_rows_on_real_substituted_column():
-    # Pull real P_Solar[kW]_qc values via the real Build pipeline (small
-    # slice only, to keep this test fast) and confirm qc_mask's default
-    # (exclude flag 6, model-substituted) actually drops those rows.
-    sys.modules.setdefault("tensorflow", types.ModuleType("tensorflow"))
-    from solete.io import import_SOLETE_data, import_PV_WT_data
+def test_qc_mask_excludes_flagged_rows_on_substituted_column():
+    # Rows where the model is producing but the measurement is far below it get code 6; qc_mask's default
+    # (exclude flag 6, model-substituted) must drop exactly those rows. Synthetic day (the v3 hourly file has no
+    # code-6 rows since the substitution rule requires Pac > 0).
+    from solete.expansion import expand_physical
+    from solete.io import import_PV_WT_data
+    from solete.synthetic import synthetic_solete
 
-    Control_Var = {
-        "resolution": "60min",
-        "SOLETE_builvsimport": "Build",
-        "SOLETE_save": False,
-        "OriginalFeatures": [],
-        "PossibleFeatures": [],
-    }
-    PVinfo, WTinfo = import_PV_WT_data()
-    df = import_SOLETE_data(Control_Var, PVinfo, WTinfo).sort_index()
-    window = df.loc["2019-06-01":"2019-06-03", "P_Solar[kW]_qc"]
+    PVinfo, _ = import_PV_WT_data()
+    df = synthetic_solete("2019-06-02", periods=24, freq="60min", seed=1)
+    noon = (df.index.hour >= 9) & (df.index.hour <= 14)
+    df.loc[noon, "P_Solar[kW]"] = 0.0                                    # sun up, measured 0
+    window = expand_physical(df, PVinfo)["P_Solar[kW]_qc"]
 
-    assert (window == 6).any(), "expected at least one model-substituted row in this window"
+    assert (window == 6).any(), "expected at least one model-substituted row"
+    assert not (window[(df['POA Irr[kW1m2]'] == 0).to_numpy()] == 6).any()   # dark rows (0 vs 0) are not substitutions
 
     mask = qc_mask(window)
     assert mask.sum() == (window != 6).sum()

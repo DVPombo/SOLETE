@@ -6,9 +6,10 @@ Layout:
     paths.py          WHERE everything lives (data folder, examples, results).
                       Every script and module resolves files through here.
     io.py             import_SOLETE_data, import_SOLETE_sample, import_PV_WT_data
-    qc_codes.py       canonical v4 QC constants and severity order
-    qc.py             reads release flags and adds model substitution code 6
-    expansion.py      deterministic row-wise physical expansion
+    qc_codes.py       THE single QC vocabulary (codes, labels, severity order); shared with dataset/pipeline
+    qc.py             read present <col>_qc flags, add code 6, legacy v3 raw-value checks
+    expansion.py      expand_physical: deterministic row-wise model columns (Pac, P_Solar_clean[kW], P_hybrid[kW], ...)
+    synthetic.py      synthetic SOLETE-like table for tests/diagnostics
     physics.py        PV_Performance_Model, Rincon_Pombo_ThermodynamicModel
     preprocessing.py  ExpandSOLETE, PreProcessDataset, series_to_forecast
     modeling.py       PrepareMLmodel, train_LSTM/CNN/CNN_LSTM, TestMLmodel (needs keras)
@@ -19,7 +20,7 @@ Layout:
 
 Deliberately NOT re-exported here: importing this __init__.py only pulls in
 pandas (for the warnings-filter line below), nothing else. Import from the
-specific submodule you need (e.g. `from solete.qc import qc_columns`) to
+specific submodule you need (e.g. `from solete.qc import apply_qc_flags`) to
 get exactly that module's own dependencies and nothing more. qc.py, physics.py
 and paths.py need no keras/tensorflow at all, and the dataset cleaning scripts
 under dataset/ rely on that (they import solete.paths only).

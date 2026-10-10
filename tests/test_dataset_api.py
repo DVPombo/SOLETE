@@ -13,6 +13,7 @@ Covers:
 """
 
 import json
+import pytest
 import os
 import sys
 
@@ -52,9 +53,11 @@ def test_qc_exclusion_matches_qc_mask():
     _, _, X_test_incl, y_test_incl = ds_incl.forecasting(horizon="1h")
     _, _, X_test_excl, y_test_excl = ds_excl.forecasting(horizon="1h")
 
-    # qc_exclude=True must be a strict subset of qc_exclude=False's rows
+    # qc_exclude=True must be a subset of qc_exclude=False's rows. (Since the substitution rule requires
+    # Pac > 0, the v3 hourly file has NO code-6 row any more, so the two are equal here; before that rule
+    # change 751 night rows were excluded. See CHANGELOG / docs/RESTRUCTURE_NOTES.md section 2.)
     assert set(X_test_excl.index).issubset(set(X_test_incl.index))
-    assert len(X_test_excl) < len(X_test_incl)
+    assert len(X_test_excl) <= len(X_test_incl)
 
     # Directly check against metrics.qc_mask() on the same rows
     qc_col = ds_incl._df["P_Solar[kW]_qc"].loc(axis=0)[X_test_incl.index]
@@ -73,7 +76,7 @@ def test_wind_has_no_qc_column_to_exclude():
     assert list(X_test_incl.index) == list(X_test_excl.index)
 
 
-def test_persistence_round_trip_matches_task_5_3_exactly():
+def _persistence_round_trip(qc_exclude, key):
     """
     Task 5.8.3's regression guard: build the plain-persistence prediction
     (y_hat(t) = y(t-1), i.e. this API's `lag_1` column) from this wrapper's
@@ -85,25 +88,31 @@ def test_persistence_round_trip_matches_task_5_3_exactly():
         expected = json.load(f)["targets"]["pv_power"]
 
     capacity = M.installed_capacity_kw("pv_power")
+    ds = SOLETE(resolution="60min", target="pv_power", split="v1", qc_exclude=qc_exclude)
+    _, _, X_test, y_test = ds.forecasting(horizon="1h")
 
-    for qc_exclude, key in [(False, "qc_included"), (True, "qc_excluded")]:
-        ds = SOLETE(resolution="60min", target="pv_power", split="v1", qc_exclude=qc_exclude)
-        _, _, X_test, y_test = ds.forecasting(horizon="1h")
+    y_pred = X_test["lag_1"]  # y(t-1) == plain persistence prediction for y(t)
 
-        y_pred = X_test["lag_1"]  # y(t-1) == plain persistence prediction for y(t)
+    exp = expected[key]
+    assert len(y_test) == exp["n"], f"{key}: n mismatch {len(y_test)} vs {exp['n']}"
 
-        exp = expected[key]
-        assert len(y_test) == exp["n"], f"{key}: n mismatch {len(y_test)} vs {exp['n']}"
+    mae_ = M.mae(y_test, y_pred)
+    rmse_ = M.rmse(y_test, y_pred)
+    nrmse_cap = M.nrmse(y_test, y_pred, capacity=capacity, method="capacity")
+    nrmse_mean = M.nrmse(y_test, y_pred, method="mean")
 
-        mae_ = M.mae(y_test, y_pred)
-        rmse_ = M.rmse(y_test, y_pred)
-        nrmse_cap = M.nrmse(y_test, y_pred, capacity=capacity, method="capacity")
-        nrmse_mean = M.nrmse(y_test, y_pred, method="mean")
+    assert mae_ == exp["mae"], f"{key}: MAE mismatch {mae_} vs {exp['mae']}"
+    assert rmse_ == exp["rmse"], f"{key}: RMSE mismatch {rmse_} vs {exp['rmse']}"
+    assert nrmse_cap == exp["nrmse_capacity"], f"{key}: nRMSE(cap) mismatch"
+    assert nrmse_mean == exp["nrmse_mean"], f"{key}: nRMSE(mean) mismatch"
 
-        assert mae_ == exp["mae"], f"{key}: MAE mismatch {mae_} vs {exp['mae']}"
-        assert rmse_ == exp["rmse"], f"{key}: RMSE mismatch {rmse_} vs {exp['rmse']}"
-        assert nrmse_cap == exp["nrmse_capacity"], f"{key}: nRMSE(cap) mismatch"
-        assert nrmse_mean == exp["nrmse_mean"], f"{key}: nRMSE(mean) mismatch"
+
+def test_persistence_round_trip_matches_task_5_3_exactly():
+    _persistence_round_trip(False, "qc_included")
+
+
+def test_persistence_round_trip_qc_excluded():
+    _persistence_round_trip(True, "qc_excluded")
 
 
 if __name__ == "__main__":

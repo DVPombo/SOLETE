@@ -1,36 +1,55 @@
 """
-qc_flags.py -- shared quality-flag codes and generic helpers for the SOLETE
-cleaning pipeline.
+qc_flags.py -- quality-flag helpers for the SOLETE cleaning pipeline.
 
-The canonical flag axis is defined in solete.qc_codes and shared with the
-forecasting platform. Code 6 belongs to the platform's model-substitution
-rule, which is not a property of the raw sensor stream. No pipeline rule in
-this module imports or emits it; a future pipeline rule takes the next free
-number after 10.
+The flag VOCABULARY (code numbers, labels, severity order) is not defined here any
+more: it lives in `solete/qc_codes.py`, the single module shared with the forecasting
+platform. This file re-exports it under the names the pipeline scripts already use and
+adds the pipeline-side guard `assert_pipeline_codes`.
 
-One int8 `<column>_qc` column is emitted per treated source column, MERGED
-into the same DataFrame as the cleaned data (see clean_solete_1sec.py) --
-not a separate companion file, so they survive a plain `pd.read_hdf()`.
+Code 6 (QC_MODEL_SUBSTITUTED) is platform-owned: it needs the PV model and is computed
+per resolution by `solete/expansion.py`. No rule in this directory may emit it
+(`assert_pipeline_codes` enforces that before anything is written). A new pipeline rule
+takes the next free number after 11.
 
-Each row/column gets exactly ONE code (not a bitmask -- simpler to read,
-and in this dataset the issues we found don't overlap on the same second).
+One int8 `<column>_qc` column is emitted per treated source column, MERGED into the same
+DataFrame as the cleaned data (see clean_solete_1sec.py) -- not a separate companion file,
+so they survive a plain `pd.read_hdf()`. Each row/column gets exactly ONE code (not a bitmask).
 """
+import sys
+from pathlib import Path
+
 import numpy as np
 
-from solete.qc_codes import (
-    QC_ACTIVE_DAY,
-    QC_DROPOUT_LONG_UNTREATED,
-    QC_DROPOUT_SHORT_FIXED,
-    QC_GLITCH_LONG_UNTREATED_NAN,
-    QC_GLITCH_SHORT_FIXED,
-    QC_LABELS,
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root: gives `import solete.qc_codes`
+from solete.qc_codes import (  # noqa: E402,F401  (re-exported for the pipeline scripts)
     QC_OK,
-    QC_PLACEHOLDER,
-    QC_RECOMPUTED,
-    QC_SEVERITY_ORDER,
-    QC_UNVERIFIED_PROVENANCE,
     QC_WRAPPED,
+    QC_PLACEHOLDER,
+    QC_DROPOUT_SHORT_FIXED,
+    QC_DROPOUT_LONG_UNTREATED,
+    QC_GLITCH_SHORT_FIXED,
+    QC_MODEL_SUBSTITUTED,
+    QC_UNVERIFIED_PROVENANCE,
+    QC_RECOMPUTED,
+    QC_GLITCH_LONG_UNTREATED_NAN,
+    QC_ACTIVE_DAY,
+    QC_UNTREATED_IMPLAUSIBLE,
+    QC_LABELS,
+    QC_SEVERITY_ORDER,
+    PIPELINE_OWNED_CODES,
+    PLATFORM_OWNED_CODES,
+    MODEL_DERIVED_COLUMNS,
 )
+
+
+def assert_pipeline_codes(flags, name="flag column"):
+    """Raise if `flags` holds a code a dataset-pipeline rule is not allowed to emit
+    (6 = model-substituted, 11 = legacy v3, or anything unknown). Call before writing."""
+    present = set(np.unique(np.asarray(flags)).tolist())
+    foreign = sorted(present - set(PIPELINE_OWNED_CODES))
+    if foreign:
+        raise ValueError(f"{name}: codes {foreign} are not pipeline-owned "
+                         f"(allowed: {sorted(PIPELINE_OWNED_CODES)}); code 6 is platform-owned.")
 
 
 def bool_runs(mask):

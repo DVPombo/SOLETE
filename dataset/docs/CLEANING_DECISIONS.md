@@ -22,8 +22,7 @@ values assumed local time, one hour off from what the sensors actually
 recorded.
 
 ## 3. WIND_DIR[deg]: wrapped to [0, 360)
-Values at or above 360° (1,343 rows, 360°–712°, on 2018-11-17 and
-2018-11-18) are extra
+Values above 360° (1,153 rows, 362°–712°, almost all on 2018-11-17) are extra
 sensor revolutions, not different bearings (maintainer's call). Fixed with
 `value mod 360`. This also fixes the 103 hourly values above 360° in the
 *original* published hourly file, which turn out not to come from this raw
@@ -134,8 +133,11 @@ Replaced with a full pvlib (NREL SPA) computation for every row:
 - **Elevation:** *apparent* (refraction-corrected), **not clipped at
   night** — it goes negative below the horizon. The published file instead
   showed exactly 0 at night. This is a deliberate change (accuracy over
-  matching the old convention); flag `QC_RECOMPUTED` marks every row so
-  nobody mistakes this for a measurement.
+  matching the old convention). v4 stores **no flag column** for these two:
+  it would be a constant `QC_RECOMPUTED` (8) on every row (decision D1, `QC_SCHEMA.md` §3b); instead
+  the files say it in `DATA_DICTIONARY.md`, the figshare README and the Parquet metadata, so nobody mistakes
+  the angles for measurements. The input of the cleaning (the `_original` file) has no Azimuth/Elevation at
+  all. In the 1 min / 5 min / 60 min files they are the mean of the 1 s values (circular for the azimuth).
 
 ## QC flag columns
 Flags are merged into the released data files as one `int8` `<column>_qc`
@@ -152,8 +154,8 @@ separate companion file, so they survive a plain `pd.read_hdf()` /
 | `Pressure[mbar]` mostly pegged to round placeholder values | Placeholders are 1000.0/2000.0 blocks plus isolated 3000.0 glitches, and also non-round flatline plateaus (e.g. 997.5 mbar held for an hour). Only 2019-01-16 has genuinely varying pressure. | NaN, flag 2 (§4) |
 | `HUMIDITY[%]` above 100 % | A stuck-sensor plateau lasting the whole of 2018-11-17. | NaN, flag 9 (§6) |
 | `WIND_DIR[deg]` above 360° | Raw values reach 712° (extra sensor revolutions, almost all 2018-11-17). The 103 out-of-range rows in the v3 *hourly* file cannot be reproduced from the raw file by any averaging — each exceeds its hour's own raw maximum — so that file's wind direction was most likely built from a different or earlier raw version. | wrapped, flag 1 (§3) |
-| `Azimuth[deg]` / `Elevation[deg]` ~99.9 % zero | Sparse placeholders, populated on one day only (2019-01-16), computed assuming local time. | dropped, recomputed, flag 8 (§8) |
-| Rows not in chronological order | The raw 1-second file stores 457 daily blocks in shuffled order. The grid itself is complete. | sorted (§1) |
+| `Azimuth[deg]` / `Elevation[deg]` ~99.9 % zero | Sparse placeholders, populated on one day only (2019-01-16), computed assuming local time. | dropped, recomputed (§8); no flag column in v4 (D1) |
+| Rows not in chronological order | The raw 1-second file stores 457 daily blocks in shuffled order. The grid itself is complete. | sorted (§1): the v4 `_original` file is already sorted |
 | `P_Gaia[kW]` zero almost everywhere | Real telemetry exists on two days only; cause of the zeros unresolved. | values kept, flags 7/10 (§7) |
 
 ## Open questions and limitations

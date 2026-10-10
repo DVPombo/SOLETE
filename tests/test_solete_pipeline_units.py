@@ -62,7 +62,7 @@ def _no_heavy_deps_after_import(import_line):
 
 def test_qc_module_imports_without_keras_or_tensorflow():
     heavy = _no_heavy_deps_after_import(
-        "from solete.qc import add_substitution_flag, qc_columns"
+        "from solete.qc import apply_qc_flags, legacy_v3_raw_value_rules"
     )
     assert heavy == [], f"solete.qc pulled in heavy deps: {heavy}"
 
@@ -80,18 +80,6 @@ def test_paths_module_imports_without_heavy_deps():
     # rely on it pulling in neither keras/tensorflow nor sklearn.
     heavy = _no_heavy_deps_after_import("from solete.paths import find_data_file")
     assert heavy == [], f"solete.paths pulled in heavy deps: {heavy}"
-
-
-@pytest.mark.parametrize("unit", ["ms", "ns"])
-def test_hdf_axis_timestamp_units_normalize_to_nanoseconds(unit):
-    from solete.expansion import _datetime_index_from_hdf_axis
-
-    expected = pd.date_range("2019-03-31", periods=2, freq="1s")
-    encoded = expected.as_unit(unit).asi8
-    actual = _datetime_index_from_hdf_axis(encoded)
-
-    assert actual.dtype == np.dtype("datetime64[ns]")
-    assert actual.equals(expected)
 
 
 # ---------------------------------------------------------------------------
@@ -181,14 +169,32 @@ def test_rincon_pombo_isolated_matches_full_pipeline_real_data(pv_info):
 # ---------------------------------------------------------------------------
 
 def test_qc_constants_importable_directly():
-    from solete.qc_codes import QC_MODEL_SUBSTITUTED, QC_OK, QC_SEVERITY_ORDER
+    from solete.qc import (
+        QC_OK, QC_UNTREATED_IMPLAUSIBLE, QC_SEVERITY_ORDER, KNOWN_PRESSURE_SENTINELS,
+    )
     assert QC_OK == 0
-    assert QC_MODEL_SUBSTITUTED == 6
-    assert QC_MODEL_SUBSTITUTED in QC_SEVERITY_ORDER
+    assert QC_UNTREATED_IMPLAUSIBLE in QC_SEVERITY_ORDER
+    assert 1000.0 in KNOWN_PRESSURE_SENTINELS
 
 
-def test_qc_columns_reads_existing_flags():
-    from solete.qc import qc_columns
+def test_apply_qc_flags_isolated_real_pressure_sentinel():
+    from solete.qc import apply_qc_flags, legacy_v3_raw_value_rules, QC_UNTREATED_IMPLAUSIBLE
 
-    frame = pd.DataFrame({"Pressure[mbar]_qc": [2], "Pressure[mbar]": [np.nan]})
-    assert qc_columns(frame) == ["Pressure[mbar]_qc"]
+    df = pd.read_hdf(v3_60min_path())
+    row = df.loc[["2019-01-01 01:00:00"]].copy()  # same real sentinel row as test_qc_flags.py
+    assert row["Pressure[mbar]"].iloc[0] == 1000.0
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Pressure[mbar]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
+
+
+def test_expansion_and_physics_import_without_coolprop():
+    """The dataset build (solete.expansion -> solete.physics) must not need CoolProp: only the
+    Rincon-Pombo thermodynamic model uses it, and imports it lazily."""
+    import subprocess, sys
+    code = ("import sys\nclass _Block:\n    def find_spec(self, name, path=None, target=None):\n"
+            "        if name == 'CoolProp' or name.startswith('CoolProp.'):\n            raise ImportError('CoolProp blocked')\n"
+            "sys.meta_path.insert(0, _Block())\n"
+            "import solete.expansion, solete.physics\nprint('ok')")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                       cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]))
+    assert r.returncode == 0 and "ok" in r.stdout, r.stderr

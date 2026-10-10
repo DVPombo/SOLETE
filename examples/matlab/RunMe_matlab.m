@@ -28,7 +28,7 @@ if isempty(DATA_DIR)
 end
 FILE = fullfile(DATA_DIR, 'hdf5', 'SOLETE_Pombo_60min.h5'); % v3 hourly file
 %options (all in data/hdf5/): SOLETE_Pombo_1sec.h5 - SOLETE_Pombo_1min.h5 - SOLETE_Pombo_5min.h5 -
-% SOLETE_Pombo_60min.h5 (v3) or SOLETE_Pombo_60min_v4.h5 (v4).
+% SOLETE_Pombo_60min.h5 (v3) or the cleaned SOLETE_Pombo_60min_v4.h5 etc. (v4).
 % The tiny sample ../examples/SOLETE_short.h5 also works: FILE = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'examples', 'SOLETE_short.h5');
 
 %% Miscelanea of hdf5-related functions

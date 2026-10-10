@@ -51,7 +51,7 @@
     }
   },
   "figures": [
-    "results/hybrid_ramp_rate_histogram.png",
-    "results/hybrid_ramp_rate_active_days.png"
+    "benchmarks/results/hybrid_ramp_rate_histogram.png",
+    "benchmarks/results/hybrid_ramp_rate_active_days.png"
   ]
 }

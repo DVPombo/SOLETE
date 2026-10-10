@@ -91,7 +91,6 @@ def compute_solar_position_bulk(
     altitude=SITE_ALTITUDE_M,
     utc_offset_hours=DEFAULT_UTC_OFFSET_HOURS,
     chunk_rows=2_000_000,
-    verbose=True,
 ):
     """
     Same as compute_solar_position, but for a long index processed in chunks
@@ -107,8 +106,7 @@ def compute_solar_position_bulk(
                 idx[i:i + chunk_rows], latitude, longitude, altitude, utc_offset_hours
             )
         )
-        if verbose:
-            print(f"  solar position {min(i + chunk_rows, n):,} / {n:,}")
+        print(f"  solar position {min(i + chunk_rows, n):,} / {n:,}")
     return pd.concat(parts)
 
 

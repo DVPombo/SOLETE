@@ -160,6 +160,8 @@ readings. `<!-- TODO: confirm with maintainer -->` whether ~38% substitution on 
 dataset matches expectations from when this cleaning step was originally designed, or is
 higher than anticipated.
 
+> **Resolved (v4).** Re-examined: all 4,204 hourly rows (and the short file's 5) were night rows with measured `P_Solar` = 0 and `Pac` = 0, flagged because `0 >= 1.5 * 0`. No daytime row was ever substituted, so the ~38 % was an artefact of the flag, not of the data. The rule now also requires `Pac > 0`; the rates above are 0 under it. See `docs/RESTRUCTURE_NOTES.md` §2.
+
 ---
 
 ## Wind-direction aggregation (Task 1.2 cross-reference)

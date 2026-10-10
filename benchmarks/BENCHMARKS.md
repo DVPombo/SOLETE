@@ -13,15 +13,19 @@ capacity denominator) and `nrmse(method="mean")` (secondary, mean-of-target deno
 Per the Task 5.2 decision, no bare "nRMSE" is presented anywhere below without saying
 which normalization it is.
 
-**QC setting:** every row below is run under **both** QC settings (`qc_included` = all
+**QC setting:** every result is scored under **both** QC settings (`qc_included` = all
 test rows scored as-is; `qc_excluded` = rows with `P_Solar[kW]_qc == 6`,
 model-substituted PV readings, removed before scoring — wind has no QC column to exclude,
-see caveat below). **`qc_included` is shown as the headline row per model below, with
-`qc_excluded` given as a second line**, so a reader can see both without the table being
-read as endorsing only one setting.
+see caveat below). On this file the two coincide (next note), so the tables show one line per model.
 
-All numbers below are copied as-is from the `results/*.json` files produced in the prior
-session (`persistence.json`, `smart_persistence.json`, `climatology.json`, `ar.json`,
+> **`qc_excluded` equals `qc_included` on this file.** With the v4 definition of code 6 (`Pac >= 1.5 * P_Solar[kW]` **and** `Pac > 0`)
+> no row of the v3 hourly file is flagged, so both settings score the same 2,953 test rows. Under the old definition the dark rows
+> (measured 0, model 0) were flagged, which removed 751 easy night rows and made `qc_excluded` look worse (e.g. persistence MAE 0.581 vs 0.434 kW).
+> Only `qc_included` is shown below; the JSON files still carry both settings. The persistence, smart-persistence, climatology, AR,
+> gradient-boosting and probabilistic results were re-run on 2026-10-08; the LSTM/CNN rows were not re-run (no TensorFlow where this was done;
+> their input values are bit-identical and they only had a `qc_included` pass).
+
+All numbers below are copied as-is from the `results/*.json` files (`persistence.json`, `smart_persistence.json`, `climatology.json`, `ar.json`,
 `gradient_boosting.json`, `lstm_cnn_smoke_test.json`) — **nothing here was recomputed or
 re-derived by hand.**
 
@@ -32,15 +36,10 @@ re-derived by hand.**
 | Model | QC setting | n | MAE (kW) | RMSE (kW) | nRMSE (capacity) | nRMSE (mean) |
 |---|---|---:|---:|---:|---:|---:|
 | Persistence `ŷ(t)=y(t-1)` | qc_included | 2,953 | 0.434 | 0.699 | 0.0939 | 0.539 |
-| Persistence `ŷ(t)=y(t-1)` | qc_excluded | 2,202 | 0.581 | 0.809 | 0.1087 | 0.465 |
 | Smart persistence `ŷ(t)=y(t-24)` | qc_included | 2,953 | 0.562 | 1.132 | 0.1522 | 0.873 |
-| Smart persistence `ŷ(t)=y(t-24)` | qc_excluded | 2,202 | 0.754 | 1.311 | 0.1762 | 0.754 |
 | Climatology (hour-of-day mean) | qc_included | 2,953 | 0.629 | 1.046 | 0.1406 | 0.807 |
-| Climatology (hour-of-day mean) | qc_excluded | 2,202 | 0.843 | 1.211 | 0.1628 | 0.697 |
 | AR(p=48), lagged target only | qc_included | 2,953 | 0.291 | 0.524 | 0.0704 | 0.404 |
-| AR(p=48), lagged target only | qc_excluded | 2,202 | 0.382 | 0.606 | 0.0815 | 0.349 |
 | Gradient boosting (LightGBM) †same-timestamp weather† | qc_included | 2,953 | 0.0113 | 0.0254 | 0.0034 | 0.0196 |
-| Gradient boosting (LightGBM) †same-timestamp weather† | qc_excluded | 2,202 | 0.0150 | 0.0294 | 0.0039 | 0.0169 |
 | LSTM ‡reduced-epoch, not final‡ | qc_included | 2,953 | 0.277 | 0.539 | 0.0725 | 0.416 |
 | CNN ‡own unmodified default epochs‡ | qc_included | 2,953 | 0.356 | 0.567 | 0.0762 | 0.437 |
 | CNN-LSTM ‡reduced-epoch, not final‡ | qc_included | 2,953 | 0.288 | 0.550 | 0.0739 | 0.424 |
@@ -167,12 +166,10 @@ slightly undercounts the tails beyond the 5th/95th percentile. Script:
 | QC setting | n | CRPS (kW) | 90% interval: coverage / sharpness (kW) | 80%: coverage / sharpness | 50%: coverage / sharpness |
 |---|---:|---:|---:|---:|---:|
 | qc_included | 2,953 | 0.0126 | 0.817 / 0.225 | 0.701 / 0.088 | 0.550 / 0.014 |
-| qc_excluded | 2,202 | 0.0164 | 0.759 / 0.287 | 0.619 / 0.094 | 0.398 / 0.018 |
 
 Empirical coverage runs somewhat under nominal at every level (e.g. 81.7% vs. a nominal
 90% target, qc_included) — the model is mildly overconfident (intervals too narrow) on
-this feature set/split, more so once `qc_excluded` removes the model-substituted rows the
-quantile models were still trained partly against. Not re-tuned further in this session;
+this feature set/split. Not re-tuned further in this session;
 flagged here as a real calibration finding for a future session to improve on (e.g. wider
 quantile levels at the tails, or explicit calibration/conformal correction), not something
 silently corrected.

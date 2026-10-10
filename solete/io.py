@@ -15,7 +15,20 @@ import pandas as pd
 
 from .paths import data_filename, find_data_file, derived_path, resolve_sample
 from .preprocessing import ExpandSOLETE
+from .qc import apply_qc_flags, legacy_v3_raw_value_rules, check_qc_vocabulary, present_qc_columns
 from .postprocess import error_msg
+
+
+def _add_raw_value_flags(df, data_version, reapply=False):
+    """v3: add the legacy raw-value flags (code 11). v4: read-only check of the shared vocabulary."""
+    if data_version == 'v3':
+        _, qc_counts = apply_qc_flags(df, legacy_v3_raw_value_rules(df))
+        print("QC flags (re)applied on Import:" if reapply else "QC flags applied:", qc_counts, "\n")
+    else:
+        unknown = check_qc_vocabulary(df)
+        if unknown:
+            raise ValueError(f"Unknown QC codes in a v4 file: {unknown} (vocabulary: solete/qc_codes.py)")
+        print("v4 file: QC flags read as present:", present_qc_columns(df), "\n")
 
 
 def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
@@ -42,13 +55,20 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
     
     print("___The SOLETE Platform___\n")
     
-    if Control_Var['resolution'] not in ['1sec', '1min', '5min', '60min', '1h']:
+    if Control_Var['resolution'] not in ['1sec', '1min', '5min', '60min']:            
         error_msg(key = "resolution")
     else:
         # Which file version to read: 'v3' (default, the original SOLETE_Pombo_<res>.h5
         # files the platform and benchmarks were built on) or 'v4' (cleaned figshare
         # v4 files). Where the files live is decided in solete/paths.py (data/hdf5/).
         data_version = Control_Var.get('data_version', 'v3')
+        if data_version not in ('v3', 'v4'):
+            raise ValueError(f"Control_Var['data_version'] must be 'v3' or 'v4', got {data_version!r}")
+        # v3: the original files, no flags of their own -> the legacy raw-value checks add them.
+        # v4: files from the dataset pipeline (clean + flag + az/el) and, optionally, already carrying
+        #     the platform's model columns. Their <column>_qc flags are read as they are and never
+        #     recomputed or overwritten; the model columns are (re)computed by expand_physical, which
+        #     reproduces them exactly if present. The working P_Solar[kW] is then P_Solar_clean[kW].
         name_stem = data_filename(Control_Var['resolution'], data_version)[:-3]
         name_import = name_stem + '_Expanded.h5'   # cached under data/derived/, see paths.derived_path
         
@@ -58,11 +78,13 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         df=pd.read_hdf(find_data_file(Control_Var['resolution'], data_version)) #import the Raw SOLETE based on the selected resolution
         print("SOLETE was imported:")
         print("    -resolution: ", Control_Var['resolution'])
-        print("    -version: Original. \n")
+        print("    -version: Original (" + data_version + "). \n")
         
         Control_Var['OriginalFeatures']=list(df.columns)
         
         print("SOLETE was imported with a resolution of: ", Control_Var['resolution'], "\n")
+        
+        _add_raw_value_flags(df, data_version)
         
         ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
         
@@ -80,8 +102,11 @@ def import_SOLETE_data(Control_Var, PVinfo, WTinfo):
         print("    -resolution: ", Control_Var['resolution'])
         print("    -version: Expanded. ")
         
-        if data_version == 'v4' and 'P_Solar_clean[kW]' in df.columns:
-            df['P_Solar[kW]'] = df['P_Solar_clean[kW]']
+        #v3 only: raw-value flags are recomputed from the raw columns rather than trusted from disk
+        #(self-healing if a cached file lost its _qc columns, see docs/legacy/QC_SCHEMA_platform_v3.md
+        #section 7; it only sticks if PossibleFeatures lists them). v4: the flags in the file are
+        #authoritative and are left exactly as they are.
+        _add_raw_value_flags(df, data_version, reapply=True)
         
         for col in Control_Var['PossibleFeatures']: #if the possiblefeature includes
         #something that was not in the import file, execution is killed with an error message
@@ -135,63 +160,15 @@ def import_SOLETE_sample(path, Control_Var, PVinfo, WTinfo):
 
     Control_Var['OriginalFeatures'] = list(df.columns)
 
+    #Same raw-value QC flags as import_SOLETE_data()'s 'Build' branch -- computed here so the
+    #notebooks demonstrate the real entry point. A sample that already carries pipeline flags
+    #(a v4 sample) keeps them.
+    _add_raw_value_flags(df, 'v4' if present_qc_columns(df) else 'v3')
+
     ExpandSOLETE(df, [PVinfo, WTinfo], Control_Var)
 
     return df
 
 
-def import_PV_WT_data():
-    """
-    Returns
-    -------
-    PV : dict
-        Holds data regarding the PV string in SYSLAB 715
-    WT : dict
-        Holds data regarding the Gaia wind turbine
-
-    """
-    
-    PV={
-        "Type": "Poly-cristaline",
-        "Az": 60,#deg
-        "Estc": 1000, #W/m**2
-        "Tstc": 25,#C
-        'Pmp_stc' : [165, 125], #W
-        'ganma_mp' : [-0.478/100, -0.45/100], #1/K
-        'Ns':[18, 6], #int
-        'Np':[2, 2], #int
-        'a' : [-3.56, -3.56], #module material construction parameters a, b and D_T
-        'b' : [-0.0750, -0.0750],
-        'D_T' : [3, 3],# represents the difference between the module and cell temperature
-                        #these three parameters correspond to glass/cell/polymer sheet with open rack
-                        #they are extracted from Sandia document King, Boyson form 2004 page 20
-        'eff_P' : [[0, 250, 400, 450, 500, 600, 650, 750, 825, 1000, 1200, 1600, 2000, 3000, 4000,  6000, 8000, 10000],
-                   [0, 250, 400, 450, 500, 600, 650, 750, 825, 1000, 1200, 1600, 2000, 3000, 4000,  6000, 8000, 10000]],
-        'eff_%' : [[0, 85.5, 90.2, 90.9, 91.8, 92, 92.3, 94, 94.4, 94.8, 95.6, 96, 97.3, 97.7, 98, 98.1, 98.05, 98],
-                   [0, 85.5, 90.2, 90.9, 91.8, 92, 92.3, 94, 94.4, 94.8, 95.6, 96, 97.3, 97.7, 98, 98.1, 98.05, 98]],
-       "index": ['A','B'], #A and B refer to each channel of the inverter, which has connected a different string.
-       "L": 10, # array characteristic length
-       "W": 1.5, # array width
-       "d": 0.1, # array thickness
-       "k_r": 350, # PV conductive resistance W/(m*K)
-       # "": ,
-        }
-    
-    WT={
-        "Type": "Asynchronous",
-        "Mode": "Passive, downwind vaning",
-        "Pn": 11,#kW
-        "Vn": 400,#V
-        'CWs' : [3.5, 6, 8, 10, 10.5, 11, 12, 13, 13.4, 14, 16, 18, 20, 22, 24, 25,],#m/s
-        'CP' : [0, 5, 8.5, 10.9, 11.2, 11.3, 11.2, 10.5, 10.5, 10, 8.8, 8.7, 8, 7.3, 6.6, 6.3,],#kW
-        "Cin": 3.5,#m/s
-        "Cout": 25,#m/s
-        "HH": 18,#m
-        "D": 13,#m
-        "SA": 137.7,#m**2
-        "B": 2,#int       
-        }
-    
-    return PV, WT
-
-
+# the parameters live in solete/params.py (light imports); re-exported here for existing callers
+from .params import import_PV_WT_data  # noqa: E402,F401

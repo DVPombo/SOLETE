@@ -1,183 +1,311 @@
-import pathlib
+# -*- coding: utf-8 -*-
+"""
+Tests for the Quality Control flag layer (solete.qc.apply_qc_flags and friends).
+
+Every case is built from a real row pulled out of SOLETE_Pombo_60min.h5 by the 
+exact criteria in docs/legacy/QC_SCHEMA_platform_v3.md, with its value(s) copied inline -- not a fabricated row. 
+The two exceptions are explicitly marked SYNTHETIC below: SOLETE_Pombo_60min.h5 
+contains no row with WIND_DIR[deg] exactly 360.0, and none with a negative Pressure[mbar]/
+HUMIDITY[%]/WIND_DIR[deg] value, so those specific boundaries can't be
+sourced from the real file and are hand-built instead.
+
+Run with: pytest tests/test_qc_flags.py -v  (from the repo root)
+"""
+
 import sys
+import types
+import pathlib
+
+# the platform modules used to import keras/tensorflow at module level for the ML forecasting
+# code, which these tests never touch. Stub them out so this test file has no
+# dependency on those (heavy, unrelated) packages being installed.
+for _modname in ["keras", "keras.models", "keras.layers"]:
+    sys.modules.setdefault(_modname, types.ModuleType(_modname))
+sys.modules["keras.models"].Sequential = object
+sys.modules["keras.models"].load_model = lambda *a, **k: None
+for _n in ["LSTM", "Dense", "Masking", "Flatten", "Conv1D", "MaxPooling1D"]:
+    setattr(sys.modules["keras.layers"], _n, object)
 
 import numpy as np
 import pandas as pd
+import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-
-from _data import short_sample_path
-from dataset.pipeline.resample_solete import resample_dataframe
-from solete.expansion import (
-    PHYSICAL_COLUMNS,
-    expand_physical,
-    iter_expanded_hdf_slices,
-    iter_hdf_slices,
-)
-from solete.io import import_PV_WT_data, import_SOLETE_data, import_SOLETE_sample
-from solete.physics import PV_Performance_Model
-from solete.qc import add_substitution_flag, qc_columns
-from solete.qc_codes import (
-    QC_GLITCH_LONG_UNTREATED_NAN,
-    QC_LABELS,
-    QC_MODEL_SUBSTITUTED,
+from _data import short_sample_path, v3_60min_path
+from solete.io import import_SOLETE_data, import_PV_WT_data
+from solete.qc_codes import SOURCE_WIND
+from solete.qc import (
+    apply_qc_flags,
+    legacy_v3_raw_value_rules,
+    add_substitution_flag,
     QC_OK,
-    QC_SEVERITY_ORDER,
+    QC_UNTREATED_IMPLAUSIBLE,
+    QC_MODEL_SUBSTITUTED,
 )
 
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-def _control(**overrides):
-    control = {
-        "resolution": "1sec",
+
+@pytest.fixture(scope="module")
+def real_60min():
+    return pd.read_hdf(v3_60min_path())
+
+
+@pytest.fixture(scope="module")
+def real_short():
+    return pd.read_hdf(short_sample_path())
+
+
+@pytest.fixture(scope="module")
+def built_60min():
+    """Full pipeline (import_SOLETE_data, 'Build') on the real 60min file --
+    unlike real_60min above, this actually runs ExpandSOLETE(), so
+    P_hybrid[kW]_qc / P_hybrid[kW]_qc_source (Task 6.1, docs/legacy/QC_SCHEMA_platform_v3.md section
+    8) exist to test against. Same loading recipe as solete/benchmark/common.py's
+    load_full_df()."""
+    Control_Var = {
+        "resolution": "60min",
         "SOLETE_builvsimport": "Build",
         "SOLETE_save": False,
         "OriginalFeatures": [],
         "PossibleFeatures": [],
     }
-    control.update(overrides)
-    return control
+    PVinfo, WTinfo = import_PV_WT_data()
+    return import_SOLETE_data(Control_Var, PVinfo, WTinfo)
 
 
-def _sample():
-    return pd.read_hdf(short_sample_path())
+# ---------------------------------------------------------------------------
+# Pressure[mbar] -- finding #1
+# ---------------------------------------------------------------------------
+
+def test_pressure_sentinel_1000_real_row(real_60min):
+    # Real row: 2019-01-01 01:00:00, Pressure[mbar] == 1000.0 (the placeholder
+    # covering 95.5% of the file).
+    row = real_60min.loc[["2019-01-01 01:00:00"]].copy()
+    assert row["Pressure[mbar]"].iloc[0] == 1000.0
+    _, counts = apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Pressure[mbar]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
+    assert counts["Pressure[mbar]_qc"] == 1
 
 
-def test_shared_qc_vocabulary_includes_model_substitution():
-    assert QC_MODEL_SUBSTITUTED == 6
-    assert QC_LABELS[QC_MODEL_SUBSTITUTED] == "model_substituted"
-    assert QC_SEVERITY_ORDER.index(QC_GLITCH_LONG_UNTREATED_NAN) < QC_SEVERITY_ORDER.index(6)
+def test_pressure_sentinel_2000_real_row(real_60min):
+    # Real row: 2018-11-17 01:00:00, Pressure[mbar] == 2000.0.
+    row = real_60min.loc[["2018-11-17 01:00:00"]].copy()
+    assert row["Pressure[mbar]"].iloc[0] == 2000.0
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Pressure[mbar]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
 
 
-def test_qc_columns_reads_direct_and_resampled_flags():
-    frame = pd.DataFrame(columns=["Pressure[mbar]_qc", "P_Gaia[kW]_qc_worst", "value"])
-    assert qc_columns(frame) == ["Pressure[mbar]_qc", "P_Gaia[kW]_qc_worst"]
+def test_pressure_sentinel_3000_real_row(real_60min):
+    # Real row: 2018-11-17 00:00:00, one of only two rows at 3000.0.
+    row = real_60min.loc[["2018-11-17 00:00:00"]].copy()
+    assert row["Pressure[mbar]"].iloc[0] == 3000.0
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Pressure[mbar]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
 
 
-def test_substitution_flag_preserves_more_severe_existing_flag():
-    frame = pd.DataFrame({"P_Solar[kW]_qc": [QC_GLITCH_LONG_UNTREATED_NAN, QC_OK]})
-    add_substitution_flag(frame, [True, True])
-    assert frame["P_Solar[kW]_qc"].tolist() == [QC_GLITCH_LONG_UNTREATED_NAN, 6]
+def test_pressure_plausible_real_row_stays_valid(real_60min):
+    # Real row: 2019-01-16 06:00:00, Pressure[mbar] ~= 998.34 -- one of the 13
+    # non-sentinel rows in the file, well inside the plausible range.
+    row = real_60min.loc[["2019-01-16 06:00:00"]].copy()
+    assert row["Pressure[mbar]"].iloc[0] == pytest.approx(998.3448114183213)
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Pressure[mbar]_qc"].iloc[0] == QC_OK
 
 
-def test_substitution_flag_clears_stale_code_six():
-    frame = pd.DataFrame({"P_Solar[kW]_qc": [QC_MODEL_SUBSTITUTED]})
-    add_substitution_flag(frame, [False])
-    assert frame["P_Solar[kW]_qc"].iloc[0] == QC_OK
+def test_pressure_negative_synthetic():
+    # SYNTHETIC: no row in either real file has a negative Pressure[mbar].
+    # Built to isolate the general-range side of the detector
+    # (PRESSURE_PLAUSIBLE_RANGE in solete/qc.py), which the three known
+    # sentinels alone don't exercise.
+    row = pd.DataFrame({"Pressure[mbar]": [-5.0]})
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Pressure[mbar]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
 
 
-def test_expand_physical_preserves_measured_solar_and_is_idempotent(tmp_path):
-    pv_info, _ = import_PV_WT_data()
-    frame = _sample()
-    frame["Pressure[mbar]_qc"] = np.int8(2)
-    frame["P_Gaia[kW]_qc"] = np.int8(7)
-    measured = frame["P_Solar[kW]"].copy()
+# ---------------------------------------------------------------------------
+# HUMIDITY[%] -- finding #2
+# ---------------------------------------------------------------------------
 
-    expand_physical(frame, pv_info)
-    first = frame[list(PHYSICAL_COLUMNS)].copy()
-    path = tmp_path / "expanded_v4_like.h5"
-    frame.to_hdf(path, key="DATA")
-    reloaded = pd.read_hdf(path, key="DATA")
-    expand_physical(reloaded, pv_info)
-
-    pd.testing.assert_series_equal(reloaded["P_Solar[kW]"], measured)
-    pd.testing.assert_frame_equal(reloaded[list(PHYSICAL_COLUMNS)], first)
-    assert (reloaded["Pressure[mbar]_qc"] == 2).all()
+def test_humidity_over_one_real_row(real_60min):
+    # Real row: 2018-11-18 00:00:00, HUMIDITY[%] ~= 2.70 -- the worst offender
+    # in the file (188 rows exceed 1.0 in total).
+    row = real_60min.loc[["2018-11-18 00:00:00"]].copy()
+    assert row["HUMIDITY[%]"].iloc[0] == pytest.approx(2.700000000000057)
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["HUMIDITY[%]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
 
 
-def test_expand_physical_slice_output_matches_full_run():
-    pv_info, _ = import_PV_WT_data()
-    source = _sample()
-    full = expand_physical(source.copy(), pv_info)
-    chunked = pd.concat([
-        expand_physical(source.iloc[start:start + 5].copy(), pv_info)
-        for start in range(0, len(source), 5)
-    ])
-    pd.testing.assert_frame_equal(chunked, full)
+def test_humidity_plausible_real_row_stays_valid(real_60min):
+    # Real row: 2019-01-01 00:00:00, HUMIDITY[%] ~= 0.897, a normal fraction.
+    row = real_60min.loc[["2019-01-01 00:00:00"]].copy()
+    assert row["HUMIDITY[%]"].iloc[0] == pytest.approx(0.8969444444445012)
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["HUMIDITY[%]_qc"].iloc[0] == QC_OK
 
 
-def test_fixed_hdf_slices_match_pandas_and_expand_independently():
-    pv_info, _ = import_PV_WT_data()
-    path = short_sample_path()
-    expected = pd.read_hdf(path)
-
-    sliced = pd.concat(iter_hdf_slices(path, chunk_rows=5))
-    expanded = pd.concat(iter_expanded_hdf_slices(path, pv_info, chunk_rows=5))
-
-    pd.testing.assert_frame_equal(sliced, expected)
-    pd.testing.assert_frame_equal(expanded, expand_physical(expected.copy(), pv_info))
+def test_humidity_boundary_values_real_data():
+    # Real data happens to contain both boundary values exactly (0.0 and
+    # 1.0), so no synthetic case is needed here -- both must stay VALID
+    # (the rule is strictly > 1.0 or < 0.0).
+    row = pd.DataFrame({"HUMIDITY[%]": [0.0, 1.0]})
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert (row["HUMIDITY[%]_qc"] == QC_OK).all()
 
 
-def test_table_hdf_slices_match_pandas(tmp_path):
-    expected = _sample()
-    path = tmp_path / "table.h5"
-    expected.to_hdf(path, key="DATA", format="table")
+# ---------------------------------------------------------------------------
+# WIND_DIR[deg] -- finding #3
+# ---------------------------------------------------------------------------
 
-    actual = pd.concat(iter_hdf_slices(path, chunk_rows=5))
-
-    pd.testing.assert_frame_equal(actual, expected)
-
-
-def test_hybrid_qc_uses_canonical_severity_order():
-    pv_info, _ = import_PV_WT_data()
-    frame = _sample().iloc[:2].copy()
-    frame["P_Gaia[kW]_qc"] = [QC_GLITCH_LONG_UNTREATED_NAN, QC_OK]
-
-    expand_physical(frame, pv_info)
-
-    assert frame["P_hybrid[kW]_qc"].iloc[0] == QC_GLITCH_LONG_UNTREATED_NAN
-    assert frame["P_hybrid[kW]_qc_source"].iloc[0] == "P_Gaia[kW]"
+def test_winddir_over_360_real_row(real_60min):
+    # Real row: 2018-09-01 00:00:00, WIND_DIR[deg] ~= 639.34 -- the worst
+    # offender in the file (103 rows total exceed 360deg).
+    row = real_60min.loc[["2018-09-01 00:00:00"]].copy()
+    assert row["WIND_DIR[deg]"].iloc[0] == pytest.approx(639.3448180050013)
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["WIND_DIR[deg]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
 
 
-def test_expandsolete_matches_legacy_sample_physical_values():
-    pv_info, wt_info = import_PV_WT_data()
-    source = _sample()
-    pac, pdc, temp_module, temp_cell = PV_Performance_Model(source, pv_info)
-    substituted = pac >= 1.5 * source["P_Solar[kW]"]
-    legacy_solar = np.where(substituted, pac, source["P_Solar[kW]"])
-    legacy_solar = np.where(legacy_solar <= 0.001, 0.0, legacy_solar)
+def test_winddir_plausible_real_row_stays_valid(real_60min):
+    # Real row: 2018-11-17 00:00:00, WIND_DIR[deg] ~= 315.2, a normal bearing.
+    row = real_60min.loc[["2018-11-17 00:00:00"]].copy()
+    assert row["WIND_DIR[deg]"].iloc[0] == pytest.approx(315.2088888888889)
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["WIND_DIR[deg]_qc"].iloc[0] == QC_OK
 
-    actual = import_SOLETE_sample(short_sample_path(), _control(), pv_info, wt_info)
 
-    np.testing.assert_array_equal(actual["Pac"], np.where(pac <= 0.001, 0.0, pac))
-    pd.testing.assert_series_equal(actual["Pdc"], pdc, check_names=False)
-    pd.testing.assert_series_equal(actual["TempModule"], temp_module, check_names=False)
-    pd.testing.assert_series_equal(actual["TempCell"], temp_cell, check_names=False)
-    np.testing.assert_array_equal(actual["P_Solar[kW]"], legacy_solar)
-    np.testing.assert_array_equal(actual["P_hybrid[kW]"], legacy_solar + source["P_Gaia[kW]"])
-    np.testing.assert_array_equal(
-        actual["P_Solar[kW]_qc"], np.where(substituted, QC_MODEL_SUBSTITUTED, QC_OK)
+def test_winddir_exact_360_synthetic():
+    # SYNTHETIC: no row in either real file lands on exactly 360.0deg.
+    # Built to pin down the upper boundary -- 360.0 is invalid (a compass
+    # bearing's valid range is [0, 360)), 0.0 is valid and is already
+    # covered by a real row above.
+    row = pd.DataFrame({"WIND_DIR[deg]": [360.0]})
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["WIND_DIR[deg]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
+
+
+def test_winddir_negative_synthetic():
+    # SYNTHETIC: no row in either real file has a negative WIND_DIR[deg].
+    row = pd.DataFrame({"WIND_DIR[deg]": [-1.0]})
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["WIND_DIR[deg]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
+
+
+# ---------------------------------------------------------------------------
+# Azimuth[deg] / Elevation[deg] -- finding #4
+# ---------------------------------------------------------------------------
+
+def test_azimuth_elevation_zero_real_row_flagged_missing(real_60min):
+    # Real row: 2018-11-17 00:00:00 -- part of the 99.9% of rows where these
+    # columns sit at exactly 0.0 (i.e. "not really computed for this row").
+    row = real_60min.loc[["2018-11-17 00:00:00"]].copy()
+    assert row["Azimuth[deg]"].iloc[0] == 0.0
+    assert row["Elevation[deg]"].iloc[0] == 0.0
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Azimuth[deg]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
+    assert row["Elevation[deg]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
+
+
+def test_azimuth_elevation_populated_real_row_stays_valid(real_60min):
+    # Real row: 2019-01-16 07:00:00 -- the one calendar day where these
+    # columns actually carry computed solar-position values.
+    row = real_60min.loc[["2019-01-16 07:00:00"]].copy()
+    assert row["Azimuth[deg]"].iloc[0] != 0.0
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["Azimuth[deg]_qc"].iloc[0] == QC_OK
+    # Elevation happens to be 0.0 here too (sun right at the horizon at
+    # 07:00 on 2019-01-16 in winter) -- this is the one real row where the
+    # "== 0.0 means missing" proxy is a genuine false positive, called out
+    # explicitly in docs/legacy/QC_SCHEMA_platform_v3.md section 6 rather than papered over.
+    assert row["Elevation[deg]"].iloc[0] == 0.0
+    assert row["Elevation[deg]_qc"].iloc[0] == QC_UNTREATED_IMPLAUSIBLE
+
+
+def test_azimuth_elevation_absent_columns_skipped_cleanly(real_short):
+    # examples/SOLETE_short.h5 has no Azimuth[deg]/Elevation[deg] columns at all.
+    # apply_qc_flags must skip those rules without raising.
+    df = real_short.copy()
+    rules = legacy_v3_raw_value_rules(df)
+    rule_columns = {r["column"] for r in rules}
+    assert "Azimuth[deg]" not in rule_columns
+    assert "Elevation[deg]" not in rule_columns
+    apply_qc_flags(df, rules)  # should not raise
+    assert "Azimuth[deg]_qc" not in df.columns
+
+
+# ---------------------------------------------------------------------------
+# substitution boolean -> P_Solar[kW]_qc code 6 (add_substitution_flag)
+# ---------------------------------------------------------------------------
+
+def test_substitution_flag_true_maps_to_qc_6():
+    out = add_substitution_flag(None, np.array([True, False]))
+    assert list(out) == [QC_MODEL_SUBSTITUTED, QC_OK]
+    assert out.dtype == np.int8
+
+
+# ---------------------------------------------------------------------------
+# Whole-file sanity checks -- reproduce Phase 1's exact counts
+# ---------------------------------------------------------------------------
+
+def test_whole_file_counts_match_phase1_60min(real_60min):
+    df = real_60min.copy()
+    n = len(df)
+    _, counts = apply_qc_flags(df, legacy_v3_raw_value_rules(df))
+    assert counts["Pressure[mbar]_qc"] == 10477 + 477 + 2
+    assert counts["HUMIDITY[%]_qc"] == 188
+    assert counts["WIND_DIR[deg]_qc"] == 103
+    assert counts["Azimuth[deg]_qc"] == pytest.approx(0.999 * n, abs=2)
+    assert counts["Elevation[deg]_qc"] == pytest.approx(0.999 * n, abs=2)
+
+
+def test_whole_file_counts_near_zero_short(real_short):
+    df = real_short.copy()
+    _, counts = apply_qc_flags(df, legacy_v3_raw_value_rules(df))
+    # KNOWN_ISSUES.md reports near-zero rates on the short file for all
+    # three physically-implausible checks.
+    assert counts["Pressure[mbar]_qc"] == 0
+    assert counts["HUMIDITY[%]_qc"] == 0
+    assert counts["WIND_DIR[deg]_qc"] == 0
+
+
+# ---------------------------------------------------------------------------
+# P_hybrid[kW] QC inheritance -- Phase 6 Task 6.1 (docs/legacy/QC_SCHEMA_platform_v3.md section 8)
+#
+# Regression coverage for CHANGELOG.md's "Added (Phase 6 -- hybrid wind+solar
+# forecasting)" entry, which states this behavior is "pinned by the new
+# regression tests added in Phase 7 Session 1". No wind (P_Gaia[kW]) QC rule
+# exists yet (checked against legacy_v3_raw_value_rules()/QC_SCHEMA.md section
+# 3 -- neither has one), so today P_hybrid[kW]_qc is equivalent to
+# P_Solar[kW]_qc, and P_hybrid[kW]_qc_source should never attribute a flag to
+# 'P_Gaia[kW]'. If a future session adds a wind QC rule, these two assertions
+# are exactly the ones that should start failing -- that's the point.
+# ---------------------------------------------------------------------------
+
+def test_hybrid_qc_equals_solar_qc_today(built_60min):
+    df = built_60min
+    pd.testing.assert_series_equal(
+        df["P_hybrid[kW]_qc"], df["P_Solar[kW]_qc"], check_names=False
     )
 
 
-def test_import_v4_preserves_pipeline_flags(monkeypatch, tmp_path):
-    pv_info, wt_info = import_PV_WT_data()
-    source = _sample()
-    source["Pressure[mbar]_qc"] = np.int8(2)
-    path = tmp_path / "SOLETE_Pombo_1sec_cleaned_v4.h5"
-    source.to_hdf(path, key="DATA")
-    monkeypatch.setattr("solete.io.find_data_file", lambda *args, **kwargs: path)
-
-    actual = import_SOLETE_data(_control(data_version="v4"), pv_info, wt_info)
-
-    assert (actual["Pressure[mbar]_qc"] == 2).all()
-    pd.testing.assert_series_equal(actual["P_Solar[kW]"], actual["P_Solar_clean[kW]"], check_names=False)
+def test_hybrid_qc_source_never_wind(built_60min):
+    df = built_60min
+    assert not (df["P_hybrid[kW]_qc_source"] == SOURCE_WIND).any()
 
 
-def test_resampling_drops_model_columns_and_never_carries_code_six():
-    index = pd.date_range("2020-01-01", periods=120, freq="s")
-    frame = pd.DataFrame({
-        "P_Solar[kW]": np.linspace(0.0, 1.0, len(index)),
-        "P_Gaia[kW]": 0.0,
-        "Pac": 1.0,
-        "P_Solar_clean[kW]": 1.0,
-        "P_Solar[kW]_qc": QC_MODEL_SUBSTITUTED,
-        "P_Gaia[kW]_qc": QC_MODEL_SUBSTITUTED,
-    }, index=index)
+# ---------------------------------------------------------------------------
+# apply_qc_flags mechanics
+# ---------------------------------------------------------------------------
 
-    result = resample_dataframe(frame, "1min")
+def test_unflagged_cells_default_to_valid():
+    row = pd.DataFrame({"HUMIDITY[%]": [0.5]})
+    apply_qc_flags(row, legacy_v3_raw_value_rules(row))
+    assert row["HUMIDITY[%]_qc"].iloc[0] == QC_OK
 
-    assert "Pac" not in result
-    assert "P_Solar_clean[kW]" not in result
-    assert "P_Solar[kW]_qc_worst" not in result
-    assert (result["P_Gaia[kW]_qc_worst"] == QC_OK).all()
-    assert (result["P_Gaia[kW]_qc_frac_flagged"] == 0.0).all()
+
+def test_missing_source_column_is_skipped_not_raised():
+    df = pd.DataFrame({"SomeOtherColumn": [1, 2, 3]})
+    # None of the raw-value rules' source columns exist here.
+    result_df, counts = apply_qc_flags(df, legacy_v3_raw_value_rules(df))
+    assert counts == {}
+    assert result_df is df

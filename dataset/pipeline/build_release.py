@@ -1,702 +1,487 @@
-"""Build every SOLETE v4 release artefact with bounded memory.
-
-Run this file directly from Spyder in an external system terminal, or invoke
-it from any working directory. Heavy stages are relaunched as subprocesses so
-their memory is returned to the operating system between stages.
+# -*- coding: utf-8 -*-
 """
-from __future__ import annotations
+build_release.py -- build every file of the SOLETE v4 release (figshare upload) with one command.
 
+    SOLETE_Pombo_1sec_original_v4   raw 1 s data, sorted, nine measured columns, nothing cleaned
+    SOLETE_Pombo_1sec_v4            _original -> clean + flags + recomputed Azimuth/Elevation -> expand_physical
+    SOLETE_Pombo_{1min,5min,60min}_v4   measured + pipeline flags resampled from the cleaned 1 s data,
+                                    then expand_physical on each file from its own inputs
+    ... each as HDF5 (data/hdf5/) and Parquet (data/parquet/), plus SHA256SUMS.txt, manifest.json,
+    the generated resampling methodology and build_summary_v4.json next to the data.
+
+Stages (--stages, default all; each heavy stage runs in its own subprocess so memory is returned):
+    original  raw v3 1 s file -> SOLETE_Pombo_1sec_original_v4.h5   (sorted, Azimuth/Elevation dropped, verified)
+    clean     _original -> cleaned 1 s, sliced, into a scratch folder
+    resample  cleaned 1 s -> 1min/5min/60min measured + flag files (scratch)
+    expand    expand_physical on each of the four files -> the four final .h5 files
+    parquet   the five .h5 -> five .parquet (measured compression trial, round trip in `verify`)
+    verify    the verification table (see release_verify.py); fails loudly
+    manifest  SHA256SUMS.txt + manifest.json; removes the scratch folder unless --keep-intermediate
+
+Nothing is overwritten without --overwrite; files are written as *.tmp and renamed on success; a stage whose
+outputs exist is skipped with --skip-existing, so an interrupted build resumes at the stage level.
+Inputs are never modified. The raw v3 file keeps its name (SOLETE_Pombo_1sec.h5) and is read from --raw.
+
+WHERE THINGS GO: all paths come from solete/paths.py: <data>/hdf5, <data>/parquet, scratch in
+<data>/derived/build_v4 (--scratch). <data> is the repo's data/ folder or $SOLETE_DATA_DIR.
+
+SPYDER (Run > Configuration per file...):
+    1. tick "Execute in an external system terminal" (the build starts subprocesses and prints a lot)
+    2. tick "Command line options" and paste, e.g.:
+           --raw D:/solete/SOLETE_Pombo_1sec.h5 --skip-existing
+       (set the SOLETE_DATA_DIR environment variable first if the data live outside the repo)
+    3. Run. First time, add --dry-run to see the plan and the disk estimate without writing anything.
+    Equivalent terminal command:
+           python dataset/pipeline/build_release.py --raw D:/solete/SOLETE_Pombo_1sec.h5 --skip-existing
+    Smaller machine: --slice-days 7 (slices of a week; same output, a little slower).
+    After a successful build, replace the synthetic effect table in dataset/docs/METHODOLOGY.md with
+        python scripts/expansion_checks.py effect --input <a cleaned 1 s slice of the real build>
+"""
 import argparse
+import datetime as dt
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
 import time
-from datetime import date
 from pathlib import Path
 
-import h5py
-import numpy as np
-import pandas as pd
-import psutil
-import pyarrow as pa
-import pyarrow.parquet as pq
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root: gives `import solete.paths`
 
-from clean_solete_1sec import clean_dataframe  # noqa: E402
-from export_parquet import h5_to_parquet  # noqa: E402
-from export_parquet import _prepare  # noqa: E402
-from resample_solete import resample_dataframe  # noqa: E402
-from solete.expansion import expand_physical, iter_hdf_slices  # noqa: E402
-from solete.io import import_PV_WT_data  # noqa: E402
-from solete.paths import (  # noqa: E402
-    DATA_DIR,
-    HDF5_DIR,
-    PARQUET_DIR,
-    data_filename,
-    derived_path,
-    resolve_input,
-)
-from solete.qc_codes import MODEL_DERIVED_COLUMNS, QC_MODEL_SUBSTITUTED  # noqa: E402
-from solete_report import print_report, save_report  # noqa: E402
+from solete import paths  # noqa: E402
+from solete_report import print_report  # noqa: E402
 
-KEY = "DATA"
-MEASURED_COLUMNS = [
-    "TEMPERATURE[degC]",
-    "HUMIDITY[%]",
-    "WIND_SPEED[m1s]",
-    "WIND_DIR[deg]",
-    "GHI[kW1m2]",
-    "POA Irr[kW1m2]",
-    "P_Gaia[kW]",
-    "P_Solar[kW]",
-    "Pressure[mbar]",
-]
-RESOLUTIONS = ("1sec", "1min", "5min", "60min")
-RULES = {"1min": "1min", "5min": "5min", "60min": "60min"}
-STAGES = ("original", "clean", "resample", "expand", "parquet", "verify")
-EXPECTED_REAL_COUNTS = {
-    "1sec": 39_484_801,
-    "1min": 658_081,
-    "5min": 131_617,
-    "60min": 10_969,
-}
-EXPECTED_REAL_START = pd.Timestamp("2018-06-01 00:00:00")
-EXPECTED_REAL_END = pd.Timestamp("2019-09-01 00:00:00")
+STAGES = ["original", "clean", "resample", "expand", "parquet", "verify", "manifest"]
+COARSE = ("1min", "5min", "60min")
+ALL_RES = ("1sec",) + COARSE
+RESULT_TAG = "@@SOLETE_STAGE_RESULT@@"
+DAY_ROWS = 86400
+N_ROWS_REAL = {"1sec": 39_484_800, "1min": 658_080, "5min": 131_616, "60min": 10_968}
 
 
-def _hdf_path(resolution, *, original=False):
-    return HDF5_DIR / data_filename(
-        resolution, version="v4", fmt="hdf5", original=original
-    )
+# ---------------------------------------------------------------------------------------------
+# paths of everything the build reads and writes
+# ---------------------------------------------------------------------------------------------
+def release_h5():
+    d = {"original": paths.release_path("1sec", original=True)}
+    d.update({r: paths.release_path(r) for r in ALL_RES})
+    return d
 
 
-def _parquet_path(resolution, *, original=False):
-    return PARQUET_DIR / data_filename(
-        resolution, version="v4", fmt="parquet", original=original
-    )
+def release_parquet():
+    d = {"original": paths.release_path("1sec", "parquet", original=True)}
+    d.update({r: paths.release_path(r, "parquet") for r in ALL_RES})
+    return d
 
 
-def _scratch_path(name, scratch_dir=None):
-    if scratch_dir:
-        path = Path(scratch_dir).expanduser().resolve()
-        path.mkdir(parents=True, exist_ok=True)
-        return path / name
-    return derived_path(name)
+def scratch_files(scratch):
+    scratch = Path(scratch)
+    return {"cleaned": scratch / "cleaned_1sec.h5",
+            "resampled": {r: scratch / f"resampled_{r}.h5" for r in COARSE},
+            "state": scratch / "build_state.json"}
 
 
-def _nrows(path):
-    with pd.HDFStore(path, mode="r") as store:
-        storer = store.get_storer(KEY)
-        if storer.nrows is not None:
-            return int(storer.nrows)
-    with h5py.File(path, mode="r") as h5:
-        return len(h5[KEY]["axis1"])
+def methodology_path():
+    return paths.DATA_DIR / "SOLETE_Pombo_v4_RESAMPLING_METHODOLOGY.md"
 
 
-def _write_frames_atomic(path, frames, *, overwrite):
-    path = Path(path)
-    if path.exists() and not overwrite:
-        raise FileExistsError(f"{path} exists; pass --overwrite or --skip-existing")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.unlink(missing_ok=True)
-    wrote = False
-    try:
-        with pd.HDFStore(temporary, mode="w", complevel=1, complib="zlib") as store:
-            for frame in frames:
-                if frame.empty:
-                    continue
-                store.append(KEY, frame, format="table", index=False)
-                wrote = True
-        if not wrote:
-            raise ValueError(f"Refusing to create empty HDF5 output {path}")
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+def summary_path():
+    return paths.DATA_DIR / "build_summary_v4.json"
 
 
-def _contiguous_runs(path, chunk_rows):
-    """Return positional one-second runs sorted by their first timestamp."""
-    runs = []
-    run_start = 0
-    position = 0
-    previous = None
-    for frame in iter_hdf_slices(path, key=KEY, chunk_rows=chunk_rows):
-        values = pd.DatetimeIndex(frame.index).as_unit("ns").asi8
-        if len(values) == 0:
-            continue
-        if previous is not None and values[0] - previous != 1_000_000_000:
-            runs.append((run_start, position, previous))
-            run_start = position
-        breaks = np.flatnonzero(np.diff(values) != 1_000_000_000) + 1
-        for offset in breaks:
-            absolute = position + int(offset)
-            runs.append((run_start, absolute, int(values[offset - 1])))
-            run_start = absolute
-        position += len(values)
-        previous = int(values[-1])
-    if previous is not None:
-        runs.append((run_start, position, previous))
-
-    def first_timestamp(run):
-        frame = next(iter_hdf_slices(path, key=KEY, chunk_rows=1, start=run[0], stop=run[0] + 1))
-        return frame.index[0]
-
-    return sorted(runs, key=first_timestamp)
+def remove_stale_manifest(reason):
+    """SHA256SUMS.txt / manifest.json describe a set of files; once those files change or a check fails they must go,
+    so a stale checksum list can never be published next to different data."""
+    removed = []
+    for name in ("SHA256SUMS.txt", "manifest.json"):
+        f = paths.DATA_DIR / name
+        if f.exists():
+            f.unlink()
+            removed.append(name)
+    if removed:
+        print(f"removed stale {', '.join(removed)} ({reason}); the manifest stage writes new ones", flush=True)
 
 
-def build_original(raw, output, *, chunk_rows, overwrite):
-    raw_rows = _nrows(raw)
-    if Path(raw).name == "SOLETE_Pombo_1sec.h5" and raw_rows != EXPECTED_REAL_COUNTS["1sec"]:
-        raise ValueError(
-            f"Canonical raw input has {raw_rows:,} rows, but the v4 specification requires "
-            f"{EXPECTED_REAL_COUNTS['1sec']:,}. Resolve the input/release-span discrepancy before building; "
-            "the builder will not silently drop rows."
-        )
-    available = next(iter_hdf_slices(raw, key=KEY, chunk_rows=1)).columns.tolist()
-    missing = [column for column in MEASURED_COLUMNS if column not in available]
-    if missing:
-        raise ValueError(f"Raw input is missing required measured columns: {missing}")
-    runs = _contiguous_runs(raw, chunk_rows)
-
-    def frames():
-        last = None
-        for start, stop, _ in runs:
-            for frame in iter_hdf_slices(
-                raw, key=KEY, chunk_rows=chunk_rows, start=start, stop=stop
-            ):
-                frame = frame[MEASURED_COLUMNS]
-                if last is not None and frame.index[0] <= last:
-                    raise ValueError("Raw contiguous runs overlap after chronological ordering")
-                last = frame.index[-1]
-                yield frame
-
-    _write_frames_atomic(output, frames(), overwrite=overwrite)
-    return {"runs_sorted": len(runs), "rows": _nrows(output), "columns": MEASURED_COLUMNS}
+def outputs_of(stage, scratch):
+    h5, pq_, sc = release_h5(), release_parquet(), scratch_files(scratch)
+    return {
+        "original": [h5["original"]],
+        "clean": [sc["cleaned"]],
+        "resample": list(sc["resampled"].values()),
+        "expand": [h5[r] for r in ALL_RES],
+        "parquet": list(pq_.values()),
+        "verify": [], "manifest": [],
+    }[stage]
 
 
-def build_clean(
-    original, output, *, slice_rows, overlap, overwrite, progress_label=None
-):
-    total = _nrows(original)
-
-    def frames():
-        for slice_number, start in enumerate(
-            range(0, total, slice_rows), start=1
-        ):
-            stop = min(start + slice_rows, total)
-            extended_start = max(0, start - overlap)
-            extended_stop = min(total, stop + overlap)
-            extended = pd.concat(iter_hdf_slices(
-                original,
-                key=KEY,
-                chunk_rows=slice_rows + 2 * overlap,
-                start=extended_start,
-                stop=extended_stop,
-            ))
-            cleaned, _ = clean_dataframe(
-                extended, solar_chunk_rows=slice_rows, solar_verbose=False
-            )
-            if progress_label and (
-                slice_number == 1 or slice_number % 30 == 0 or stop == total
-            ):
-                print(f"{progress_label}: {stop:,} / {total:,}", flush=True)
-            yield cleaned.iloc[start - extended_start:stop - extended_start]
-
-    _write_frames_atomic(output, frames(), overwrite=overwrite)
-    return {"rows": _nrows(output), "slice_rows": slice_rows, "overlap_rows": overlap}
-
-
-def build_resampled(cleaned, outputs, *, slice_rows, overwrite):
-    total = _nrows(cleaned)
-    stores = {}
-    temporary = {}
-    try:
-        for resolution, output in outputs.items():
-            output = Path(output)
-            if output.exists() and not overwrite:
-                raise FileExistsError(f"{output} exists; pass --overwrite or --skip-existing")
-            output.parent.mkdir(parents=True, exist_ok=True)
-            temporary[resolution] = output.with_name(output.name + ".tmp")
-            temporary[resolution].unlink(missing_ok=True)
-            stores[resolution] = pd.HDFStore(
-                temporary[resolution], mode="w", complevel=1, complib="zlib"
-            )
-        for start in range(0, total, slice_rows):
-            stop = min(start + slice_rows, total)
-            frame = pd.concat(iter_hdf_slices(
-                cleaned, key=KEY, chunk_rows=slice_rows, start=start, stop=stop
-            ))
-            if frame.index[0].normalize() != frame.index[0]:
-                raise ValueError("Resampling slices must start at a UTC day boundary")
-            for resolution, rule in RULES.items():
-                stores[resolution].append(
-                    KEY, resample_dataframe(frame, rule), format="table", index=False
-                )
-        for store in stores.values():
-            store.close()
-        stores.clear()
-        for resolution, output in outputs.items():
-            os.replace(temporary[resolution], output)
-    finally:
-        for store in stores.values():
-            store.close()
-        for path in temporary.values():
-            Path(path).unlink(missing_ok=True)
-    return {resolution: _nrows(output) for resolution, output in outputs.items()}
-
-
-def build_expanded(source, output, *, chunk_rows, overwrite):
-    pv_info, _ = import_PV_WT_data()
-
-    def frames():
-        for frame in iter_hdf_slices(source, key=KEY, chunk_rows=chunk_rows):
-            yield expand_physical(frame, pv_info)
-
-    _write_frames_atomic(output, frames(), overwrite=overwrite)
-    return {"rows": _nrows(output)}
-
-
-def benchmark_parquet_options(hdf_path, scratch_dir):
-    frame = next(iter_hdf_slices(hdf_path, key=KEY, chunk_rows=1_000_000))
-    table = pa.Table.from_pandas(_prepare(frame, keep_naive=False), preserve_index=False)
-    float_columns = [field.name for field in table.schema if pa.types.is_floating(field.type)]
-    results = []
-    for level in (3, 9, 15):
-        for byte_stream_split in (False, True):
-            output = _scratch_path(
-                f"parquet_trial_zstd{level}_{'bss' if byte_stream_split else 'plain'}.parquet",
-                scratch_dir,
-            )
-            started = time.perf_counter()
-            pq.write_table(
-                table,
-                output,
-                compression="zstd",
-                compression_level=level,
-                use_byte_stream_split=float_columns if byte_stream_split else False,
-                row_group_size=1_000_000,
-                write_statistics=True,
-            )
-            results.append({
-                "level": level,
-                "use_byte_stream_split": byte_stream_split,
-                "bytes": output.stat().st_size,
-                "seconds": round(time.perf_counter() - started, 3),
-            })
-            output.unlink()
-    chosen = min(results, key=lambda result: (result["bytes"], result["seconds"]))
-    return results, chosen
-
-
-def _assert_frames_equal(left, right, context):
-    if list(left.columns) != list(right.columns):
-        raise AssertionError(f"{context}: columns differ")
-    if not left.index.equals(right.index):
-        left_ns = pd.DatetimeIndex(left.index).as_unit("ns")
-        right_ns = pd.DatetimeIndex(right.index).as_unit("ns")
-        if not left_ns.equals(right_ns):
-            raise AssertionError(f"{context}: timestamps differ")
-    for column in left.columns:
-        if left[column].dtype != right[column].dtype:
-            raise AssertionError(
-                f"{context}: dtype differs in {column}: "
-                f"{left[column].dtype} != {right[column].dtype}"
-            )
-        a = left[column].to_numpy()
-        b = right[column].to_numpy()
-        if pd.api.types.is_numeric_dtype(left[column]):
-            if not np.array_equal(a, b, equal_nan=True):
-                raise AssertionError(f"{context}: values differ in {column}")
-        elif not pd.Series(a).equals(pd.Series(b)):
-            raise AssertionError(f"{context}: values differ in {column}")
-
-
-def _compare_hdf(left_path, right_path, *, chunk_rows, context):
-    if _nrows(left_path) != _nrows(right_path):
-        raise AssertionError(f"{context}: row counts differ")
-    total = _nrows(left_path)
-    for start in range(0, total, chunk_rows):
-        stop = min(start + chunk_rows, total)
-        left = pd.concat(iter_hdf_slices(left_path, chunk_rows=chunk_rows, start=start, stop=stop))
-        right = pd.concat(iter_hdf_slices(right_path, chunk_rows=chunk_rows, start=start, stop=stop))
-        _assert_frames_equal(left, right, context)
-
-
-def _verify_original_against_raw(raw, original, *, chunk_rows):
-    output_position = 0
-    for start, stop, _ in _contiguous_runs(raw, chunk_rows):
-        raw_position = start
-        while raw_position < stop:
-            raw_stop = min(raw_position + chunk_rows, stop)
-            expected = pd.concat(iter_hdf_slices(
-                raw, chunk_rows=chunk_rows, start=raw_position, stop=raw_stop
-            ))[MEASURED_COLUMNS]
-            count = len(expected)
-            actual = pd.concat(iter_hdf_slices(
-                original,
-                chunk_rows=chunk_rows,
-                start=output_position,
-                stop=output_position + count,
-            ))
-            _assert_frames_equal(actual, expected, "original versus sorted raw")
-            raw_position = raw_stop
-            output_position += count
-
-
-def _cleaning_counts(cleaned, *, chunk_rows):
-    counts = {}
-    pressure_real_days = set()
-    p_gaia_active_days = set()
-    for frame in iter_hdf_slices(cleaned, chunk_rows=chunk_rows):
-        for column in (column for column in frame if column.endswith("_qc")):
-            target = counts.setdefault(column, {})
-            for code, count in frame[column].value_counts().items():
-                target[int(code)] = target.get(int(code), 0) + int(count)
-        pressure_real_days.update(
-            frame.index[frame["Pressure[mbar]"].notna()].normalize().strftime("%Y-%m-%d")
-        )
-        p_gaia_active_days.update(
-            frame.index[frame["P_Gaia[kW]_qc"] == 10].normalize().strftime("%Y-%m-%d")
-        )
-    return counts, sorted(pressure_real_days), sorted(p_gaia_active_days)
-
-
-def verify_release(raw, cleaned, *, chunk_rows, slice_rows, scratch_dir):
-    report = {"files": {}, "timestamp_comparison_unit": "ns"}
-    for resolution in RESOLUTIONS:
-        hdf = _hdf_path(resolution)
-        parquet = _parquet_path(resolution)
-        rows = _nrows(hdf)
-        if _nrows(_hdf_path("1sec")) == EXPECTED_REAL_COUNTS["1sec"] and rows != EXPECTED_REAL_COUNTS[resolution]:
-            raise AssertionError(f"{resolution}: expected {EXPECTED_REAL_COUNTS[resolution]:,} rows, got {rows:,}")
-        parquet_file = pq.ParquetFile(parquet)
-        if parquet_file.metadata.num_rows != rows:
-            raise AssertionError(f"{resolution}: Parquet row count differs")
-        for hdf_chunk in iter_hdf_slices(hdf, key=KEY, chunk_rows=chunk_rows):
-            start = hdf_chunk.index[0].tz_localize("UTC")
-            stop = hdf_chunk.index[-1].tz_localize("UTC")
-            parquet_chunk = pd.read_parquet(
-                parquet,
-                filters=[("timestamp", ">=", start), ("timestamp", "<=", stop)],
-            ).set_index("timestamp")
-            parquet_chunk.index = parquet_chunk.index.tz_convert("UTC").tz_localize(None)
-            _assert_frames_equal(hdf_chunk, parquet_chunk, f"{resolution} Parquet round trip")
-        report["files"][resolution] = {"rows": rows, "parquet_timestamp": str(parquet_file.schema_arrow.field("timestamp").type)}
-
-    original = _hdf_path("1sec", original=True)
-    original_columns = next(iter_hdf_slices(original, chunk_rows=1)).columns.tolist()
-    if original_columns != MEASURED_COLUMNS:
-        raise AssertionError("Original release column list differs from the nine measured columns")
-    index_rows = 0
-    first_timestamp = None
-    last_timestamp = None
-    for frame in iter_hdf_slices(original, chunk_rows=chunk_rows):
-        frame_index = pd.DatetimeIndex(frame.index).as_unit("ns")
-        if first_timestamp is None:
-            first_timestamp = frame_index[0]
-        if last_timestamp is not None and frame_index[0] - last_timestamp != pd.Timedelta(seconds=1):
-            raise AssertionError("Original release has gaps or duplicates between chunks")
-        if len(frame_index) > 1 and not np.all(
-            np.diff(frame_index.asi8) == 1_000_000_000
-        ):
-            raise AssertionError("Original release has gaps or duplicates in its one-second grid")
-        index_rows += len(frame_index)
-        last_timestamp = frame_index[-1]
-    if index_rows == EXPECTED_REAL_COUNTS["1sec"]:
-        if first_timestamp != EXPECTED_REAL_START or last_timestamp != EXPECTED_REAL_END:
-            raise AssertionError(
-                f"Original release span differs from {EXPECTED_REAL_START} through {EXPECTED_REAL_END}"
-            )
-    _verify_original_against_raw(raw, original, chunk_rows=chunk_rows)
-    for frame in iter_hdf_slices(cleaned, chunk_rows=chunk_rows):
-        qc_columns = [column for column in frame if column.endswith("_qc")]
-        if qc_columns and (frame[qc_columns] == QC_MODEL_SUBSTITUTED).any().any():
-            raise AssertionError("Code 6 exists in the pre-expansion cleaned intermediate")
-    report["files"]["original"] = {"rows": index_rows, "columns": original_columns}
-
-    pv_info, _ = import_PV_WT_data()
-    numeric_model_columns = [
-        "Pac", "Pdc", "TempModule", "TempCell", "P_Solar_clean[kW]", "P_hybrid[kW]"
-    ]
-    resolution_effect = {resolution: {column: 0.0 for column in numeric_model_columns} for resolution in RULES}
-    resampled_expanded = {resolution: [] for resolution in RULES}
-    for frame in iter_hdf_slices(_hdf_path("1sec"), chunk_rows=slice_rows):
-        for resolution, rule in RULES.items():
-            resampled_expanded[resolution].append(
-                frame[numeric_model_columns].resample(rule, label="left", closed="left").mean()
-            )
-    for resolution in RULES:
-        release = pd.read_hdf(_hdf_path(resolution), key=KEY)
-        rerun = expand_physical(release.copy(), pv_info)
-        _assert_frames_equal(
-            release[list(MODEL_DERIVED_COLUMNS & set(release.columns))],
-            rerun[list(MODEL_DERIVED_COLUMNS & set(release.columns))],
-            f"{resolution} expansion idempotence",
-        )
-        averaged = pd.concat(resampled_expanded[resolution]).loc[release.index]
-        for column in numeric_model_columns:
-            difference = np.abs(release[column].to_numpy() - averaged[column].to_numpy())
-            resolution_effect[resolution][column] = float(np.nanmax(difference))
-    report["max_abs_difference_from_resample_expanded_1sec"] = resolution_effect
-
-    counts, pressure_real_days, p_gaia_active_days = _cleaning_counts(
-        cleaned, chunk_rows=chunk_rows
-    )
-    report["cleaning_counts"] = counts
-    report["cleaning_decision_comparison"] = {
-        "wind_dir_wrapped": {
-            "expected": 1_343,
-            "actual": counts.get("WIND_DIR[deg]_qc", {}).get(1, 0),
-        },
-        "pressure_real_days": {
-            "expected": ["2019-01-16"],
-            "actual": pressure_real_days,
-        },
-        "p_gaia_active_days": {
-            "expected": ["2018-08-31", "2019-05-25"],
-            "actual": p_gaia_active_days,
-        },
+# ---------------------------------------------------------------------------------------------
+# disk estimate (an UPPER bound: bytes uncompressed; zlib level 1 / zstd normally give less)
+# ---------------------------------------------------------------------------------------------
+def disk_estimate(n_rows):
+    meas, angle, qc_cols, model_f, model_i = 9, 2, 8, 6, 3
+    per_row = {
+        "original (h5)": meas * 8,
+        "scratch cleaned 1 s (h5)": (meas + angle) * 8 + qc_cols,
+        "final 1 s (h5)": (meas + angle + model_f) * 8 + qc_cols + model_i,
+        "parquet original": meas * 8 + 8,
+        "parquet 1 s": (meas + angle + model_f) * 8 + qc_cols + model_i + 8,
     }
-    for comparison in report["cleaning_decision_comparison"].values():
-        comparison["matches"] = comparison["actual"] == comparison["expected"]
-    if index_rows == EXPECTED_REAL_COUNTS["1sec"]:
-        mismatches = [
-            name
-            for name, comparison in report["cleaning_decision_comparison"].items()
-            if not comparison["matches"]
-        ]
-        report["cleaning_decision_mismatches"] = mismatches
+    est = {k: int(v * n_rows) for k, v in per_row.items()}
+    coarse_rows = sum(N_ROWS_REAL[r] for r in COARSE) * (n_rows / N_ROWS_REAL["1sec"])
+    est["coarse files, scratch + final + parquet (h5 + parquet)"] = int(coarse_rows * 40 * 8 * 3)
+    return est
 
-    reproduction_clean = _scratch_path("verify_cleaned.h5", scratch_dir)
-    reproduction_outputs = {
-        resolution: _scratch_path(f"verify_{resolution}_measured.h5", scratch_dir)
-        for resolution in RULES
-    }
-    reproduction_release = {
-        resolution: _scratch_path(f"verify_{resolution}_release.h5", scratch_dir)
-        for resolution in RESOLUTIONS
-    }
+
+def check_disk(needed_by_dir, margin=1.10):
+    """needed_by_dir: {Path: bytes}. Refuse (return list of problems) when a volume is short."""
+    by_dev = {}
+    for d, nbytes in needed_by_dir.items():
+        d = Path(d)
+        while not d.exists() and d != d.parent:
+            d = d.parent
+        dev = os.stat(d).st_dev
+        by_dev.setdefault(dev, [d, 0])[1] += nbytes
+    problems = []
+    for d, nbytes in by_dev.values():
+        free = shutil.disk_usage(d).free
+        if free < nbytes * margin:
+            problems.append(f"{d}: {free / 1e9:.1f} GB free, about {nbytes * margin / 1e9:.1f} GB needed (upper bound incl. 10 % margin)")
+    return problems
+
+
+# ---------------------------------------------------------------------------------------------
+# peak memory
+# ---------------------------------------------------------------------------------------------
+def peak_rss_mb():
     try:
-        build_clean(
-            original,
-            reproduction_clean,
-            slice_rows=slice_rows,
-            overlap=300,
-            overwrite=True,
-            progress_label="verification clean rebuild",
-        )
-        _compare_hdf(cleaned, reproduction_clean, chunk_rows=chunk_rows, context="clean reproducibility")
-        build_resampled(
-            reproduction_clean,
-            reproduction_outputs,
-            slice_rows=slice_rows,
-            overwrite=True,
-        )
-        build_expanded(
-            reproduction_clean,
-            reproduction_release["1sec"],
-            chunk_rows=slice_rows,
-            overwrite=True,
-        )
-        for resolution in RULES:
-            build_expanded(
-                reproduction_outputs[resolution],
-                reproduction_release[resolution],
-                chunk_rows=slice_rows,
-                overwrite=True,
-            )
-        for resolution in RESOLUTIONS:
-            _compare_hdf(
-                _hdf_path(resolution),
-                reproduction_release[resolution],
-                chunk_rows=chunk_rows,
-                context=f"{resolution} release reproducibility",
-            )
-        report["reproducibility"] = "exact"
-    finally:
-        reproduction_clean.unlink(missing_ok=True)
-        for path in [*reproduction_outputs.values(), *reproduction_release.values()]:
-            path.unlink(missing_ok=True)
-    return report
-
-
-def write_manifest(summary):
-    files = [
-        *(_hdf_path(resolution) for resolution in RESOLUTIONS),
-        _hdf_path("1sec", original=True),
-        *(_parquet_path(resolution) for resolution in RESOLUTIONS),
-        _parquet_path("1sec", original=True),
-    ]
-    checksums = {}
-    for path in files:
-        print(f"SHA-256: {path.name}", flush=True)
-        digest = hashlib.sha256()
-        with open(path, "rb") as stream:
-            for block in iter(lambda: stream.read(8 * 1024 * 1024), b""):
-                digest.update(block)
-        checksums[path.name] = digest.hexdigest()
-    (DATA_DIR / "SHA256SUMS.txt").write_text(
-        "".join(f"{digest}  {name}\n" for name, digest in sorted(checksums.items())),
-        encoding="ascii",
-    )
-    manifest = {"dataset": "SOLETE", "version": "v4", "build_date": date.today().isoformat(), "files": []}
-    for path in files:
-        manifest["files"].append({
-            "name": path.name,
-            "relative_path": str(path.relative_to(DATA_DIR)).replace("\\", "/"),
-            "bytes": path.stat().st_size,
-            "sha256": checksums[path.name],
-        })
-    manifest["summary"] = summary
-    (DATA_DIR / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-
-
-def _run_worker(args):
-    raw = resolve_input(args.raw)
-    scratch = _scratch_path("SOLETE_Pombo_1sec_cleaned_v4.h5", args.scratch_dir)
-    slice_rows = args.slice_days * 86_400
-    if args.stage == "original":
-        return build_original(raw, _hdf_path("1sec", original=True), chunk_rows=slice_rows, overwrite=args.overwrite)
-    if args.stage == "clean":
-        return build_clean(_hdf_path("1sec", original=True), scratch, slice_rows=slice_rows, overlap=300, overwrite=args.overwrite)
-    if args.stage == "resample":
-        return build_resampled(scratch, {resolution: _scratch_path(f"SOLETE_Pombo_{resolution}_measured_v4.h5", args.scratch_dir) for resolution in RULES}, slice_rows=slice_rows, overwrite=args.overwrite)
-    if args.stage == "expand":
-        result = {"1sec": build_expanded(scratch, _hdf_path("1sec"), chunk_rows=slice_rows, overwrite=args.overwrite)}
-        for resolution in RULES:
-            source = _scratch_path(f"SOLETE_Pombo_{resolution}_measured_v4.h5", args.scratch_dir)
-            result[resolution] = build_expanded(source, _hdf_path(resolution), chunk_rows=slice_rows, overwrite=args.overwrite)
-        return result
-    if args.stage == "parquet":
-        trials, chosen = benchmark_parquet_options(_hdf_path("1sec"), args.scratch_dir)
-        result = {"compression_trials": trials, "chosen": chosen, "files": {}}
-        for resolution, original in [("1sec", True), *((resolution, False) for resolution in RESOLUTIONS)]:
-            result["files"][data_filename(resolution, "v4", "parquet", original=original)] = h5_to_parquet(
-                _hdf_path(resolution, original=original),
-                _parquet_path(resolution, original=original),
-                chunk_rows=min(slice_rows, 1_000_000),
-                compression="zstd",
-                compression_level=chosen["level"],
-                overwrite=args.overwrite,
-                use_byte_stream_split=chosen["use_byte_stream_split"],
-            )[1]
-        return result
-    if args.stage == "verify":
-        lock = _scratch_path("build_release_verify.lock", args.scratch_dir)
-        if lock.exists():
-            try:
-                owner = int(lock.read_text(encoding="ascii"))
-            except ValueError:
-                owner = None
-            if owner and psutil.pid_exists(owner):
-                raise RuntimeError(f"Verification is already running in process {owner}")
-            lock.unlink(missing_ok=True)
+        import resource
+        r = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return round(r / (1e6 if sys.platform == "darwin" else 1e3), 1)
+    except ImportError:
         try:
-            descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError as error:
-            raise RuntimeError("Verification lock was acquired by another process") from error
-        with os.fdopen(descriptor, "w", encoding="ascii") as lock_file:
-            lock_file.write(str(os.getpid()))
-        try:
-            result = verify_release(
-                raw,
-                scratch,
-                chunk_rows=min(slice_rows, 1_000_000),
-                slice_rows=slice_rows,
-                scratch_dir=args.scratch_dir,
-            )
-            save_report(DATA_DIR / "release_verification.json", result)
-            write_manifest(result)
-            return result
-        finally:
-            lock.unlink(missing_ok=True)
-    raise ValueError(args.stage)
+            import psutil
+            return round(psutil.Process().memory_info().peak_wset / 1e6, 1)       # Windows
+        except Exception:
+            return None
 
 
-def _stage_outputs(stage, scratch_dir):
-    scratch = _scratch_path("SOLETE_Pombo_1sec_cleaned_v4.h5", scratch_dir)
+# ---------------------------------------------------------------------------------------------
+# the worker: runs ONE stage in this (child) process
+# ---------------------------------------------------------------------------------------------
+def load_state(path):
+    return json.loads(Path(path).read_text()) if Path(path).exists() else {}
+
+
+def save_state(path, state):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(json.dumps(state, indent=1, default=str))
+
+
+def run_stage(stage, a):
+    import release_stages as st  # heavy imports only in the worker
+    import release_verify as rv
+    h5, pq_, sc = release_h5(), release_parquet(), scratch_files(a.scratch)
+    Path(a.scratch).mkdir(parents=True, exist_ok=True)
+    state = load_state(sc["state"])
+    ow = a.overwrite
+    out = {}
     if stage == "original":
-        return [_hdf_path("1sec", original=True)]
-    if stage == "clean":
-        return [scratch]
-    if stage == "resample":
-        return [_scratch_path(f"SOLETE_Pombo_{resolution}_measured_v4.h5", scratch_dir) for resolution in RULES]
-    if stage == "expand":
-        return [_hdf_path(resolution) for resolution in RESOLUTIONS]
-    if stage == "parquet":
-        return [_parquet_path("1sec", original=True), *(_parquet_path(resolution) for resolution in RESOLUTIONS)]
-    return [DATA_DIR / "manifest.json", DATA_DIR / "SHA256SUMS.txt"]
+        raw = Path(a.raw) if a.raw else paths.HDF5_DIR / paths.data_filename("1sec", "v3")
+        if not raw.exists():
+            raise FileNotFoundError(f"raw v3 file not found: {raw} (pass --raw)")
+        out = st.stage_original(raw, h5["original"], overwrite=ow)
+        state["original_verification"] = out["verification"]
+        state["raw"] = str(raw)
+    elif stage == "clean":
+        out = st.stage_clean(h5["original"], sc["cleaned"], a.slice_days, overwrite=ow)
+        state["clean_report"] = out
+    elif stage == "resample":
+        out = st.stage_resample(sc["cleaned"], sc["resampled"], a.slice_days, overwrite=ow)
+    elif stage == "expand":
+        out["1sec"] = st.stage_expand_1s(sc["cleaned"], h5["1sec"], a.slice_days, overwrite=ow)
+        for r in COARSE:
+            out[r] = st.stage_expand_coarse(sc["resampled"][r], h5[r], overwrite=ow)
+        import resample_solete as rs
+        from solete.h5io import h5_info
+        rs.write_methodology_doc(str(methodology_path()),
+                                 [c for c in h5_info(sc["cleaned"], "DATA")["columns"] if c not in rs.SKIP_MODEL_COLUMNS])
+    elif stage == "parquet":
+        out = st.stage_parquet({k: h5[k] for k in ["original"] + list(ALL_RES)},
+                               {k: pq_[k] for k in ["original"] + list(ALL_RES)},
+                               trial_source=h5["1sec"], overwrite=ow)
+    elif stage == "verify":
+        parquet = {k: v for k, v in pq_.items() if Path(v).exists()} or None
+        scratch = sc if Path(sc["cleaned"]).exists() else None
+        R, extras = rv.verify(h5, raw=state.get("raw") or a.raw, scratch=scratch, rebuild_check=a.rebuild_check,
+                              state=state, slice_days=a.slice_days, parquet=parquet)
+        R.print_table()
+        out = {"rows": R.rows, "extras": extras, "n_failed": len(R.failed)}
+    elif stage == "manifest":
+        out = write_manifest(h5, pq_, a)
+    save_state(sc["state"], state)
+    return out
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--stages", nargs="+", choices=STAGES, default=list(STAGES))
-    parser.add_argument("--raw", default=str(HDF5_DIR / "SOLETE_Pombo_1sec.h5"))
-    parser.add_argument("--slice-days", type=int, default=1)
-    parser.add_argument("--max-ram-gb", type=float, default=4.0)
-    parser.add_argument("--scratch-dir")
-    parser.add_argument("--skip-existing", action="store_true")
-    parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--keep-intermediate", action="store_true")
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--stage", choices=STAGES, help=argparse.SUPPRESS)
-    args = parser.parse_args()
-    if args.slice_days <= 0 or args.max_ram_gb <= 0:
-        parser.error("--slice-days and --max-ram-gb must be positive")
-    if args.skip_existing and args.overwrite:
-        parser.error("--skip-existing and --overwrite are mutually exclusive")
-    if args.worker:
-        started = time.perf_counter()
-        result = _run_worker(args)
-        result["elapsed_seconds"] = round(time.perf_counter() - started, 3)
-        memory = psutil.Process().memory_info()
-        peak_bytes = getattr(memory, "peak_wset", memory.rss)
-        result["peak_rss_gb"] = round(peak_bytes / 1024**3, 3)
-        if peak_bytes > args.max_ram_gb * 1024**3:
-            raise MemoryError(
-                f"Stage {args.stage} exceeded --max-ram-gb: "
-                f"{peak_bytes / 1024**3:.3f} > {args.max_ram_gb:.3f} GiB"
-            )
-        print_report(f"build_release_{args.stage}", result)
-        return
+def sha256_of(path, block=8 << 20):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(block):
+            h.update(chunk)
+    return h.hexdigest()
 
-    summary = {"raw": str(resolve_input(args.raw)), "slice_days": args.slice_days, "max_ram_gb": args.max_ram_gb, "stages": {}}
-    for stage in args.stages:
-        outputs = _stage_outputs(stage, args.scratch_dir)
-        if args.skip_existing and all(path.exists() for path in outputs):
-            summary["stages"][stage] = {"status": "skipped", "outputs": [str(path) for path in outputs]}
+
+def write_manifest(h5, pq_, a):
+    from solete.h5io import h5_info
+    files = []
+    listing = [(k, p, "hdf5") for k, p in h5.items()] + [(k, p, "parquet") for k, p in pq_.items()]
+    # the figshare text gets the real file sizes (template: <repo>/data/figshare_README.txt, block between the markers)
+    template = paths.REPO_ROOT / "data" / "figshare_README.txt"
+    if template.exists():
+        text = template.read_text(encoding="utf-8")
+        if "[[SIZES-BEGIN]]" in text and "[[SIZES-END]]" in text:
+            rows = []
+            for k, p in list(h5.items()) + list(pq_.items()):
+                rows.append(f"  {Path(p).relative_to(paths.DATA_DIR).as_posix():<52s}{Path(p).stat().st_size / 1e6:>12,.1f} MB")
+            head, rest = text.split("[[SIZES-BEGIN]]", 1)
+            _, tail = rest.split("[[SIZES-END]]", 1)
+            target = paths.DATA_DIR / "figshare_README.txt"
+            same = target.resolve() == template.resolve()          # keep the markers if the template is rewritten in place
+            body = "\n".join(rows)
+            target.write_text(head + (f"[[SIZES-BEGIN]]\n{body}\n[[SIZES-END]]" if same else body) + tail, encoding="utf-8")
+    # documents that belong to the release; build_summary_v4.json is not listed (it holds timings and changes every run)
+    extras = [p for p in (methodology_path(), paths.DATA_DIR / "figshare_README.txt") if Path(p).exists()]
+    sums = []
+    for k, p, fmt in listing:
+        p = Path(p)
+        if not p.exists():
+            raise FileNotFoundError(f"manifest: {p} is missing; run the earlier stages")
+        info = h5_info(h5[k], "DATA")
+        digest = sha256_of(p)
+        rel = p.relative_to(paths.DATA_DIR).as_posix()
+        sums.append(f"{digest}  {rel}")
+        files.append({"file": rel, "format": fmt, "role": k, "rows": info["nrows"], "columns": len(info["columns"]) + (1 if fmt == "parquet" else 0),
+                      "bytes": p.stat().st_size, "sha256": digest})
+    for p in extras:
+        digest = sha256_of(p)
+        rel = Path(p).relative_to(paths.DATA_DIR).as_posix()
+        sums.append(f"{digest}  {rel}")
+        files.append({"file": rel, "format": "document", "role": "document", "bytes": Path(p).stat().st_size, "sha256": digest})
+    (paths.DATA_DIR / "SHA256SUMS.txt").write_text("\n".join(sums) + "\n")
+    import pandas, pyarrow, pvlib, numpy
+    manifest = {"version": "v4", "built_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+                "python": platform.python_version(), "platform": platform.platform(),
+                "packages": {"pandas": pandas.__version__, "numpy": numpy.__version__, "pyarrow": pyarrow.__version__,
+                             "pvlib": pvlib.__version__},
+                "slice_days": a.slice_days, "files": files}
+    (paths.DATA_DIR / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    return {"files": len(files)}
+
+
+# ---------------------------------------------------------------------------------------------
+# the orchestrator
+# ---------------------------------------------------------------------------------------------
+def child_command(stage, a):
+    cmd = [sys.executable, str(Path(__file__).resolve()), "--stage-worker", stage, "--slice-days", str(a.slice_days),
+           "--scratch", str(a.scratch), "--rebuild-check", a.rebuild_check]
+    if a.raw:
+        cmd += ["--raw", str(a.raw)]
+    if a.overwrite:
+        cmd.append("--overwrite")
+    return cmd
+
+
+def run_child(stage, a):
+    """Run one stage in a subprocess; stream its output; return (returncode, result dict or None)."""
+    env = dict(os.environ, PYTHONUNBUFFERED="1", SOLETE_DATA_DIR=str(paths.DATA_DIR))
+    proc = subprocess.Popen(child_command(stage, a), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, bufsize=1)
+    result = None
+    for line in proc.stdout:
+        if line.startswith(RESULT_TAG):
+            result = json.loads(line[len(RESULT_TAG):])
+        else:
+            print(line, end="", flush=True)
+    return proc.wait(), result
+
+
+def parse_args(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--stages", default="all", help="comma list of: " + ", ".join(STAGES) + " (default: all)")
+    ap.add_argument("--raw", default=None, help="raw v3 1 s file (default: the v3 name in the data/hdf5 folder); never modified")
+    ap.add_argument("--slice-days", type=float, default=31.0, help="approximate slice length in days (default 31; 7 for a small machine)")
+    ap.add_argument("--scratch", default=str(paths.DERIVED_DIR / "build_v4"), help="scratch folder for the intermediate files")
+    ap.add_argument("--keep-intermediate", action="store_true", help="do not delete the scratch folder at the end")
+    ap.add_argument("--skip-existing", action="store_true", help="skip a stage whose outputs already exist (resume)")
+    ap.add_argument("--overwrite", action="store_true", help="replace existing output files")
+    ap.add_argument("--dry-run", action="store_true", help="print the plan and the disk estimate; write nothing")
+    ap.add_argument("--rebuild-check", choices=["none", "sample", "full"], default="sample",
+                    help="reproducibility check in `verify`: sample windows (default) or a full second build (doubles the time)")
+    ap.add_argument("--stage-worker", default=None, help=argparse.SUPPRESS)
+    a = ap.parse_args(argv)
+    if a.stages == "all":
+        a.stage_list = list(STAGES)
+    else:
+        a.stage_list = [s.strip() for s in a.stages.split(",") if s.strip()]
+        bad = [s for s in a.stage_list if s not in STAGES]
+        if bad:
+            ap.error(f"unknown stage(s) {bad}; choose from {STAGES}")
+        a.stage_list = [s for s in STAGES if s in a.stage_list]
+    return a
+
+
+def plan(a):
+    """Decide per stage: 'run' or 'skip'; collect problems (refusals) before anything is written."""
+    problems, actions = [], {}
+    sc = scratch_files(a.scratch)
+    for stage in a.stage_list:
+        outs = outputs_of(stage, a.scratch)
+        exist = [p for p in outs if Path(p).exists()]
+        if stage in ("verify", "manifest"):
+            actions[stage] = "run"
+        elif exist and len(exist) == len(outs) and a.skip_existing:
+            actions[stage] = "skip"
+        elif exist and not a.overwrite:
+            problems.append(f"stage {stage}: output exists and neither --skip-existing nor --overwrite was given: "
+                            + ", ".join(Path(p).name for p in exist))
+            actions[stage] = "refuse"
+        else:
+            actions[stage] = "run"
+    # the scratch files are deleted after a finished build: with --skip-existing, clean/resample are not needed
+    # again when everything they feed (the final .h5 files) is already there
+    final_there = all(Path(p).exists() for p in outputs_of("expand", a.scratch))
+    for stage in ("clean", "resample"):
+        if (stage in actions and a.skip_existing and final_there and actions[stage] != "skip"
+                and actions.get("expand", "skip") == "skip"):
+            actions[stage] = "skip"
+            problems = [p for p in problems if not p.startswith(f"stage {stage}:")]
+    prereq = {"clean": ("original", [release_h5()["original"]]), "resample": ("clean", [sc["cleaned"]]),
+              "expand": ("resample", [sc["cleaned"]] + list(sc["resampled"].values())),
+              "parquet": ("expand", [release_h5()[r] for r in ALL_RES] + [release_h5()["original"]]),
+              "verify": ("expand", [release_h5()[r] for r in ALL_RES] + [release_h5()["original"]]),
+              "manifest": ("parquet", [release_h5()[r] for r in ALL_RES] + list(release_parquet().values()))}
+    for stage in a.stage_list:
+        if stage in prereq and actions[stage] == "run":
+            made_by, needed = prereq[stage]
+            missing = [p for p in needed if not Path(p).exists()]
+            if missing and not (made_by in a.stage_list):
+                problems.append(f"stage {stage} needs {', '.join(Path(p).name for p in missing)} (made by stage {made_by}, which is not selected)")
+    if "original" in a.stage_list and actions.get("original") == "run":
+        raw = Path(a.raw) if a.raw else paths.HDF5_DIR / paths.data_filename("1sec", "v3")
+        if not raw.exists() and not a.dry_run:
+            problems.append(f"raw v3 file not found: {raw} (pass --raw)")
+    return actions, problems
+
+
+def main(argv=None):
+    a = parse_args(argv)
+    if a.stage_worker:                                   # child process: run one stage, report, exit
+        t0 = time.time()
+        ok, err = True, None
+        try:
+            res = run_stage(a.stage_worker, a)
+        except BaseException as e:                       # report, then fail the stage
+            import traceback
+            traceback.print_exc()
+            res, ok, err = {}, False, f"{type(e).__name__}: {e}"
+        payload = {"stage": a.stage_worker, "ok": ok, "error": err, "elapsed_seconds": round(time.time() - t0, 1),
+                   "peak_rss_mb": peak_rss_mb(), "result": res}
+        if a.stage_worker == "verify" and res and res.get("n_failed"):
+            payload["ok"], payload["error"] = False, f"{res['n_failed']} verification check(s) FAILED"
+        print(RESULT_TAG + json.dumps(payload, default=str), flush=True)
+        sys.exit(0 if payload["ok"] else 3)
+
+    t_start = time.time()
+    actions, problems = plan(a)
+    raw = Path(a.raw) if a.raw else paths.HDF5_DIR / paths.data_filename("1sec", "v3")
+    n_rows = N_ROWS_REAL["1sec"]
+    if raw.exists():
+        try:
+            from solete.h5io import h5_info
+            n_rows = h5_info(raw, "DATA")["nrows"]
+        except Exception:
+            pass
+    est = disk_estimate(n_rows)
+    print(f"data folder : {paths.DATA_DIR}\nscratch     : {a.scratch}\nraw v3 file : {raw}{'' if raw.exists() else '  (not found)'}")
+    print(f"stages      : " + ", ".join(f"{s}={actions[s]}" for s in a.stage_list))
+    print(f"slice size  : {a.slice_days:g} days; rebuild check: {a.rebuild_check}")
+    print("expected disk use (UPPER bound from {:,} rows, uncompressed; the real files are usually smaller):".format(n_rows))
+    for k, v in est.items():
+        print(f"    {k:<58s}{v / 1e9:>8.2f} GB")
+    total = sum(est.values())
+    print(f"    {'total':<58s}{total / 1e9:>8.2f} GB   (scratch part freed at the end unless --keep-intermediate)")
+    need = {paths.DATA_DIR: 0, Path(a.scratch): 0}
+    run = [s for s in a.stage_list if actions[s] == "run"]
+    if "original" in run:
+        need[paths.DATA_DIR] += est["original (h5)"]
+    if "clean" in run:
+        need[Path(a.scratch)] += est["scratch cleaned 1 s (h5)"]
+    if "expand" in run:
+        need[paths.DATA_DIR] += est["final 1 s (h5)"] + est["coarse files, scratch + final + parquet (h5 + parquet)"] // 3
+    if "parquet" in run:
+        need[paths.DATA_DIR] += est["parquet original"] + est["parquet 1 s"]
+    if "verify" in run and a.rebuild_check == "full":
+        need[paths.DATA_DIR] += est["scratch cleaned 1 s (h5)"] + est["final 1 s (h5)"]
+    problems += check_disk(need)
+    for p in problems:
+        print("REFUSING:", p)
+    if a.dry_run:
+        print("\n--dry-run: nothing was written.")
+        sys.exit(1 if problems else 0)
+    if problems:
+        sys.exit(2)
+
+    if any(actions[s_] == "run" for s_ in a.stage_list if s_ in ("original", "clean", "resample", "expand", "parquet")):
+        remove_stale_manifest("the release files are about to change")
+    summary = {"version": "v4", "started_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+               "data_dir": str(paths.DATA_DIR), "slice_days": a.slice_days, "rebuild_check": a.rebuild_check,
+               "disk_upper_bound_gb": {k: round(v / 1e9, 2) for k, v in est.items()}, "stages": {}}
+    failed = None
+    for stage in a.stage_list:
+        if actions[stage] == "skip":
+            print(f"\n=== stage {stage}: skipped (outputs exist, --skip-existing) ===")
+            summary["stages"][stage] = {"status": "skipped"}
             continue
-        command = [
-            sys.executable, str(Path(__file__).resolve()), "--worker", "--stage", stage,
-            "--raw", str(resolve_input(args.raw)), "--slice-days", str(args.slice_days),
-            "--max-ram-gb", str(args.max_ram_gb),
-        ]
-        if args.scratch_dir:
-            command.extend(["--scratch-dir", args.scratch_dir])
-        if args.overwrite:
-            command.append("--overwrite")
-        print(f"[{stage}] {' '.join(command)}", flush=True)
-        if args.dry_run:
-            summary["stages"][stage] = {"status": "dry-run"}
-            continue
-        started = time.perf_counter()
-        subprocess.run(command, cwd=REPO_ROOT, check=True)
-        summary["stages"][stage] = {"status": "complete", "elapsed_seconds": round(time.perf_counter() - started, 3)}
+        print(f"\n=== stage {stage} ===", flush=True)
+        t0 = time.time()
+        rc, res = run_child(stage, a)
+        elapsed = round(time.time() - t0, 1)
+        entry = {"status": "ok" if rc == 0 else "FAILED", "elapsed_seconds": elapsed,
+                 "peak_rss_mb": (res or {}).get("peak_rss_mb"), "result": (res or {}).get("result")}
+        if rc != 0:
+            entry["error"] = (res or {}).get("error", f"exit code {rc}")
+        summary["stages"][stage] = entry
+        print(f"=== stage {stage}: {entry['status']} in {elapsed:.0f} s, peak RSS {entry['peak_rss_mb']} MB ===", flush=True)
+        if rc != 0:
+            failed = stage                                # the summary is still saved; no manifest after a failure
+            remove_stale_manifest(f"stage {stage} failed")
+            break
 
-    if not args.keep_intermediate and not args.dry_run and "verify" in args.stages:
-        _scratch_path("SOLETE_Pombo_1sec_cleaned_v4.h5", args.scratch_dir).unlink(missing_ok=True)
-        for resolution in RULES:
-            _scratch_path(f"SOLETE_Pombo_{resolution}_measured_v4.h5", args.scratch_dir).unlink(missing_ok=True)
-    save_report(DATA_DIR / "build_release_summary.json", summary)
-    print_report("build_release_summary", summary)
+    summary["finished_utc"] = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    summary["total_elapsed_seconds"] = round(time.time() - t_start, 1)
+    summary["failed_stage"] = failed
+    summary["files"] = {k: {"bytes": Path(p).stat().st_size} for k, p in {**{f"{k}.h5": v for k, v in release_h5().items()},
+                                                                      **{f"{k}.parquet": v for k, v in release_parquet().items()}}.items()
+                        if Path(p).exists()}
+    paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    summary_path().write_text(json.dumps(summary, indent=1, default=str))
+    verify_rows = (summary["stages"].get("verify", {}).get("result") or {}).get("rows")
+    if verify_rows:
+        slim = dict(summary)
+        slim["stages"] = {k: {kk: vv for kk, vv in v.items() if kk != "result"} for k, v in summary["stages"].items()}
+        slim["verification"] = verify_rows
+        print_report("build_release_summary", slim)
+    else:
+        print_report("build_release_summary", summary)
+    if failed:
+        print(f"BUILD FAILED at stage {failed}. Fix the cause and re-run with --skip-existing to resume.")
+        sys.exit(3)
+    if "manifest" in a.stage_list and not a.keep_intermediate and Path(a.scratch).exists():
+        shutil.rmtree(a.scratch, ignore_errors=True)
+        print(f"removed scratch folder {a.scratch}")
+    print(f"Done in {summary['total_elapsed_seconds']:.0f} s. Summary: {summary_path()}")
 
 
 if __name__ == "__main__":

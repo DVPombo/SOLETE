@@ -93,7 +93,7 @@ pursue).
 
 **Decided: flagged, not auto-excluded.** Rows where `P_Solar[kW]_qc == 6` (King's PV
 model substituted for the raw sensor reading — see `docs/legacy/QC_SCHEMA_platform_v3.md` finding #6, ~38% of the
-full record) are kept in **train, val, and test alike**. The split does not remove or
+full record under the old rule; since v4 the rule also requires `Pac > 0` and no row of the hourly file is flagged, see `docs/RESTRUCTURE_NOTES.md` §2) are kept in **train, val, and test alike**. The split does not remove or
 relabel them; the `P_Solar[kW]_qc` column is preserved on every row so that each
 baseline/model/metric call decides for itself whether to apply a QC-exclusion mask.
 
@@ -106,9 +106,13 @@ without needing a second split version for the difference.
 
 | Split | `qc==6` (model-substituted) rows | `qc==0` (valid) rows |
 |---|---|---|
-| train | 3,232 | 4,064 |
-| val   |   221 |   499 |
-| test  |   751 | 2,202 |
+| train | 0 | 7,296 |
+| val   | 0 |   720 |
+| test  | 0 | 2,953 |
+
+(Under the v3 platform rule, which also flagged night rows with measured and modelled power both 0, these were 3,232 / 221 / 751 rows
+flagged and 4,064 / 499 / 2,202 valid. Code 6 now also requires `Pac > 0`, so no row of the v3 hourly file is flagged. The split itself
+is unchanged: `v1.json` was not modified.)
 
 ### Reproducing this split
 

@@ -1,10 +1,4 @@
-> **Platform-era document (version 3).** This preserves the retired v3 flag design for historical interpretation only. The platform now consumes the canonical v4 vocabulary in [`../../solete/qc_codes.py`](../../solete/qc_codes.py); the authoritative release schema is [`../../dataset/docs/QC_SCHEMA.md`](../../dataset/docs/QC_SCHEMA.md). File names below refer to the layout before the repository merge.
-
-Current behavior differs from this historical design: `solete/qc.py` no
-longer recreates the v3 raw-value flags. It preserves flags found in release
-files and adds only code 6 (`QC_MODEL_SUBSTITUTED`). Code 6 is evaluated by
-`expand_physical` from each resolution's own cleaned inputs and is never
-resampled from 1 second. `P_hybrid[kW]_qc` uses the shared v4 severity order.
+> **Platform-era document (version 3).** This describes the quality-flag codes and columns as the *forecasting platform* currently implements them (`solete/qc.py`). The authoritative description of the released version 4 files is [`../../dataset/docs/QC_SCHEMA.md`](../../dataset/docs/QC_SCHEMA.md); the code sets were **reconciled** into one vocabulary (`solete/qc_codes.py`; decision in [`../RESTRUCTURE_NOTES.md`](../RESTRUCTURE_NOTES.md) §2). **The numbers below are the OLD platform numbers and are no longer emitted**: old 1 (missing) and 3 (physically implausible) are now code 11 `QC_UNTREATED_IMPLAUSIBLE` on v3 files, and 6 keeps its meaning (model-substituted) but is **evaluated per resolution** and is platform-owned. File names written in this document refer to the layout before the merge of the dataset and platform repositories; the migration table is in that same file.
 
 # QC_SCHEMA.md — SOLETE quality-control flag layer
 
@@ -66,7 +60,7 @@ here so the next rule added doesn't have to invent a tie-break from scratch.
 | 3 | Wind dir ≥360° (0.94%, up to 639.34°) | `WIND_DIR[deg]` | 3 `physically_implausible` | `value >= 360.0 or value < 0.0` |
 | 4 | Azimuth/Elevation ~99.9% zero, real values one day only | `Azimuth[deg]`, `Elevation[deg]` | 1 `missing` | `value == 0.0` (see §6 — these are a later, user-added derivation, not part of the original DTU release) |
 | 5 | Row order not chronological on disk (60min file) | *file-level, no `_qc` column* | — | Not represented in this schema. It's not a per-cell value problem — every value is correct once sorted — so it doesn't fit the `<column>_qc` pattern. **Decision (maintainer, 2026-09-10): documented here as a known caveat only; no code change this phase.** Revisit after the current GitHub pass — likely candidates are a `.sort_index()` in `import_SOLETE_data()`, or fixing wherever the 60min file is built from the source resolution. |
-| 6 | `P_Solar_model_substituted` (Phase 0.5, ~38%/~21%) | `P_Solar[kW]` | 6 `suspected_curtailment_or_model_substituted` | existing boolean `Pac >= 1.5 * P_Solar[kW]` (computed in `ExpandSOLETE`, unchanged) mapped `True → 6`, `False → 0` |
+| 6 | `P_Solar_model_substituted` (Phase 0.5, ~38%/~21%) | `P_Solar[kW]` | 6 `suspected_curtailment_or_model_substituted` | existing boolean `Pac >= 1.5 * P_Solar[kW]` (computed in `ExpandSOLETE`, unchanged) mapped `True → 6`, `False → 0` *(v4: the boolean now also requires `Pac > 0`, so night 0-vs-0 rows are no longer flagged)* |
 
 ### Note on finding #1's flag label
 
@@ -114,7 +108,7 @@ concern here is coverage (99.9% zero / not computed), not correctness of the pop
 row-order issue after the current GitHub pass** — out of scope for this phase to
 recompute/backfill these columns.
 
-## 7. Historical behavior under expand/resample/export
+## 7. Behavior under expand/resample/export
 
 `ExpandSOLETE`'s `list_expansion` mechanism (which currently tracks `Pac`, `Pdc`,
 `TempModule`, `TempCell`, `P_Solar_model_substituted`, etc., only for a print statement)
@@ -142,7 +136,7 @@ decision above:
   phase) to that list, or they'll be dropped on load from a saved expanded file — the same
   underlying gap, not something this phase introduces.
 
-## 8. Historical derived/combined QC inheritance (Task 6.1)
+## 8. Derived/combined columns — QC inheritance (Task 6.1)
 
 Phase 6 adds the first *derived-from-two-columns* target, `P_hybrid[kW]` (=
 `P_Solar[kW] + P_Gaia[kW]`, see `DATA_DICTIONARY.md`). Nothing above covers how a

@@ -11,7 +11,7 @@ anything is a real discrepancy -- see the shift-search below.
 
 Usage:
     python compare_resolutions.py \
-        --fresh SOLETE_resampled_1h.h5 --fresh-key DATA \
+        --fresh SOLETE_Pombo_60min_v4.h5 --fresh-key DATA \
         --original SOLETE_Pombo_60min.h5 --original-key DATA
 """
 import argparse

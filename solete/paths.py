@@ -14,8 +14,10 @@ the folder structure is preserved:
 
     <repo>/data/
         hdf5/       SOLETE_Pombo_1sec_original_v4.h5
-                SOLETE_Pombo_<res>_v4.h5 (+ v3 files, see below)
-        parquet/    the same v4 stems with .parquet
+                    SOLETE_Pombo_1sec_v4.h5  SOLETE_Pombo_1min_v4.h5
+                    SOLETE_Pombo_5min_v4.h5  SOLETE_Pombo_60min_v4.h5
+                    (+ the v3 files, see below; the raw v3 1 s file is SOLETE_Pombo_1sec.h5)
+        parquet/    the same five stems with .parquet
         derived/    created by the code: expanded caches (never edit by hand)
 
 That is exactly the layout of the figshare upload, so "drag the contents of
@@ -28,17 +30,19 @@ hdf5/ parquet/ structure is expected inside it.
 
 FILE VERSIONS
 -------------
-    "v4"  SOLETE_Pombo_<res>_v4.h5 / .parquet
-          res in 1sec, 1min, 5min, 60min (the figshare version 4 files)
-          SOLETE_Pombo_1sec_original_v4.h5 / .parquet is the sorted,
-          uncleaned release input
-    "v3"  SOLETE_Pombo_<res>.h5                res in 1sec, 1min, 5min, 60min
-          (the originals; 1h in v4 is called 60min in v3)
+    "v4"  SOLETE_Pombo_<res>_v4.h5 / .parquet   res in 1sec, 1min, 5min, 60min
+          (cleaned, with <column>_qc flags and the model columns -- the figshare version 4 files)
+          SOLETE_Pombo_1sec_original_v4.h5 / .parquet   (original=True: the raw 1 s data,
+          sorted, nine measured columns only, nothing cleaned)
+    "v3"  SOLETE_Pombo_<res>.h5                 res in 1sec, 1min, 5min, 60min
+          (the originals, unchanged; the 1 s one is the raw input of the build)
 
-The forecasting platform and benchmarks were built on the v3 hourly file and
-still read it by default (version="v3"). Version 4 files are also loadable;
-their pipeline flags are preserved and deterministic model columns are
-recomputed at the selected resolution.
+"1h" is accepted as an alias of "60min" in every resolution argument (input only: no file is named 1h).
+
+The forecasting platform and the benchmarks in this repository were built on
+the v3 hourly file and still read it by default (version="v3"). Reading the v4
+files through the platform works (`Control_Var["data_version"] = "v4"`): their flags are read
+as they are, the model columns are computed by solete/expansion.py (docs/RESTRUCTURE_NOTES.md §2).
 """
 
 from __future__ import annotations
@@ -65,7 +69,7 @@ RESULTS_DIR = BENCHMARKS_DIR / "results"
 RESOLUTIONS = ("1sec", "1min", "5min", "60min")
 _ALIASES = {"1h": "60min", "60min": "60min", "1hour": "60min",
             "1sec": "1sec", "1s": "1sec", "1min": "1min", "5min": "5min"}
-_V3_RES = {"1sec": "1sec", "1min": "1min", "5min": "5min", "60min": "60min"}
+RELEASE_VERSION_TAG = "v4"
 
 
 def normalize_resolution(resolution: str) -> str:
@@ -80,32 +84,37 @@ def normalize_resolution(resolution: str) -> str:
         ) from None
 
 
-def data_filename(
-    resolution: str,
-    version: str = "v3",
-    fmt: str = "hdf5",
-    *,
-    original: bool = False,
-) -> str:
-    """Return the canonical SOLETE filename for a release artefact.
+def data_filename(resolution: str, version: str = "v3", fmt: str = "hdf5", original: bool = False) -> str:
+    """File name of the SOLETE file for a resolution / version / format.
 
-    ``1h`` remains accepted as an input alias, but generated v4 filenames
-    always use ``60min``. The original release artefact exists only at 1 s.
+    v3  SOLETE_Pombo_<res>.h5            (HDF5 only)
+    v4  SOLETE_Pombo_<res>_v4.<ext>      (the scheme is implemented here and nowhere else)
+    v4, original=True (1 s only)  SOLETE_Pombo_1sec_original_v4.<ext>
     """
     res = normalize_resolution(resolution)
-    if fmt not in {"hdf5", "parquet"}:
-        raise ValueError(f"fmt must be 'hdf5' or 'parquet', got {fmt!r}")
     if original and (version != "v4" or res != "1sec"):
-        raise ValueError("original=True is valid only for version='v4', resolution='1sec'.")
+        raise ValueError("The _original file exists for version 'v4' at 1 s only.")
     if version == "v4":
-        stem = f"SOLETE_Pombo_{res}{'_original' if original else ''}_v4"
+        stem = f"SOLETE_Pombo_{res}" + ("_original" if original else "") + f"_{RELEASE_VERSION_TAG}"
     elif version == "v3":
-        stem = f"SOLETE_Pombo_{_V3_RES[res]}"
+        stem = f"SOLETE_Pombo_{res}"
         if fmt != "hdf5":
             raise ValueError("Version 3 files exist only as HDF5.")
     else:
         raise ValueError(f"version must be 'v3' or 'v4', got {version!r}")
     return stem + (".parquet" if fmt == "parquet" else ".h5")
+
+
+def release_stems() -> list:
+    """The five file stems of the v4 release, in build order (original first)."""
+    return [data_filename("1sec", "v4", original=True)[:-3]] + [data_filename(r, "v4")[:-3] for r in RESOLUTIONS]
+
+
+def release_path(resolution: str, fmt: str = "hdf5", original: bool = False, folder=None) -> Path:
+    """Where a v4 release file is (to be) written: <data>/hdf5 or <data>/parquet, or `folder`.
+    No existence check (see find_data_file for that); no folder is created."""
+    name = data_filename(resolution, "v4", fmt, original=original)
+    return (Path(folder) if folder else (PARQUET_DIR if fmt == "parquet" else HDF5_DIR)) / name
 
 
 def _search_dirs(fmt: str):
@@ -132,13 +141,7 @@ def _not_found(what: str, searched) -> DataFileNotFoundError:
     )
 
 
-def find_data_file(
-    resolution: str,
-    version: str = "v3",
-    fmt: str = "hdf5",
-    *,
-    original: bool = False,
-) -> Path:
+def find_data_file(resolution: str, version: str = "v3", fmt: str = "hdf5", original: bool = False) -> Path:
     """Locate a SOLETE data file by resolution; raise a helpful error if absent."""
     name = data_filename(resolution, version, fmt, original=original)
     dirs = _search_dirs(fmt)
@@ -186,7 +189,7 @@ def resolve_output_prefix(prefix: str, kind: str = "hdf5") -> str:
     """Where a pipeline script should write '<prefix>.h5' (or '<prefix>_<rule>.h5').
 
     A prefix that already contains a directory is used as given. A bare prefix
-    A bare prefix goes into data/hdf5 so the outputs
+    (the default, e.g. 'SOLETE_Pombo_1sec_v4') goes into data/hdf5 so the outputs
     land exactly where the figshare layout expects them. Creates the folder."""
     p = Path(prefix)
     if p.parent != Path("."):

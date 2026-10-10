@@ -39,9 +39,10 @@ import pandas as pd
 def qc_mask(qc_column, exclude_flags=(6,)):
     """
     Build a boolean "keep this row" mask from a `<column>_qc` Series
-    using the canonical v4 values in dataset/docs/QC_SCHEMA.md. Code 6 is
-    `QC_MODEL_SUBSTITUTED`; codes 0-5 and 7-10 describe pipeline cleaning
-    and provenance outcomes.
+    (flag value set: solete/qc_codes.py, documented in dataset/docs/QC_SCHEMA.md. Code 6 =
+    QC_MODEL_SUBSTITUTED: measured P_Solar[kW] replaced by the PV model, evaluated per resolution,
+    requires the model to be above zero (Pac > 0), so dark 0-vs-0 rows are NOT flagged; on the v3 hourly file no row is.
+    The old platform numbers 1-5 no longer exist; 1-5 and 7-10 are the dataset pipeline's codes.)
 
     Parameters
     ----------
