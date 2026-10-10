@@ -1,0 +1,119 @@
+{
+ "version": "v4",
+ "built_utc": "2026-10-10T12:29:55+00:00",
+ "python": "3.13.9",
+ "platform": "Windows-10-10.0.19045-SP0",
+ "packages": {
+  "pandas": "3.0.5",
+  "numpy": "2.5.3",
+  "pyarrow": "21.0.0",
+  "pvlib": "0.15.2"
+ },
+ "slice_days": 31.0,
+ "files": [
+  {
+   "file": "hdf5/SOLETE_Pombo_1sec_original_v4.h5",
+   "format": "hdf5",
+   "role": "original",
+   "rows": 39484801,
+   "columns": 9,
+   "bytes": 467575735,
+   "sha256": "147767970a98f9e4f6fea8ec9c196d339078775ded852918eccb595fcf0a8b0b"
+  },
+  {
+   "file": "hdf5/SOLETE_Pombo_1sec_v4.h5",
+   "format": "hdf5",
+   "role": "1sec",
+   "rows": 39484801,
+   "columns": 28,
+   "bytes": 1584084198,
+   "sha256": "8dcbe44fe453ea56037eeb05c4eb6df2129a2d680bd92429b03a88ab1e69ed76"
+  },
+  {
+   "file": "hdf5/SOLETE_Pombo_1min_v4.h5",
+   "format": "hdf5",
+   "role": "1min",
+   "rows": 658081,
+   "columns": 36,
+   "bytes": 64806975,
+   "sha256": "5f8ecba8fef143050909f335925f8b59a5a3c3a09fcd2a4bac0df349e8320d24"
+  },
+  {
+   "file": "hdf5/SOLETE_Pombo_5min_v4.h5",
+   "format": "hdf5",
+   "role": "5min",
+   "rows": 131617,
+   "columns": 36,
+   "bytes": 14239264,
+   "sha256": "35f41a5f72043d476b9e37a7796d86a164686d41a58a17c557790ff58b6a9a2c"
+  },
+  {
+   "file": "hdf5/SOLETE_Pombo_60min_v4.h5",
+   "format": "hdf5",
+   "role": "60min",
+   "rows": 10969,
+   "columns": 36,
+   "bytes": 1309442,
+   "sha256": "2f9b6d39774be322ecd69ca526f21ee792a92dcaa78f52608e0f8869d6296fd2"
+  },
+  {
+   "file": "parquet/SOLETE_Pombo_1sec_original_v4.parquet",
+   "format": "parquet",
+   "role": "original",
+   "rows": 39484801,
+   "columns": 10,
+   "bytes": 332651730,
+   "sha256": "53408239c0b73e591390405791ef4d2218ef9009f5fcff1db1201699b5eb49ad"
+  },
+  {
+   "file": "parquet/SOLETE_Pombo_1sec_v4.parquet",
+   "format": "parquet",
+   "role": "1sec",
+   "rows": 39484801,
+   "columns": 29,
+   "bytes": 1623307434,
+   "sha256": "4c02ab0e2b2e65cc2aaf4582e682bd5a12cec127d968245c067404cd6e3e7758"
+  },
+  {
+   "file": "parquet/SOLETE_Pombo_1min_v4.parquet",
+   "format": "parquet",
+   "role": "1min",
+   "rows": 658081,
+   "columns": 37,
+   "bytes": 47830164,
+   "sha256": "f59b954039997b076cdd921e00d5df6f611e8fbd23c634b52e5adaf7756f34df"
+  },
+  {
+   "file": "parquet/SOLETE_Pombo_5min_v4.parquet",
+   "format": "parquet",
+   "role": "5min",
+   "rows": 131617,
+   "columns": 37,
+   "bytes": 12372327,
+   "sha256": "cd1bdc31fcc2fc8f8f1537e90deced4ae7bd619789305a8078afbd0b7165e545"
+  },
+  {
+   "file": "parquet/SOLETE_Pombo_60min_v4.parquet",
+   "format": "parquet",
+   "role": "60min",
+   "rows": 10969,
+   "columns": 37,
+   "bytes": 1201812,
+   "sha256": "ebf881200ffe8eb73cf87d8630b0af01fa0956fac150e011cfafde0d7020ac2c"
+  },
+  {
+   "file": "SOLETE_Pombo_v4_RESAMPLING_METHODOLOGY.md",
+   "format": "document",
+   "role": "document",
+   "bytes": 1572,
+   "sha256": "a6eb5c79c497ef08003e0eb4aed3b1c11fbef344f19ffea1f76f9297c40415b2"
+  },
+  {
+   "file": "figshare_README.txt",
+   "format": "document",
+   "role": "document",
+   "bytes": 8216,
+   "sha256": "685cdc117cdd44e45ea8ff7dd259b8e1021a7e35021b47918c5a71877566b545"
+  }
+ ]
+}

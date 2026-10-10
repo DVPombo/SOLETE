@@ -1,0 +1,754 @@
+{
+ "version": "v4",
+ "started_utc": "2026-10-10T11:54:09+00:00",
+ "data_dir": "C:\\Users\\usuario\\Documents\\GitHub\\SOLETE\\data",
+ "slice_days": 31.0,
+ "rebuild_check": "sample",
+ "disk_upper_bound_gb": {
+  "original (h5)": 2.84,
+  "scratch cleaned 1 s (h5)": 3.79,
+  "final 1 s (h5)": 5.8,
+  "parquet original": 3.16,
+  "parquet 1 s": 6.12,
+  "coarse files, scratch + final + parquet (h5 + parquet)": 0.77
+ },
+ "stages": {
+  "original": {
+   "status": "ok",
+   "elapsed_seconds": 370.8,
+   "peak_rss_mb": 1678.7,
+   "result": {
+    "raw": "C:\\Users\\usuario\\Documents\\GitHub\\SOLETE\\data\\hdf5\\SOLETE_Pombo_1sec.h5",
+    "raw_format": "fixed",
+    "n_rows": 39484801,
+    "n_source_runs": 457,
+    "run_lengths": {
+     "86399": 150,
+     "86400": 156,
+     "86401": 151
+    },
+    "was_already_sorted": false,
+    "n_duplicate_timestamps": 0,
+    "n_gaps_over_1s": 0,
+    "largest_gap_seconds": 1,
+    "first_timestamp": "2018-06-01 00:00:00",
+    "last_timestamp": "2019-09-01 00:00:00",
+    "dropped_columns": [
+     "Azimuth[deg]",
+     "Elevation[deg]"
+    ],
+    "columns_kept": [
+     "TEMPERATURE[degC]",
+     "HUMIDITY[%]",
+     "WIND_SPEED[m1s]",
+     "WIND_DIR[deg]",
+     "GHI[kW1m2]",
+     "POA Irr[kW1m2]",
+     "P_Gaia[kW]",
+     "P_Solar[kW]",
+     "Pressure[mbar]"
+    ],
+    "n_rows_written": 39484801,
+    "verification": {
+     "n_rows_compared": 39484801,
+     "identical": true,
+     "columns": [
+      "TEMPERATURE[degC]",
+      "HUMIDITY[%]",
+      "WIND_SPEED[m1s]",
+      "WIND_DIR[deg]",
+      "GHI[kW1m2]",
+      "POA Irr[kW1m2]",
+      "P_Gaia[kW]",
+      "P_Solar[kW]",
+      "Pressure[mbar]"
+     ],
+     "format": "table"
+    }
+   }
+  },
+  "clean": {
+   "status": "ok",
+   "elapsed_seconds": 584.6,
+   "peak_rss_mb": 1824.4,
+   "result": {
+    "wind_dir_n_wrapped": 1343,
+    "n_rows": 39484801,
+    "p_gaia": {
+     "n_rows_unverified_provenance": 39312001,
+     "n_rows_active_day": 172800
+    },
+    "azimuth_elevation": {
+     "n_rows": 39484801,
+     "convention": "UTC timestamps, azimuth south-referenced (0=south, east negative), apparent elevation, not clipped at night",
+     "elevation_min": -57.75003214966722,
+     "elevation_max": 57.7581692717148
+    },
+    "pressure_n_flagged_exact_multiples_of_1000": 39440760,
+    "glitch": {
+     "Pressure[mbar]": {
+      "n_fixed": 0,
+      "n_flagged": 0,
+      "n_untreated_set_to_nan": 0
+     },
+     "POA Irr[kW1m2]": {
+      "n_fixed": 1,
+      "n_flagged": 1,
+      "n_untreated_set_to_nan": 0
+     },
+     "GHI[kW1m2]": {
+      "n_fixed": 0,
+      "n_flagged": 0,
+      "n_untreated_set_to_nan": 0
+     },
+     "TEMPERATURE[degC]": {
+      "n_fixed": 1,
+      "n_flagged": 1,
+      "n_untreated_set_to_nan": 0
+     },
+     "HUMIDITY[%]": {
+      "n_fixed": 1,
+      "n_flagged": 86402,
+      "n_untreated_set_to_nan": 86401
+     }
+    },
+    "pressure_n_flagged_flatline_only": 5640,
+    "qc_flag_value_counts": {
+     "POA Irr[kW1m2]": {
+      "0": 39484800,
+      "5": 1
+     },
+     "TEMPERATURE[degC]": {
+      "0": 39484800,
+      "5": 1
+     },
+     "HUMIDITY[%]": {
+      "0": 39372157,
+      "3": 4363,
+      "4": 21879,
+      "5": 1,
+      "9": 86401
+     },
+     "Pressure[mbar]": {
+      "0": 38401,
+      "2": 39446400
+     },
+     "WIND_SPEED[m1s]": {
+      "0": 39458559,
+      "3": 4363,
+      "4": 21879
+     },
+     "GHI[kW1m2]": {
+      "0": 39484801
+     },
+     "WIND_DIR[deg]": {
+      "0": 39483458,
+      "1": 1343
+     },
+     "P_Gaia[kW]": {
+      "10": 172800,
+      "7": 39312001
+     }
+    },
+    "pressure_flatline_only_example_values": {
+     "997.5": 1260,
+     "996.2000122070309": 600,
+     "997.900024414063": 540,
+     "993.7000122070309": 480,
+     "996.7999877929691": 420,
+     "991.900024414063": 360,
+     "992.5": 360,
+     "996.2999877929691": 360,
+     "997.400024414063": 360,
+     "993.599975585938": 300
+    },
+    "dropout": {
+     "dropout_n_fixed": 4363,
+     "dropout_n_untreated": 21879,
+     "dropout_n_seconds_flagged": 26242
+    },
+    "n_slices": 15,
+    "pressure_n_set_to_nan": 39446400,
+    "qc_columns_merged": [
+     "WIND_DIR[deg]_qc",
+     "Pressure[mbar]_qc",
+     "WIND_SPEED[m1s]_qc",
+     "HUMIDITY[%]_qc",
+     "TEMPERATURE[degC]_qc",
+     "GHI[kW1m2]_qc",
+     "POA Irr[kW1m2]_qc",
+     "P_Gaia[kW]_qc"
+    ],
+    "pressure_n_days_with_real_value_remaining": 1,
+    "pressure_days_with_real_value": [
+     "2019-01-16"
+    ],
+    "slice_boundaries_rows": [
+     2678402,
+     5356802,
+     8035202,
+     10713602,
+     13392002,
+     16070402,
+     18748802,
+     21427202,
+     24105602,
+     26784002,
+     29462402,
+     32140802,
+     34819202,
+     37497602
+    ]
+   }
+  },
+  "resample": {
+   "status": "ok",
+   "elapsed_seconds": 129.2,
+   "peak_rss_mb": 1415.2,
+   "result": {
+    "1min": {
+     "rows": 658081,
+     "columns": 27
+    },
+    "5min": {
+     "rows": 131617,
+     "columns": 27
+    },
+    "60min": {
+     "rows": 10969,
+     "columns": 27
+    },
+    "_columns_resampled": [
+     "TEMPERATURE[degC]",
+     "HUMIDITY[%]",
+     "WIND_SPEED[m1s]",
+     "WIND_DIR[deg]",
+     "GHI[kW1m2]",
+     "POA Irr[kW1m2]",
+     "P_Gaia[kW]",
+     "P_Solar[kW]",
+     "Pressure[mbar]",
+     "Azimuth[deg]",
+     "Elevation[deg]",
+     "WIND_DIR[deg]_qc",
+     "Pressure[mbar]_qc",
+     "WIND_SPEED[m1s]_qc",
+     "HUMIDITY[%]_qc",
+     "TEMPERATURE[degC]_qc",
+     "GHI[kW1m2]_qc",
+     "POA Irr[kW1m2]_qc",
+     "P_Gaia[kW]_qc"
+    ]
+   }
+  },
+  "expand": {
+   "status": "ok",
+   "elapsed_seconds": 120.9,
+   "peak_rss_mb": 1294.9,
+   "result": {
+    "1sec": {
+     "rows": 39484801
+    },
+    "1min": {
+     "rows": 658081,
+     "columns": 36
+    },
+    "5min": {
+     "rows": 131617,
+     "columns": 36
+    },
+    "60min": {
+     "rows": 10969,
+     "columns": 36
+    }
+   }
+  },
+  "parquet": {
+   "status": "ok",
+   "elapsed_seconds": 324.4,
+   "peak_rss_mb": 1163.9,
+   "result": {
+    "settings": {
+     "compression": "zstd",
+     "compression_level": 15,
+     "byte_stream_split": false
+    },
+    "trial": [
+     {
+      "compression": "zstd",
+      "level": 3,
+      "byte_stream_split": false,
+      "size_bytes": 45729245,
+      "write_seconds": 1.82,
+      "rows": 1000000
+     },
+     {
+      "compression": "zstd",
+      "level": 9,
+      "byte_stream_split": false,
+      "size_bytes": 45534999,
+      "write_seconds": 2.033,
+      "rows": 1000000
+     },
+     {
+      "compression": "zstd",
+      "level": 15,
+      "byte_stream_split": false,
+      "size_bytes": 45396777,
+      "write_seconds": 4.392,
+      "rows": 1000000
+     },
+     {
+      "compression": "zstd",
+      "level": 3,
+      "byte_stream_split": true,
+      "size_bytes": 49210031,
+      "write_seconds": 0.956,
+      "rows": 1000000
+     },
+     {
+      "compression": "zstd",
+      "level": 9,
+      "byte_stream_split": true,
+      "size_bytes": 48256316,
+      "write_seconds": 2.13,
+      "rows": 1000000
+     },
+     {
+      "compression": "zstd",
+      "level": 15,
+      "byte_stream_split": true,
+      "size_bytes": 47752500,
+      "write_seconds": 5.286,
+      "rows": 1000000
+     }
+    ],
+    "files": {
+     "original": {
+      "rows": 39484801,
+      "bytes": 332651730
+     },
+     "1sec": {
+      "rows": 39484801,
+      "bytes": 1623307434
+     },
+     "1min": {
+      "rows": 658081,
+      "bytes": 47830164
+     },
+     "5min": {
+      "rows": 131617,
+      "bytes": 12372327
+     },
+     "60min": {
+      "rows": 10969,
+      "bytes": 1201812
+     }
+    }
+   }
+  },
+  "verify": {
+   "status": "ok",
+   "elapsed_seconds": 555.2,
+   "peak_rss_mb": 1636.5,
+   "result": {
+    "rows": [
+     {
+      "check": "original: nine measured columns, table format",
+      "scope": "original",
+      "status": "PASS",
+      "detail": "9 measured columns, table format"
+     },
+     {
+      "check": "original: grid (sorted, unique, gap-free)",
+      "scope": "original",
+      "status": "PASS",
+      "detail": "39,484,801 rows, 2018-06-01 00:00:00 .. 2019-09-01 00:00:00, unique, monotonic, gap-free; span is not the real one, documented row counts not applicable"
+     },
+     {
+      "check": "original: identical to the raw file (values, dtypes, aligned by timestamp)",
+      "scope": "original",
+      "status": "PASS",
+      "detail": "verified when it was built: 39,484,801 rows"
+     },
+     {
+      "check": "rows / span / grid",
+      "scope": "1sec",
+      "status": "PASS",
+      "detail": "39,484,801 rows, 2018-06-01 00:00:00 .. 2019-09-01 00:00:00, unique, monotonic, gap-free; span is not the real one, documented row counts not applicable"
+     },
+     {
+      "check": "column set (no Azimuth/Elevation flag columns)",
+      "scope": "1sec",
+      "status": "PASS",
+      "detail": "28 columns"
+     },
+     {
+      "check": "expand_physical idempotent",
+      "scope": "1sec",
+      "status": "PASS",
+      "detail": "expand_physical reproduces the stored model columns exactly"
+     },
+     {
+      "check": "rows / span / grid",
+      "scope": "1min",
+      "status": "PASS",
+      "detail": "658,081 rows, 2018-06-01 00:00:00 .. 2019-09-01 00:00:00, unique, monotonic, gap-free; span is not the real one, documented row counts not applicable"
+     },
+     {
+      "check": "column set (no Azimuth/Elevation flag columns)",
+      "scope": "1min",
+      "status": "PASS",
+      "detail": "36 columns"
+     },
+     {
+      "check": "expand_physical idempotent",
+      "scope": "1min",
+      "status": "PASS",
+      "detail": "expand_physical reproduces the stored model columns exactly"
+     },
+     {
+      "check": "rows / span / grid",
+      "scope": "5min",
+      "status": "PASS",
+      "detail": "131,617 rows, 2018-06-01 00:00:00 .. 2019-09-01 00:00:00, unique, monotonic, gap-free; span is not the real one, documented row counts not applicable"
+     },
+     {
+      "check": "column set (no Azimuth/Elevation flag columns)",
+      "scope": "5min",
+      "status": "PASS",
+      "detail": "36 columns"
+     },
+     {
+      "check": "expand_physical idempotent",
+      "scope": "5min",
+      "status": "PASS",
+      "detail": "expand_physical reproduces the stored model columns exactly"
+     },
+     {
+      "check": "rows / span / grid",
+      "scope": "60min",
+      "status": "PASS",
+      "detail": "10,969 rows, 2018-06-01 00:00:00 .. 2019-09-01 00:00:00, unique, monotonic, gap-free; span is not the real one, documented row counts not applicable"
+     },
+     {
+      "check": "column set (no Azimuth/Elevation flag columns)",
+      "scope": "60min",
+      "status": "PASS",
+      "detail": "36 columns"
+     },
+     {
+      "check": "expand_physical idempotent",
+      "scope": "60min",
+      "status": "PASS",
+      "detail": "expand_physical reproduces the stored model columns exactly"
+     },
+     {
+      "check": "dtypes",
+      "scope": "1sec",
+      "status": "PASS",
+      "detail": "floats float64, flags int8"
+     },
+     {
+      "check": "measured P_Solar[kW] untouched",
+      "scope": "1sec",
+      "status": "PASS",
+      "detail": "measured P_Solar[kW] equals _original exactly"
+     },
+     {
+      "check": "P_Solar[kW] equals the cleaned measurement",
+      "scope": "1sec",
+      "status": "PASS",
+      "detail": "['P_Solar[kW]'] identical"
+     },
+     {
+      "check": "measured+flag columns equal the resample of cleaned 1 s; no code 6 before expansion",
+      "scope": "1min",
+      "status": "PASS",
+      "detail": "27 resampled columns identical in the final file; no code 6 before expansion"
+     },
+     {
+      "check": "measured+flag columns equal the resample of cleaned 1 s; no code 6 before expansion",
+      "scope": "5min",
+      "status": "PASS",
+      "detail": "27 resampled columns identical in the final file; no code 6 before expansion"
+     },
+     {
+      "check": "measured+flag columns equal the resample of cleaned 1 s; no code 6 before expansion",
+      "scope": "60min",
+      "status": "PASS",
+      "detail": "27 resampled columns identical in the final file; no code 6 before expansion"
+     },
+     {
+      "check": "reproducibility: sample windows rebuilt from _original (fused path)",
+      "scope": "all",
+      "status": "PASS",
+      "detail": "3 windows (518,401 rows) rebuilt via clean+expand (fused) and compared: 2018-06-01..2018-06-03, 2019-01-16..2019-01-18, 2019-08-30..2019-09-01"
+     },
+     {
+      "check": "model columns vs resample(expand(1 s)) (documented, expected)",
+      "scope": "1min",
+      "status": "INFO",
+      "detail": "Pac: mean|d|=0.0009302; Pdc: mean|d|=0.0009406; TempModule: mean|d|=0.008022; TempCell: mean|d|=0.008022; P_Solar_clean[kW]: mean|d|=7.503e-06; P_hybrid[kW]: mean|d|=7.503e-06"
+     },
+     {
+      "check": "model columns vs resample(expand(1 s)) (documented, expected)",
+      "scope": "5min",
+      "status": "INFO",
+      "detail": "Pac: mean|d|=0.00219; Pdc: mean|d|=0.002224; TempModule: mean|d|=0.0107; TempCell: mean|d|=0.0107; P_Solar_clean[kW]: mean|d|=8.497e-06; P_hybrid[kW]: mean|d|=8.497e-06"
+     },
+     {
+      "check": "model columns vs resample(expand(1 s)) (documented, expected)",
+      "scope": "60min",
+      "status": "INFO",
+      "detail": "Pac: mean|d|=0.005571; Pdc: mean|d|=0.005663; TempModule: mean|d|=0.01372; TempCell: mean|d|=0.01372; P_Solar_clean[kW]: mean|d|=1.584e-05; P_hybrid[kW]: mean|d|=1.584e-05"
+     },
+     {
+      "check": "platform: import_SOLETE_data(data_version='v4')",
+      "scope": "60min",
+      "status": "PASS",
+      "detail": "loaded 10,969 rows; working P_Solar[kW] == P_Solar_clean[kW]"
+     },
+     {
+      "check": "cleaning count: wind_dir_rows_wrapped (synthetic data: documented value not applicable)",
+      "scope": "1sec",
+      "status": "INFO",
+      "detail": "1343"
+     },
+     {
+      "check": "cleaning count: pressure_days_with_real_value (synthetic data: documented value not applicable)",
+      "scope": "1sec",
+      "status": "INFO",
+      "detail": "['2019-01-16']"
+     },
+     {
+      "check": "cleaning count: p_gaia_active_days (synthetic data: documented value not applicable)",
+      "scope": "1sec",
+      "status": "INFO",
+      "detail": "['2018-08-31', '2019-05-25']"
+     },
+     {
+      "check": "Parquet round trip against the h5",
+      "scope": "original",
+      "status": "PASS",
+      "detail": "{'rows': 39484801, 'columns': 10, 'timestamp_type': 'timestamp[ns, tz=UTC]', 'identical': True}"
+     },
+     {
+      "check": "Parquet round trip against the h5",
+      "scope": "1sec",
+      "status": "PASS",
+      "detail": "{'rows': 39484801, 'columns': 29, 'timestamp_type': 'timestamp[ns, tz=UTC]', 'identical': True}"
+     },
+     {
+      "check": "Parquet round trip against the h5",
+      "scope": "1min",
+      "status": "PASS",
+      "detail": "{'rows': 658081, 'columns': 37, 'timestamp_type': 'timestamp[ns, tz=UTC]', 'identical': True}"
+     },
+     {
+      "check": "Parquet round trip against the h5",
+      "scope": "5min",
+      "status": "PASS",
+      "detail": "{'rows': 131617, 'columns': 37, 'timestamp_type': 'timestamp[ns, tz=UTC]', 'identical': True}"
+     },
+     {
+      "check": "Parquet round trip against the h5",
+      "scope": "60min",
+      "status": "PASS",
+      "detail": "{'rows': 10969, 'columns': 37, 'timestamp_type': 'timestamp[ns, tz=UTC]', 'identical': True}"
+     }
+    ],
+    "extras": {
+     "model_vs_resampled": {
+      "1min": {
+       "Pac": {
+        "mean_diff": 0.0009152805817733306,
+        "mean_abs_diff": 0.000930210050686493,
+        "rel_mean_abs_diff_pct": 0.09077825378955892,
+        "max_abs_diff": 0.25412728533313356,
+        "n_buckets": 658081
+       },
+       "Pdc": {
+        "mean_diff": 0.0009406060997723795,
+        "mean_abs_diff": 0.0009406298370892988,
+        "rel_mean_abs_diff_pct": 0.09005100306550255,
+        "max_abs_diff": 0.25904922052307144,
+        "n_buckets": 658081
+       },
+       "TempModule": {
+        "mean_diff": -0.006637358112546293,
+        "mean_abs_diff": 0.00802176433883089,
+        "rel_mean_abs_diff_pct": 0.05319964779242588,
+        "max_abs_diff": 1.6695060962290835,
+        "n_buckets": 658081
+       },
+       "TempCell": {
+        "mean_diff": -0.006637358112546293,
+        "mean_abs_diff": 0.008021764338830888,
+        "rel_mean_abs_diff_pct": 0.05171462305319453,
+        "max_abs_diff": 1.6695060962290853,
+        "n_buckets": 658081
+       },
+       "P_Solar_clean[kW]": {
+        "mean_diff": -7.502779056501792e-06,
+        "mean_abs_diff": 7.502779056501792e-06,
+        "rel_mean_abs_diff_pct": 0.0007323577617997355,
+        "max_abs_diff": 0.03268266055028746,
+        "n_buckets": 658081
+       },
+       "P_hybrid[kW]": {
+        "mean_diff": -7.50277905650181e-06,
+        "mean_abs_diff": 7.502779056502773e-06,
+        "rel_mean_abs_diff_pct": 0.0007209151008809077,
+        "max_abs_diff": 0.03268266055028746,
+        "n_buckets": 658081
+       }
+      },
+      "5min": {
+       "Pac": {
+        "mean_diff": 0.002172778329001204,
+        "mean_abs_diff": 0.0021896969015399274,
+        "rel_mean_abs_diff_pct": 0.213691594844356,
+        "max_abs_diff": 0.2377300072531936,
+        "n_buckets": 131617
+       },
+       "Pdc": {
+        "mean_diff": 0.002223464646763432,
+        "mean_abs_diff": 0.0022235051887275004,
+        "rel_mean_abs_diff_pct": 0.2128681036026151,
+        "max_abs_diff": 0.24233436009499787,
+        "n_buckets": 131617
+       },
+       "TempModule": {
+        "mean_diff": -0.008728946664729028,
+        "mean_abs_diff": 0.010702635527575702,
+        "rel_mean_abs_diff_pct": 0.07097966679632818,
+        "max_abs_diff": 1.3442905080537422,
+        "n_buckets": 131617
+       },
+       "TempCell": {
+        "mean_diff": -0.008728946664729032,
+        "mean_abs_diff": 0.010702635527575695,
+        "rel_mean_abs_diff_pct": 0.0689983094168488,
+        "max_abs_diff": 1.3442905080537422,
+        "n_buckets": 131617
+       },
+       "P_Solar_clean[kW]": {
+        "mean_diff": -8.496735306421758e-06,
+        "mean_abs_diff": 8.496735306421758e-06,
+        "rel_mean_abs_diff_pct": 0.0008293843958029403,
+        "max_abs_diff": 0.006536532110057669,
+        "n_buckets": 131617
+       },
+       "P_hybrid[kW]": {
+        "mean_diff": -8.496735306421896e-06,
+        "mean_abs_diff": 8.496735306422793e-06,
+        "rel_mean_abs_diff_pct": 0.0008164257505784765,
+        "max_abs_diff": 0.006536532110057669,
+        "n_buckets": 131617
+       }
+      },
+      "60min": {
+       "Pac": {
+        "mean_diff": 0.005538852458196778,
+        "mean_abs_diff": 0.005570818282613581,
+        "rel_mean_abs_diff_pct": 0.5436992372443625,
+        "max_abs_diff": 0.13872972171840203,
+        "n_buckets": 10969
+       },
+       "Pdc": {
+        "mean_diff": 0.005662227913566369,
+        "mean_abs_diff": 0.00566263188997644,
+        "rel_mean_abs_diff_pct": 0.5421594965059021,
+        "max_abs_diff": 0.1414166378373105,
+        "n_buckets": 10969
+       },
+       "TempModule": {
+        "mean_diff": -0.008627691632071761,
+        "mean_abs_diff": 0.013721170117364935,
+        "rel_mean_abs_diff_pct": 0.09101326295799361,
+        "max_abs_diff": 0.48422862338577133,
+        "n_buckets": 10969
+       },
+       "TempCell": {
+        "mean_diff": -0.008627691632071784,
+        "mean_abs_diff": 0.013721170117364935,
+        "rel_mean_abs_diff_pct": 0.08847273998676752,
+        "max_abs_diff": 0.48422862338577133,
+        "n_buckets": 10969
+       },
+       "P_Solar_clean[kW]": {
+        "mean_diff": -1.5837334090184816e-05,
+        "mean_abs_diff": 1.5837334090184816e-05,
+        "rel_mean_abs_diff_pct": 0.0015460450490891139,
+        "max_abs_diff": 0.0009969625038071025,
+        "n_buckets": 10969
+       },
+       "P_hybrid[kW]": {
+        "mean_diff": -1.5837334090185066e-05,
+        "mean_abs_diff": 1.5837334090186062e-05,
+        "rel_mean_abs_diff_pct": 0.0015218890010688913,
+        "max_abs_diff": 0.0009969625038071025,
+        "n_buckets": 10969
+       }
+      }
+     },
+     "cleaning_counts": {
+      "wind_dir_rows_wrapped": 1343,
+      "pressure_days_with_real_value": [
+       "2019-01-16"
+      ],
+      "p_gaia_active_days": [
+       "2018-08-31",
+       "2019-05-25"
+      ]
+     }
+    },
+    "n_failed": 0
+   }
+  },
+  "manifest": {
+   "status": "ok",
+   "elapsed_seconds": 62.2,
+   "peak_rss_mb": 145.3,
+   "result": {
+    "files": 12
+   }
+  }
+ },
+ "finished_utc": "2026-10-10T12:29:56+00:00",
+ "total_elapsed_seconds": 2147.3,
+ "failed_stage": null,
+ "files": {
+  "original.h5": {
+   "bytes": 467575735
+  },
+  "1sec.h5": {
+   "bytes": 1584084198
+  },
+  "1min.h5": {
+   "bytes": 64806975
+  },
+  "5min.h5": {
+   "bytes": 14239264
+  },
+  "60min.h5": {
+   "bytes": 1309442
+  },
+  "original.parquet": {
+   "bytes": 332651730
+  },
+  "1sec.parquet": {
+   "bytes": 1623307434
+  },
+  "1min.parquet": {
+   "bytes": 47830164
+  },
+  "5min.parquet": {
+   "bytes": 12372327
+  },
+  "60min.parquet": {
+   "bytes": 1201812
+  }
+ }
+}
