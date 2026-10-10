@@ -1,6 +1,6 @@
 {
  "version": "v4",
- "started_utc": "2026-10-10T16:56:26+00:00",
+ "started_utc": "2026-10-10T18:21:53+00:00",
  "data_dir": "C:\\Users\\usuario\\Documents\\GitHub\\SOLETE\\data",
  "slice_days": 31.0,
  "rebuild_check": "full",
@@ -30,8 +30,8 @@
   },
   "verify": {
    "status": "ok",
-   "elapsed_seconds": 2404.8,
-   "peak_rss_mb": 1953.9,
+   "elapsed_seconds": 1530.9,
+   "peak_rss_mb": 1960.9,
    "result": {
     "rows": [
      {
@@ -47,10 +47,10 @@
       "detail": "39,484,801 rows, 2018-06-01 00:00:00 .. 2019-09-01 00:00:00, unique, monotonic, gap-free; real record span incl. the boundary second 2019-09-01 00:00:00"
      },
      {
-      "check": "original: identical to the raw file",
+      "check": "original: identical to the raw file (values, dtypes, aligned by timestamp)",
       "scope": "original",
-      "status": "SKIP",
-      "detail": "raw file not available and no build record"
+      "status": "PASS",
+      "detail": "39,484,801 rows identical"
      },
      {
       "check": "rows / span / grid",
@@ -401,15 +401,15 @@
   },
   "manifest": {
    "status": "ok",
-   "elapsed_seconds": 112.5,
-   "peak_rss_mb": 145.0,
+   "elapsed_seconds": 72.0,
+   "peak_rss_mb": 144.9,
    "result": {
     "files": 12
    }
   }
  },
- "finished_utc": "2026-10-10T17:38:24+00:00",
- "total_elapsed_seconds": 2522.9,
+ "finished_utc": "2026-10-10T18:48:36+00:00",
+ "total_elapsed_seconds": 1603.8,
  "failed_stage": null,
  "files": {
   "original.h5": {

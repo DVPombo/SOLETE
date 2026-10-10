@@ -1,199 +1,51 @@
 # Changelog
 
-All notable changes to the SOLETE platform are documented in this file.
+All notable changes to the SOLETE platform are documented in this file. From latest to oldest as you scroll down.
 
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history; see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
 
-## [Unreleased]
-### Added — the v4 release build (`dataset/pipeline/build_release.py`)
-- One command builds all ten files of the figshare release (`SOLETE_Pombo_1sec_original_v4`, `SOLETE_Pombo_{1sec,1min,5min,60min}_v4`, each `.h5` + `.parquet`) plus `SHA256SUMS.txt`, `manifest.json`, the resampling methodology and `build_summary_v4.json`. Stages: `original`, `clean`, `resample`, `expand`, `parquet`, `verify`, `manifest`; each in its own subprocess; resumable (`--skip-existing`), never overwrites without `--overwrite`, `*.tmp` + rename, disk check up front, `--dry-run`, peak RSS and time per stage in the summary.
-- `make_original.py`: raw v3 1 s file -> `SOLETE_Pombo_1sec_original_v4.h5` (sorted, nine measured columns, values bit-identical; verified against the raw file).
-- Everything is sliced: `clean_solete_1sec.py` (slices cut only at boundaries no run-based rule can cross; sliced == whole-file, exactly), `resample_solete.py` (whole days), the expansion (slices of a month), `export_parquet.py` (already streamed). `solete/h5io.py` reads row ranges of `table` and `fixed` files.
-- Verification table (`release_verify.py`): grid and row counts, column sets, dtypes, `_original` vs raw, idempotent expansion, measured columns vs resample, reproducibility rebuild from `_original` (`--rebuild-check sample|full|none`), model-vs-resample effect, platform import of v4, cleaning counts, Parquet round trip.
-- `export_parquet.py`: timestamp unit pinned to `timestamp[ns, tz=UTC]` (pandas 3 wrote microseconds for some inputs), row groups of 1,000,000 with statistics, richer metadata (version, site, angle convention, pvlib version, per-column provenance, code table), `--trial` / `--auto` compression trial (zstd 3/9/15, byte_stream_split), `verify_roundtrip`.
-- `data/figshare_README.txt` (sizes filled in by the manifest stage); `tests/test_release_build.py`; `dataset/pipeline/run_release_in_spyder.py` (edit-and-Run launcher).
-- First real build: all 28 checks passed (about 36 min, peak 1.8 GB). The raw 1 s file has 39,484,801 rows (457 days + the boundary second 2019-09-01 00:00:00), kept; the grid check derives its row counts from the span. Wrapped wind-direction rows are asserted against `_original` (above 360 + below 0 + equal 360); the Parquet chooser needs a 2 % gain to prefer a slower setting; real model-vs-resample effect table in `METHODOLOGY.md`.
-- Documentation audit after the first real build: links and quoted commands/flags checked; real per-rule counts and the real block structure of the raw file (86,399/86,400/86,401-row blocks) added to `CLEANING_DECISIONS.md`; stale statements fixed in `figshare_README.txt`, `KNOWN_ISSUES.md` #8, `CONTRIBUTING.md`, `examples/R/README.md`; launcher `STAGES` setting.
-- A stale `SHA256SUMS.txt` / `manifest.json` is deleted whenever release files are about to change or a stage fails, so a checksum list can never sit next to different data.
-### Changed — v4 file names, decision D1, azimuth averaging (behaviour-affecting)
-- **File names:** v4 files are `SOLETE_Pombo_<res>_v4.<ext>` with `60min` (not `1h`), plus `SOLETE_Pombo_1sec_original_v4`; implemented once in `solete/paths.py` (`data_filename`, `release_path`, `release_stems`); `1h` stays an input alias. Old-to-new table: `docs/RESTRUCTURE_NOTES.md` §5a. v3 names unchanged.
-- **D1: `Azimuth[deg]_qc` and `Elevation[deg]_qc` are no longer written** (they were 8 on every row). The 1 s file has 28 columns (9 measured + 2 angles + 8 `_qc` + 9 model); the coarser files 36. Code 8 (`QC_RECOMPUTED`) stays defined in `solete/qc_codes.py`, marked reserved / not emitted by any v4 column. The v3 legacy path (code 11 on its own az/el flags) is untouched. `P_Gaia[kW]_qc_frac_flagged == 1.0` is now the only such constant.
-- **`Azimuth[deg]` in the resampled files is a circular mean** (south-referenced, [-180, 180)); the plain mean was wrong in the bucket around solar midnight. Elevation unchanged.
-- `clean_solete_1sec.py` requires chronologically sorted input (use `_original`); `--in-memory` keeps the old whole-file path (sorts first, ~7 GB). Rules unchanged; masks shared with the cut finder.
-- `solete/physics.py` imports CoolProp lazily (only the Rincon-Pombo thermodynamic model uses it); `import_PV_WT_data` moved to `solete/params.py` (re-exported by `solete.io`), so the dataset build needs neither CoolProp nor scikit-learn. `dataset/requirements.txt` updated and checked in a clean virtual environment.
-- Docs updated: `data/README.md`, `dataset/README.md`, `README.md` (also corrected: v4 loading works), `DATA_DICTIONARY.md`, `METHODOLOGY.md`, `QC_SCHEMA.md`, `CLEANING_DECISIONS.md`, `dataset/AGENTS.md`, `docs/RESTRUCTURE_NOTES.md` §5.
+## [4.0] - 2026-10-10
+This entry is unbearably wrong because it describes a lot of work done over the spam of a few months.
 
-### Earlier in [Unreleased]
-### Changed — one QC vocabulary, deterministic expansion step, v4 loading (behaviour-affecting; see `docs/RESTRUCTURE_NOTES.md` §2)
-- **Single QC vocabulary** in `solete/qc_codes.py`, imported by `dataset/pipeline/qc_flags.py`, `resample_solete.py` and the platform. Code 6 = `QC_MODEL_SUBSTITUTED`
-  (platform-owned; pipeline rules cannot emit it: `assert_pipeline_codes`). New code 11 `QC_UNTREATED_IMPLAUSIBLE` for the v3 files only.
-- `solete/qc.py` reduced to reading present `<col>_qc` columns, the code-6 substitution flag and the legacy v3 raw-value checks
-  (`build_raw_value_qc_rules` -> `legacy_v3_raw_value_rules`; old `QC_VALID/QC_MISSING/QC_PHYSICALLY_IMPLAUSIBLE/QC_FLAG_PRECEDENCE` removed).
-  **On v3 data, the same rows are flagged as before but with code 11 instead of 3 (pressure, humidity, wind direction) or 1 (azimuth, elevation); flag dtype is int8.**
-  Every other column of the expanded v3 hourly frame is bit-identical to before.
-- `P_hybrid[kW]_qc` inherits by the single severity order (no change on v3: only codes 0 and 6 occur there). In resampled files, which carry `P_Gaia[kW]_qc_worst` instead of `P_Gaia[kW]_qc`, that column is used.
-- `import_SOLETE_data(..., data_version='v4')` works (the `NotImplementedError` is gone) and never overwrites the file's flags; unknown codes raise.
-- `ExpandSOLETE` now calls `expand_physical` first. It still sets the working `P_Solar[kW]` from the cleaned series (benchmark behaviour unchanged) and gains one extra column, `P_Solar_clean[kW]`.
-- `PV_Performance_Model` is now a thin wrapper over the NumPy function `physics.pv_model_arrays` (bit-identical output, verified against a frozen copy of the old code).
-- `resample_solete.py` resamples only measured columns and pipeline-owned flags: model-derived columns (`qc_codes.MODEL_DERIVED_COLUMNS`) are dropped and foreign codes in pipeline flag columns are replaced by `QC_OK`.
-### Added
-- `solete/expansion.py`: `expand_physical` / `compute_physical` — row-wise, chunkable, resolution-agnostic, idempotent, no `np.vectorize`. Never overwrites measured `P_Solar[kW]`; adds `P_Solar_clean[kW]`.
-- `solete/synthetic.py` (synthetic test/diagnostic table), `scripts/expansion_checks.py` (memory and resolution-effect measurements), `tests/test_expansion.py` (35 tests).
-- Docs: model columns are computed per resolution (`dataset/docs/METHODOLOGY.md`, with the effect table, synthetic data), provenance column and model-column table in `dataset/docs/DATA_DICTIONARY.md`, `QC_SCHEMA.md` updated.
-- **Code 6 now also requires `Pac > 0`** (stored Pac, values <= 0.001 are 0). Before, `Pac >= 1.5 * P_Solar` was also true for 0 vs 0, so all 4,204 night rows (38.33 %) of the v3 hourly file were flagged. Now 0 rows are flagged there. Every numeric column (`P_Solar_clean[kW]`, `P_hybrid[kW]`, ...) is bit-identical; only `P_Solar_model_substituted`, `P_Solar[kW]_qc` and `P_hybrid[kW]_qc` change.
-- **Removed redundancies:** the boolean column `P_Solar_model_substituted` (identical to `P_Solar[kW]_qc == 6`; P_Solar has no other flag rule), the alias `QC_SUSPECTED_CURTAILMENT_OR_MODEL_SUBSTITUTED`, `qc.build_substitution_qc_rule`, and the `source=` option of `compute_physical`/`expand_physical`. `P_hybrid[kW]_qc_source` is now an `int8` code (0 none, 1 P_Solar, 2 P_Gaia; `qc_codes.SOURCE_LABELS`), always present, instead of text.
-- Audit of every code for usefulness: `dataset/docs/QC_SCHEMA.md` §3b.
-- Consequence for benchmarks: stored `qc_excluded` results were produced with the old rule, so the non-TensorFlow benchmarks were regenerated (2026-10-08): only the `qc_excluded` blocks changed (now equal to `qc_included`, n = 2953); `benchmarks/splits/v1.json` untouched; LSTM/CNN smoke test not re-run (needs TensorFlow). `BENCHMARKS.md` drops the duplicate `qc_excluded` lines.
-- Example notebooks 01-05 updated to the new codes and rule, and re-executed.
-### Changed — repository restructure (breaking: import paths and file locations)
-The dataset-cleaning repository (`SOLETEdataset`) and the platform repository are merged into one. Nothing in the
-numerical code was changed; files moved and every path now resolves through one module. Full old-to-new table:
-`docs/RESTRUCTURE_NOTES.md`.
-- `Functions.py` (re-export shim) and `solete_pipeline/` are replaced by one package, `solete/`. `from Functions import X`
-  becomes `from solete.<module> import X`.
-- `metrics.py` -> `solete/metrics.py`; `bench_common.py` -> `solete/benchmark/common.py`; the `baseline_*.py` and `task*_*.py`
-  scripts -> `benchmarks/` (the `taskN_M_` prefixes are dropped); `splits/`, `results/`, `BENCHMARKS.md` -> `benchmarks/`;
-  `RunMe.py`, `MLForecasting.py` -> `scripts/quickstart/`; `RunMe_matlab.m` -> `matlab/`; `RESOLUTIONS.md` -> `docs/`.
-- The dataset pipeline, diagnostics and documentation of version 4 live under `dataset/`.
-- `SOLETE_Pombo_60min.h5` is no longer in git; it is expected in `data/hdf5/` (v3 file from figshare). `SOLETE_short.h5` moved to `examples/`.
-- Platform-era `QC_SCHEMA.md` / `DATA_DICTIONARY.md` moved to `docs/legacy/` (superseded for the released files by `dataset/docs/`).
-- `README.txt` removed (superseded by `README.md`).
-### Added
-- `solete/paths.py`: the single resolver for the data folder (`data/`, overridable with `SOLETE_DATA_DIR`), samples, and generated outputs
-  (`data/derived/`, `outputs/`). The expected layout is exactly the figshare upload (`hdf5/`, `parquet/`). Missing files raise
-  `DataFileNotFoundError` with the download link.
-- `data/README.md`, `.gitignore` rules keeping data out of git, `.gitattributes` (LF line endings), `pyproject.toml` (`pip install -e .`).
-- `Control_Var['data_version']` ('v3' default; 'v4' now works, see above).
-- Command-line tools in `dataset/` accept bare file names and look them up in `data/hdf5/`; outputs land in `data/hdf5/` and `data/parquet/`.
-- Every runnable script adds the repository root to `sys.path`, so it runs from any folder and from Spyder.
-- Tests that need the v3 hourly file are skipped (not failed) when it is absent (`tests/conftest.py`, `tests/_data.py`).
-### Fixed
-- `solete/postprocess.py`: invalid escape sequence warning in the `error_msg` banner string.
+### Added — v4 dataset release pipeline
+- Added `dataset/pipeline/build_release.py` to build the ten HDF5 and Parquet release files, checksums, manifest, methodology and build summary in one command. Supports resumable stages, dry runs, overwrite protection and disk-space checks. Failed or invalidated builds remove stale checksums and manifests.
+- Added `make_original.py` to generate `SOLETE_Pombo_1sec_original_v4.h5` from the raw v3 1-second file, preserving the nine measured columns exactly.
+- Added `release_verify.py` to check timestamps, row counts, columns, dtypes, cleaning, resampling, expansion, Parquet round trips and reproducibility against the original data. The first full build passed all 28 checks.
+- Processing is chunked where possible: cleaning at rule-safe boundaries, resampling by whole days, expansion by month, and streamed Parquet export. HDF5 row-range reading is implemented in `solete/h5io.py`.
+- Parquet export now uses `timestamp[ns, tz=UTC]`, million-row groups, statistics, richer metadata and optional compression trials.
 
-### Fixed
-- **Phase 0.5** (commit `5eb11d0`) — Three fixes, backfilled here per `KNOWN_ISSUES.md`'s "Already-fixed issues" section and housekeeping gap #9 (see `git show 5eb11d0` for the diff):
-  - `PV_Performance_Model()`'s inverter-capacity clamp used whole-DataFrame boolean-mask assignment (`Results[mask] = value`), which applies the scalar to *every* column on the masked rows — silently clobbering `Tm`, `Tc`, `Pmp_panel`, `Pmp_array`, and `eff_inv` alongside the intended `Pac_<pv>` column. Fixed to `Results.loc[mask, 'Pac_' + pv] = value`, confined to the intended column.
-  - `Rincon_Pombo_ThermodynamicModel()`'s per-timestep loop indexed pandas Series with integer positions (e.g. `data['HUMIDITY[%]'][i]`), relying on pandas' old label→positional fallback for non-integer (DatetimeIndex) indexes. Modern pandas (3.0+) removed that fallback and raises `KeyError` instead. Fixed by operating on plain `numpy` arrays (`.to_numpy()`) so integer indexing is unambiguous.
-  - `ExpandSOLETE()` silently substitutes `P_Solar[kW]` with the modeled `Pac` on rows where `Pac >= 1.5 * P_Solar[kW]` (noise/curtailment cleaning), with no way downstream to tell which rows had been substituted. Added a new boolean column, `P_Solar_model_substituted`, alongside the substitution so it's traceable — documented in `DATA_DICTIONARY.md`.
+### Changed — v4 format and processing
+- Standardized v4 filenames as `SOLETE_Pombo_<resolution>_v4.<ext>`, using `60min` rather than `1h`; the original 1-second file has its own `_original` suffix. Centralized path resolution in `solete/paths.py`.
+- Removed the constant `Azimuth[deg]_qc` and `Elevation[deg]_qc` columns (previously always code 8). Code 8 remains reserved. The 1-second release has 28 columns; coarser files have 36.
+- `clean_solete_1sec.py` now requires chronologically sorted input. The `--in-memory` option retains the previous whole-file processing path.
+- Made CoolProp a lazy dependency and moved `import_PV_WT_data` to `solete/params.py`, allowing dataset builds without CoolProp or scikit-learn.
 
-### Added
-- New QC flag layer (`QC_SCHEMA.md`, `Functions.py::apply_qc_flags` + `build_raw_value_qc_rules`/`build_substitution_qc_rule`, `tests/test_qc_flags.py`) turning the six findings in `KNOWN_ISSUES.md` into explicit, queryable `<column>_qc` columns instead of prose. Flags are mutually exclusive (one value per cell, see `QC_SCHEMA.md` for the bitmask-vs-exclusive reasoning). Verified against both real files (`SOLETE_short.h5`, `SOLETE_Pombo_60min.h5`):
-  - `Pressure[mbar]_qc`: flags known sentinels (`1000.0`/`2000.0`/`3000.0`) plus a general out-of-range safety net (<870 or >1085 mbar). 60min file: 10,477 rows @ 1000.0 (95.51%), 477 @ 2000.0 (4.35%), 2 @ 3000.0 (0.018%) — 10,956 rows flagged total, matching `KNOWN_ISSUES.md` exactly. Short file: 0 flagged.
-  - `HUMIDITY[%]_qc`: flags value > 1.0 or < 0.0. 60min file: 188 rows (1.71%). Short file: 0.
-  - `WIND_DIR[deg]_qc`: flags value >= 360.0 or < 0.0. 60min file: 103 rows (0.94%). Short file: 0.
-  - `Azimuth[deg]_qc` / `Elevation[deg]_qc`: flags value == 0.0 as `missing` (these columns are a later, non-DTU-release addition — see `QC_SCHEMA.md` §6). 60min file: 10,959/10,960 rows (99.91%/99.92%) — matches `KNOWN_ISSUES.md`'s "99.9%" finding. Not present in the short file.
-  - `P_Solar[kW]_qc`: folds the existing `P_Solar_model_substituted` boolean (Phase 0.5) into the same convention. 60min file: 4,204 rows (38.33%). Short file: 5 rows (20.83%). Matches `KNOWN_ISSUES.md`'s ~38%/~21% exactly.
-  - Raw-value checks run in `import_SOLETE_data()` (both `Build` and `Import` branches, directly on the raw columns — self-healing against the pre-existing `PossibleFeatures` drop gap, see below); the substitution mapping runs in `ExpandSOLETE()` right after `Pac` is computed.
-- New `scripts/availability_report.py`, extending `scripts/inspect_dataset.py`'s HDF5-key discovery, computing per-column-per-file completeness (expected vs. actual sample count, read from the file's actual time span and inferred spacing rather than a hardcoded resolution) and QC-flag breakdown. Output: `availability_report.csv`.
+### Changed — QC and expansion
+- Added expansion, QC and synthetic diagnostic tests. Then, consolidated QC codes in `solete/qc_codes.py`. Code 6 (`QC_MODEL_SUBSTITUTED`) remains platform-owned; code 11 (`QC_UNTREATED_IMPLAUSIBLE`) applies to legacy v3 raw-value checks. V3 hourly flags retain their previous flagged rows, with the documented code changes.
+- Added `solete/expansion.py` with chunkable, resolution-independent and idempotent physical calculations. Measured `P_Solar[kW]` is preserved; `P_Solar_clean[kW]` stores the cleaned series.
+- Model-derived columns are recomputed per resolution and excluded from resampling. Removed redundant substitution indicators and QC aliases; `P_hybrid[kW]_qc_source` is now an `int8` code.
 
-### Known issues (surfaced while building the QC layer, not fixed here)
-- `P_Solar_model_substituted` (and now the new `_qc` columns) are only protected from being dropped on a save→`Import` round trip if the caller's own `Control_Var['PossibleFeatures']` literal lists them — the example list in `MLForecasting.py` doesn't. `ExpandSOLETE`'s `list_expansion` tracking only feeds a diagnostic print, not the actual Import-time drop logic. Documented in `QC_SCHEMA.md` §7; not changed here since fixing the drop logic itself is a bigger behavior change than this phase's scope (adding flags, not fixing the registration mechanism).
-- Row order in `SOLETE_Pombo_60min.h5` is not chronological on disk (confirmed independently via raw `h5py` read of the `DATA/axis1` index array, not a pandas artifact — file MD5 `c0795d19ea933fec892271d90f6cedb4`). Values are correct once sorted; this is a file-level issue, not a per-cell one, so it doesn't fit the `<column>_qc` pattern. Per maintainer decision (2026-09-10), left as a documented caveat only this phase — revisit after the current GitHub pass, likely alongside how the source resolution files get concatenated/resampled into the 60min file.
-- `Azimuth[deg]`/`Elevation[deg]` are a later, non-DTU-release addition (maintainer-added via GPS + timestamp through an external Python library, not present in the original SOLETE paper's variable list). The one populated day (2019-01-16) checks out against an independent `pvlib` solar-position calculation — elevation within ~0.1-1° at midday, azimuth consistent to ~11-12° (south-referenced convention) for the 8 rows well above the horizon — so the populated values look genuine, just on a possibly different time/azimuth basis. The real issue is coverage (99.9% unpopulated), not correctness. Recomputing/backfilling is out of scope for this phase; revisit alongside the row-order issue.
+### Changed — repository structure and compatibility
+- Merged the dataset pipeline and forecasting platform into one repository. The `SOLETE/` package centralizes data handling, physics, QC, metrics and forecasting; `docs/RESTRUCTURE_NOTES.md` records the old-to-new paths.
+- Added `SOLETE/paths.py` for data and output resolution, `pyproject.toml`, `.gitignore` rules and installation documentation. Dataset files are expected under `data/hdf5/` and `data/parquet/`, not in Git.
+- Added v4 loading support and retained legacy import paths through a compatibility shim. Split the former monolithic `Functions.py` into modules for QC, physics, preprocessing, I/O, modeling and post-processing.
 
-### Changed
-- Bumped all pinned dependencies in `requirements.txt` to their latest stable releases (pandas 3.0.5, numpy 2.5.3, matplotlib 3.11.1, scikit-learn 1.9.0, TensorFlow 2.21.0 / Keras 3.15.1, CoolProp 8.0.0) and the target interpreter to Python 3.13, replacing the original Python 3.9.12 / pandas 1.5.0 / TensorFlow-Keras 2.10.0 / scikit-learn 1.1.2 pins, which no longer install on a current Python.
-- Included `requirements.txt`to ease installation.
-- Updated `Dockerfile` base image from `python:3.9-slim` to `python:3.13-slim` to match.
+### Added — forecasting and interoperability
+- Added hybrid wind/solar forecasting and ramp-rate analyses, with an example notebook. Results are documented as methodological deliverables rather than evidence that joint forecasting improves performance.
+- Added probabilistic PV and wind forecasting using LightGBM quantile regression, with pinball loss, approximate CRPS, interval coverage and sharpness metrics. For giggles.
+- Added `r/load_solete.R` for loading the original HDF5 files in R. Tested against both source files; values and datetime indices match pandas output exactly.
+- Added tests for hybrid QC inheritance and package import isolation. The full suite passes: 62 tests.
 
-### Known issues (not fixed here — packaging only)
-- `Functions.py`'s `post_process()` called `sklearn.metrics.mean_squared_error(..., squared=False/True)`, an argument scikit-learn removed in 1.4+. Replaced with `root_mean_squared_error()` (for the former `squared=False` calls) and bare `mean_squared_error()` (for the former `squared=True` calls, now equivalent to the old default). This unblocks `MLForecasting.py`'s error-computation step under the new pins.
-- `Functions.py`'s `post_process()` calls `sklearn.metrics.mean_squared_error(..., squared=...)`, an argument scikit-learn has since removed. This breaks `MLForecasting.py`'s error-computation step under the new pins. 
-- While verifying the above against the real pinned stack, `post_process()` raised a second, unrelated `KeyError` from `rmse.mean()[0]` / `mae.mean()[0]` / `mse.mean()[0]`: pandas 3.0 removed the integer-position fallback in `Series.__getitem__`, so indexing a label-indexed Series with `[0]` now raises instead of warning. Changed to `.mean().iloc[0]` (explicit positional access) in all three spots.
-- Verified: imported `Functions.py` directly and called `post_process()` against the real pinned stack (pandas 3.0.5, numpy 2.4.4, scikit-learn 1.9.0, TensorFlow 2.21.0, CoolProp 8.0.0) with synthetic Observed/Forecasted/Persistence data — ran end-to-end with correct RMSE/MSE/MAE output and no errors. Also re-ran `RunMe.py` end-to-end after the change to confirm no regression. Both were run on Python 3.12 (no 3.13 interpreter available in the sandbox); wheel availability for 3.13 was already confirmed separately for every pinned package.
-- Not yet run: the real `MLForecasting.py` training pipeline against actual data (that needs a full LSTM/RF/SVR training run with real datasets, which wasn't exercised here) — the synthetic-data test above targets the specific bug in `post_process()`, not a full pipeline regression test.
+### Fixed — legacy compatibility and numerical performance
+- Fixed the inverter-capacity clamp, pandas Series indexing in the thermodynamic model, and scikit-learn metric calls removed in newer versions. Updated the post-processing code to use explicit positional indexing.
+- Refactored `Rincon_Pombo_ThermodynamicModel` to batch CoolProp calculations, reducing runtime on the 60-minute dataset by a 2.6× factor, with bit-for-bit identical output on both source files.
+- Fixed sample paths and Colab download destinations in the example notebooks. All five current notebooks execute without error.
+- Regenerated non-TensorFlow benchmark results affected by the revised QC rule. 
 
-### Fixed
-- **Task 5.0** — Fixed a sample-file path mismatch in all four `examples/*.ipynb` notebooks: each called `import_SOLETE_sample('../SOLETE_sample.h5', ...)` (or `'../SOLETE_sample_wind.h5'` for `04_wind_forecasting.ipynb`), i.e. one directory above the notebook, but the sample files ship *inside* `examples/` alongside the notebooks themselves. Since the normal Jupyter/Colab default working directory is the notebook's own directory, this made every notebook fail with a file-not-found error on a clean checkout unless the user happened to `cd` up first. Fixed by changing the load-call path strings from `'../SOLETE_sample.h5'` / `'../SOLETE_sample_wind.h5'` to `'SOLETE_sample.h5'` / `'SOLETE_sample_wind.h5'` (relative to the notebook's own directory, matching where the files actually are) — chosen over moving the `.h5` files to the repo root because it's a one-line string fix with no git-history renames, and it keeps `examples/SAMPLE_DATA.md`'s existing description of the files' location accurate as-is. Also corrected the matching Colab-bootstrap cell's fallback-download destination (`dest = "../" + SAMPLE_FILE` → `dest = SAMPLE_FILE`) in all four notebooks so a from-scratch Colab run would download to the same corrected location, not the old mismatched one. Verified by running `jupyter nbconvert --execute` on all four notebooks from their own directory against a clean checkout — all four now execute end to end with zero error cells.
-
-### Added (Phase 6 — hybrid wind+solar forecasting)
-- New derived `P_hybrid[kW]` column (`= P_Solar[kW] + P_Gaia[kW]`, computed in `ExpandSOLETE()` after substitution/zero-smoothing) plus its own QC columns, `P_hybrid[kW]_qc` and `P_hybrid[kW]_qc_source` (`QC_SCHEMA.md` §8): the hybrid inherits whichever constituent's QC flag is higher-precedence, with `_qc_source` naming which constituent (or `'none'`) produced it. No wind (`P_Gaia[kW]`) QC rule exists yet, so today this is equivalent to `P_Solar[kW]_qc` — pinned by the new regression tests added in Phase 7 Session 1 (`tests/test_qc_flags.py`).
-- New `task6_2_hybrid_joint_vs_independent.py` (joint-vs-independent AR(p) forecasting comparison for `P_hybrid[kW]`, `results/hybrid_joint_vs_independent.json`) and `task6_3_ramp_rate_analysis.py` (ramp-rate distribution comparison plus a two-day case study, `results/hybrid_ramp_rate_summary.json` and accompanying figures). Per Task 6.0's decision (path (b), see `KNOWN_ISSUES.md` #10), both are scoped and reported as infrastructure/methodology deliverables on wind-degenerate data, not as a "joint beats independent" or "wind smooths ramps" finding — see each script's module docstring and `BENCHMARKS.md`'s hybrid section for the full caveats.
-- New `examples/05_hybrid_forecasting.ipynb`, walking through the hybrid column, its QC inheritance, and both task scripts above.
-- New `BENCHMARKS.md` section for `P_hybrid[kW]`, and `KNOWN_ISSUES.md` #10 documenting `P_Gaia[kW]`'s near-total zero-degeneracy (99.56% exactly zero across the full record; only 0.81% of the test split's rows are wind-active) with two unconfirmed candidate explanations (turbine downtime vs. an aggregation-pipeline artifact) — root cause not established in this repo.
-
-### Added (Phase 7 Session 5 — R loader)
-- New `r/load_solete.R`, a minimal R loader (`load_solete(path)`, using the `hdf5r` CRAN package) for the real SOLETE HDF5 files, for users working in R rather than Python. Mirrors only the *raw* loading step (Python's `pd.read_hdf()` call inside `import_SOLETE_data()`'s `'Build'` branch) — not QC-flagging, `ExpandSOLETE()`, or the physics models, which stay Python-only. Column names/semantics are exactly the raw file's columns, documented by reference to `DATA_DICTIONARY.md` rather than duplicated. New `r/README.md` covers install and use.
-  - Package choice: `hdf5r` (general-purpose CRAN, packaged directly as `r-cran-hdf5r` on Debian/Ubuntu) rather than the originally-suggested `rhdf5` (Bioconductor, needs `BiocManager` rather than a plain CRAN/apt install, and nothing else in this repo depends on the Bioconductor ecosystem).
-  - These files are pandas `to_hdf(..., format="fixed")` output, not a generic HDF5 table — the loader reads the `DATA/axis0` (columns)/`axis1` (index)/`block<N>_items`/`block<N>_values` structure directly. Two things worth flagging for anyone touching this later: `hdf5r` returns `block<N>_values` with dimensions reversed (features-first, then time) relative to what h5py/numpy report for the same dataset — an HDF5 row-major vs. R column-major storage-order artifact, not a data difference; and the nanosecond-since-epoch `axis1` index is converted to seconds using `bit64` integer64 arithmetic *before* going to `double`, since a raw nanosecond value (~1.5e18) is well past a double's ~9e15 exact-integer range and would otherwise silently round to the nearest ~256ns.
-  - **Tested, not just written by hand**: an R environment (`r-base-core` 4.3.3 plus `r-cran-hdf5r`, both installed via `apt` — no CRAN/Bioconductor network access needed) was available, so this was run against both real files (`SOLETE_short.h5`, `SOLETE_Pombo_60min.h5`) and checked bit-for-bit against `pandas.read_hdf()` on the same files (raw binary comparison of the underlying float64 values and the datetime index, not a lossy CSV/text round trip) — exact match, no tolerance needed.
-
-### Fixed (Phase 7 Session 6 prep — Session 1's hybrid QC regression tests actually landed)
-- The "Added (Phase 6 — hybrid wind+solar forecasting)" entry below states the
-  `P_hybrid[kW]_qc`/`P_hybrid[kW]_qc_source` inheritance behavior was "pinned
-  by the new regression tests added in Phase 7 Session 1
-  (`tests/test_qc_flags.py`)". That was true of the intent but not of the
-  code: the suite was verified at 41 tests, not 43, and neither name appeared
-  anywhere in the file. Root cause not established (most likely lost in the
-  `a9ca880` "Reconcile parallel development" merge, which only touched
-  `KNOWN_ISSUES.md`); flagged rather than guessed at. Added the two tests now
-  (`test_hybrid_qc_equals_solar_qc_today`, `test_hybrid_qc_source_never_wind`),
-  against a new `built_60min` fixture that runs the full `import_SOLETE_data`
-  Build pipeline (existing fixtures only `pd.read_hdf` the raw file, which
-  never reaches `ExpandSOLETE()` and so never produces the hybrid columns).
-  Full suite now passes at 43/43 as originally claimed.
-
-### Added (Phase 7 Session 6 — probabilistic forecasting benchmark)
-- Extended `metrics.py` with four probabilistic metrics: `pinball_loss`, `crps_from_quantiles`
-  (trapezoidal approximation of CRPS from a discrete quantile grid, Gneiting & Raftery 2007
-  eq. 21), `interval_coverage`, and `sharpness` — see each function's docstring for the exact
-  formulas and caveats. New `tests/test_probabilistic_metrics.py` (11 tests: real-data-derived
-  plus synthetic edge cases, same convention as `tests/test_metrics.py`).
-- New `task7_6_probabilistic_forecast.py`: LightGBM quantile regression (`objective="quantile"`),
-  one model per quantile level (0.05/0.10/0.25/0.50/0.75/0.90/0.95), reusing `baseline_gbm.py`'s
-  feature set unchanged. **ASK FIRST outcome (maintainer, 2026-09-18):** quantile regression via
-  LightGBM (not a parametric/Gaussian-residual approach) — same library Task 5.5 already chose.
-  **ASK FIRST outcome (maintainer, 2026-09-18) — wind:** attempt it anyway despite the same
-  `P_Gaia[kW]` zero-degeneracy caveat (`KNOWN_ISSUES.md` #10) that affects every other wind row
-  in this benchmark, specifically so a working probabilistic pipeline exists to re-point at
-  better wind data once it arrives, not to claim a meaningful wind result today.
-- New `results/probabilistic_pv.json` and `results/probabilistic_wind.json`; new `BENCHMARKS.md`
-  section. PV intervals are calibrated somewhat below their nominal coverage (e.g. 81.7% empirical
-  vs. 90% nominal, qc_included) — a real, flagged finding, not silently corrected. Every wind
-  quantile model converged to predicting ~0 everywhere (val pinball loss of exactly 0.0 at all
-  seven levels), so wind's three nested intervals collapse to the same near-zero band and report
-  identical empirical coverage regardless of nominal width — expected given the target's own
-  degeneracy, called out explicitly in both the results file and `BENCHMARKS.md`.
-
-### Changed (Phase 7 Session 2 — vectorize the CoolProp-heavy thermodynamic loop)
-- Refactored `Rincon_Pombo_ThermodynamicModel` in `Functions.py` for speed only — the physical model, and every per-row numerical behavior (including a pre-existing quirk in the gradient-limiter branch, where tripping the limiter overwrites the *previous* row's stored temperature rather than just the current one — left as-is, since this is a speed refactor, not a correctness one) are unchanged. Profiled first (real 60-minute file, 10,969 rows): baseline 2.679s end-to-end (0.244 ms/row). Batched the three per-row `CoolProp.HAPropsSI` calls (mu, cp, k) into 3 calls total instead of 3×N — confirmed CoolProp 8.0.0's `HAPropsSI` accepts array arguments directly, and checked it returns bit-for-bit identical values to the scalar-call loop on the same inputs before relying on it — plus vectorized the elementwise density/Reynolds/Prandtl-number arithmetic and the flat-plate Rex grid (ordinary +-*/ is IEEE-754 exact regardless of vectorization, so this part carried no precision risk).
-  - **Deliberately did not vectorize the power-law part** of the 100-point flat-plate discretization (the `Rex**(1/2)`, `Rex**(4/5)`, `Pr**(1/3)` terms), even though it doesn't depend on the recursive `T_PV` state either: numpy's `**` ufunc on a sizable array uses a SIMD-approximated power that isn't bit-identical to Python/libm's scalar `pow()` — confirmed directly (e.g. `Pr**(1/3)` computed as a 5000-element array differed from the same values computed one at a time in ~6-7% of elements, by up to 1 ULP) — and that first, fully-vectorized attempt at this refactor produced output that matched the original only to ~5.7e-14 absolute (~1.9e-16 relative), not bit-for-bit, because that per-element ULP noise compounds through the ~11,000-step recursive `T_PV` update. Kept that part (and only that part) as a 100×N-element scalar-typed loop instead — cheap relative to the CoolProp calls it's actually targeting — to get true bit-for-bit equivalence with the original.
-  - **Result** (60-minute file, 10,969 rows): 2.679s → 1.027s, ≈2.6× faster. Verified bit-for-bit identical output (`np.array_equal`, not an `allclose` tolerance) against the true, unmodified original function on both real files (`SOLETE_short.h5`, 24 rows, and `SOLETE_Pombo_60min.h5`, 10,969 rows) — imported the pre-refactor `Functions.py` from git history as a separate module for a clean side-by-side comparison, not a from-memory reimplementation.
-  - Also dropped one line of genuinely dead code found along the way: an unused ideal-gas constant (`R = 8.31432e3`) that was always overwritten by a same-named thermal-resistance variable before ever being read — no behavior change, since it was never used.
-
-### Changed (Phase 7 Session 8 — split `Functions.py` into a package)
-- Split the ~1630-line monolithic `Functions.py` into a new `solete_pipeline/` package, one module per concern: `qc.py` (QC flag constants, `apply_qc_flags`, `build_*_qc_rules`), `physics.py` (`PV_Performance_Model`, `Rincon_Pombo_ThermodynamicModel`), `preprocessing.py` (`ExpandSOLETE`, `PreProcessDataset`, `series_to_forecast`), `io.py` (`import_SOLETE_data`, `import_SOLETE_sample`, `import_PV_WT_data`), `modeling.py` (`PrepareMLmodel`, `train_LSTM`/`train_CNN`/`train_CNN_LSTM`, `TestMLmodel`, `generate_persistence`), and `postprocess.py` (`post_process`, `error_msg`).
-  - **Deviated from the original pack's suggested 4-module sketch** (`io`/`physics`/`preprocessing`/`postprocess`) after actually reading the full file: it left no home for the ~370-line ML-training block (`PrepareMLmodel` through `generate_persistence`), and lumped the QC constants/rule-builders into `preprocessing.py` despite them having zero dependency on it. Added `qc.py` as its own module and `modeling.py` for the ML training functions — confirmed with the maintainer before proceeding (this session's own ASK FIRST gate for a non-matching layout).
-  - `Functions.py` is now a thin re-export shim over `solete_pipeline`, so every existing `from Functions import X` (`RunMe.py`, `MLForecasting.py`, the baseline/task scripts, `examples/*.ipynb`, `tests/`) keeps working unmodified.
-  - `solete_pipeline/__init__.py` deliberately does **not** eagerly re-export every submodule's names — an earlier draft of this split did, which meant importing `solete_pipeline.qc` alone still transitively imported `modeling.py`'s keras/tensorflow, defeating the actual point of separating them. Caught via a direct subprocess-isolated import-cost test (now `tests/test_solete_pipeline_units.py::test_qc_module_imports_without_keras_or_tensorflow` / `test_physics_module_imports_without_keras_or_tensorflow`) before this landed. `Functions.py` itself still imports everything (same cost it always had), since it has to keep re-exporting the ML training functions too.
-  - Added `tests/test_solete_pipeline_units.py` (8 new tests): real-data-grounded per the existing `tests/test_qc_flags.py` convention (a real daytime row from `SOLETE_Pombo_60min.h5` for `PV_Performance_Model`, the same real pressure-sentinel row `test_qc_flags.py` uses for `apply_qc_flags`), plus the two import-isolation regression tests above and one pinning that `Functions.py` still costs what it always cost. One explicitly-marked synthetic case (a hand-built zero-irradiance row) for a boundary the real files don't happen to contain on demand.
-  - **Verified numerical equivalence**, not just "should be fine": ran the real 60-minute file through `import_SOLETE_data` → `ExpandSOLETE` on both the pre-split original `Functions.py` (loaded from a separate copy for a clean side-by-side, not a from-memory reimplementation) and the new split package — all 25 output columns bit-for-bit identical (`np.array_equal`). Also confirmed every migrated function's compiled bytecode (`__code__.co_code`) is identical between old and new; the only `co_consts` differences are nested lambda/genexpr filename/line-number metadata (an unavoidable side effect of moving code to a new file), not logic.
-  - **Ran every downstream script and notebook listed in the original pack's Session 8 text, plus `task7_6_probabilistic_forecast.py` (added in Session 6, not in the original list)**, after the split:
-    - `RunMe.py` — pass
-    - `MLForecasting.py` (default CNN config) — pass
-    - `baseline_persistence.py` — pass, `results/persistence.json` and `results/smart_persistence.json` both byte-for-byte identical to the committed files
-    - `baseline_climatology_ar.py` — pass, `results/ar.json`/`results/climatology.json` identical
-    - `baseline_gbm.py` — pass, `results/gradient_boosting.json` identical
-    - `task5_6_lstm_cnn_harness.py` — pass; this one is an unseeded NN smoke test by design, so its output values differ run-to-run (confirmed schema-identical to the committed file, values not expected to match and don't)
-    - `task6_2_hybrid_joint_vs_independent.py` — pass, `results/hybrid_joint_vs_independent.json` identical
-    - `task6_3_ramp_rate_analysis.py` — pass, `results/hybrid_ramp_rate_summary.json` identical (regenerated PNGs discarded, not part of this session's scope)
-    - `task7_6_probabilistic_forecast.py` — pass, `results/probabilistic_pv.json`/`results/probabilistic_wind.json` identical
-    - `solete/dataset.py` — pass, via `tests/test_dataset_api.py` (doesn't import `Functions.py` directly; goes through `bench_common.py`)
-    - All 5 `examples/*.ipynb` notebooks — pass, executed end-to-end via `nbconvert`, zero error cells; data outputs match the committed notebooks once TensorFlow/absl log-noise lines and one pre-existing stale-output notebook (`01_dataset_overview.ipynb`/`02_data_quality.ipynb` show `(2160, 22)` columns; current code produces `(2160, 25)` because Phase 6's `P_hybrid[kW]` column postdates when those notebooks were last executed — confirmed this is unrelated to this split by reproducing the same 22-vs-25 mismatch with the pre-split original `Functions.py` too) are excluded.
-  - Full test suite: 62/62 pass (54 existing + 8 new).
-  - Updated `CONTRIBUTING.md` (new "Code layout" section) and `README.md` (short pointer) to describe the new package structure.
-
-### Fixed (Phase 7 — licensing inconsistency, per maintainer decision)
-- Resolved the CC-BY-4.0-vs-MIT inconsistency flagged during Sessions 3 and 4 (and tracked in `CONTRIBUTING.md`/`PAPERSWITHCODE_LISTING.md` as unresolved since) in favor of **MIT**, per explicit maintainer instruction. `LICENSE` and `CITATION.cff` already said MIT; the files that instead said CC-BY 4.0 (or linked to the CC-BY-4.0 license text) have been updated to reference MIT instead:
-  - `Functions.py`'s original monolithic header (now carried into each of `solete_pipeline/{qc,physics,preprocessing,io,modeling,postprocess}.py` and `solete_pipeline/__init__.py`, per Session 8's split)
-  - `MLForecasting.py`, `RunMe.py`, `RunMe_matlab.m` (the latter two previously said "the licensing of this work is pretty chill, just give credit" with no explicit license named — now point at `LICENSE`/`CITATION.cff` explicitly, same as the rest)
-  - `requirements.txt`, `Dockerfile`
-  - `CONTRIBUTING.md`'s licensing section and `PAPERSWITHCODE_LISTING.md`'s licensing note, both rewritten to state MIT as settled rather than flag the inconsistency as open
-  - The friendly "give credit" language from the original CC-BY-era headers is kept as a plain request pointing at `CITATION.cff`, not as an added license term — MIT's own attribution requirement (retaining the copyright/license notice in copies) is unchanged and unaffected by this.
-  - `README.txt` already said MIT and needed no change. No `huggingface/README.md` was present in the repo snapshot this fix was made against, so its `license: other` (set in Session 3, pending exactly this resolution) is not yet updated — flagged here for whoever next touches that file.
-  - Full test suite re-run after this change: 62/62 pass (no code behavior touched, comments/headers only).
-
-<!-- add further entries here as work lands -->
+### Known issues
+- `P_Gaia[kW]` is zero for 99.56% of the full record, limiting the interpretation of wind and hybrid forecasting results. The cause remains unresolved, the most probable reasons are out-of-service Turbine, or faulty data adquisition.
+- Legacy callers must include generated QC columns in `Control_Var['PossibleFeatures']` to preserve them through save/import round trips.
+- The full LSTM/RF/SVR training pipeline has been rerun but not used again to properly deploy forecasters.
 
 ## [3.0] - 2023-07-20
 ### Fixed

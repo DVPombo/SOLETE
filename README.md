@@ -1,6 +1,6 @@
 # SOLETE
 
-**2026 Note that we are in active development and the main branch might not be stable. Please use the latest release available on the right-hand side of this page**
+**Please take the latest available release on the right hand side.**
 
 Author: **Daniel Vázquez Pombo** - Contact: daniel.vazquez.pombo@gmail.com<br/>
 LinkedIn: https://www.linkedin.com/in/dvp/<br/>
@@ -9,7 +9,7 @@ ORCID: https://orcid.org/0000-0001-5664-9421
 
 See [CHANGELOG.md](CHANGELOG.md) for release history, including the v3.0 corrigendum.
 
-**This repository is the one-stop home of the whole SOLETE project**: the cleaning and quality-control pipeline behind version 4 of the dataset, and the forecasting platform and benchmarks built on it. (The data files themselves live on figshare, see below.)
+**This repository is the one-stop home of the whole SOLETE project**: the cleaning and quality-control pipeline behind version 4 (v4) of the dataset, and the forecasting platform and benchmarks built on it. (The data files themselves live on figshare, see below.)
 
 This repository used to be complementary material to its twin "Data in Brief" article [1], and a series of papers covering Solar PV power forecasting [2, 3, 4]. The objective is to increase the transparency of my work, which is one of the main limitations of Machine Learning in general.
 However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
@@ -20,6 +20,8 @@ Long Live Open Science!
 The papers were developed under the PhD thesis Operation and Planning of Isolated Hybrid Power Systems at the Technical University of Denmark (DTU).
 Version v1.0 was released during the PhD thus, Copyright 2021 Technical University of Denmark.
 Version v2.0 was released months after finalising my employment at DTU, therefore, Copyright belongs to me (yeah baby!).
+Version v3.0 was motivated by the discovery of some nasty bugs. Thank you very much to Pierre Pinson for letting me know about his suspicion. 
+Version v4.0 is motivated by the desire of facilitating access to data scientist. The community has spoken and I have done my best to address their concerns and more.
 
 # What is where
 
@@ -30,7 +32,7 @@ Version v2.0 was released months after finalising my employment at DTU, therefor
 | see how the raw data became version 4 | [`dataset/`](dataset/README.md): `pipeline/` (the code), `docs/CLEANING_DECISIONS.md` (every rule and why), `diagnostics/` (the investigations) |
 | train forecasting models | [`solete/`](solete/) (the package) and [`scripts/quickstart/MLForecasting.py`](scripts/quickstart/MLForecasting.py) |
 | reproduce or extend the benchmarks | [`benchmarks/`](benchmarks/BENCHMARKS.md) |
-| learn by example | the notebooks in [`examples/`](examples/) (they run on a tiny sample, no download needed) |
+| learn by example | the notebooks in [`examples/`](examples/) (they run on a tiny sample, no additional download needed) |
 
 ```
 SOLETE/
@@ -70,8 +72,6 @@ import pandas as pd
 df = pd.read_parquet(find_data_file("60min", version="v4", fmt="parquet"))   # cleaned data with quality flags
 ```
 
-Which version does the platform read? The forecasting platform and the benchmarks were built on the **version 3 hourly file** (`SOLETE_Pombo_60min.h5`, kept in `data/hdf5/`) and read it by default. `import_SOLETE_data` also loads the cleaned v4 files (`Control_Var['data_version']='v4'`: their flags are read as they are, the model columns are recomputed by `solete.expansion.expand_physical`, and the working `P_Solar[kW]` is `P_Solar_clean[kW]`); re-running the benchmarks on them is a later task. Details in [`docs/RESTRUCTURE_NOTES.md`](docs/RESTRUCTURE_NOTES.md).
-
 # Examples for Beginners
 New to SOLETE? The notebooks in `examples/` walk through the dataset on a small sample file, so you can get a feel for it without downloading the full dataset first. Each has an "Open in Colab" badge to run it straight in the browser.
 
@@ -104,15 +104,14 @@ pip install -r dataset/requirements.txt
 python dataset/pipeline/build_release.py --raw SOLETE_Pombo_1sec.h5 --skip-existing    # all ten v4 files + checksums; --dry-run first
 ```
 
-### Notes for _MATLAB_ users ###
+### Notes for _MATLAB_ and _R_ users ###
 I have been reached out by several people complaining that hdf5 can't be imported in MATLAB. That is not true, they weren't doing properly. Nevertheless, worry not dear user. Your peers have asked and I answer:
 1. Open the file **matlab/RunMe_matlab.m** in MATLAB and hit F5. That will import SOLETE as a _table_ (it finds `data/hdf5/` by itself).
 2. Alternatively, you can run the Python scripts from MATLAB, which I find a bit weird... but hey! You do you baby!
 
-*I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
+3. I also included and _R_ script, same reason as for MATLAB.
 
-### Code layout
-One module per concern inside the `solete/` package (I/O, paths, physics, QC, preprocessing, ML model training, postprocessing, metrics) — see `CONTRIBUTING.md`'s "Code layout" section. The old `Functions.py` and `solete_pipeline/` no longer exist; `from Functions import X` becomes `from solete.<module> import X` (migration table in [`docs/RESTRUCTURE_NOTES.md`](docs/RESTRUCTURE_NOTES.md)).
+*I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
 
 # How to cite this:
 Technically, you should cite the repository itself, however I don't get those citations captured where it matters, so please cite [1] like this:
@@ -158,9 +157,3 @@ Versions of the SOLETE Platform up to and including v2.3 contained two major bug
 2. In the postprocessing of results, when calculating RMSE. This was affecting evaluation quality.
 
 I can only apologize for these mistakes, which have been corrected in versions v3.0 and upwards. 
-
-# Run with Docker
-```
-docker build -t solete .
-docker run --rm -v $(pwd)/data:/app/data solete     # mounts your data/ folder (hdf5/ + parquet/ inside)
-```

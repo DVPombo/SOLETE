@@ -32,8 +32,6 @@ Energy Systems, Denmark, using a meteorological station, an 11 kW Gaia wind turb
 a 10 kW-class PV array/inverter, transferred to a central server **(paper-sourced;**
 Pombo, Gehrke & Bindner 2022, *Data in Brief* 42, 108046). Exact sensor make/model,
 calibration records, and precise GPS coordinates are not in the repo files or code —
-<!-- TODO: confirm with maintainer --> if this level of detail is wanted, it should come
-from the maintainer or the full paper text, not be guessed here.
 
 ---
 
@@ -50,8 +48,7 @@ from the maintainer or the full paper text, not be guessed here.
   cluster in July–August 2018, the summer of a well-documented NW-European heatwave, so
   this is plausibly real rather than a sensor fault, but 44 °C is above Denmark's
   national temperature record and the station may be sited near reflective/heat-emitting
-  equipment (PV array, inverter housing) that could bias it warm. `<!-- TODO: confirm with maintainer -->`
-  whether these summer-2018 highs are known-good or a station siting artifact.
+  equipment (PV array, inverter housing) that could bias it warm. 
 
 ### `HUMIDITY[%]`
 - **Human-readable name:** Relative humidity
@@ -96,7 +93,7 @@ from the maintainer or the full paper text, not be guessed here.
   under a naive mean (wrong) but a value like 639° can only arise from summing/averaging
   angles without wrapping them back into [0, 360) afterward. See `RESOLUTIONS.md` for the
   fuller aggregation-methodology discussion; this is filed as an open, unverified
-  root-cause finding in `KNOWN_ISSUES.md`. `<!-- TODO: confirm with maintainer -->`
+  root-cause finding in `KNOWN_ISSUES.md`. 
 
 ### `GHI[kW1m2]`
 - **Human-readable name:** Global Horizontal Irradiance
@@ -167,7 +164,7 @@ from the maintainer or the full paper text, not be guessed here.
   non-round, plausible pressure value (992–998 mbar). This looks like a placeholder /
   fill value pattern (1000, 2000, 3000 are suspiciously round and far too clustered to be
   real atmospheric readings), not real pressure measurements for the vast majority of the
-  60min file. See `KNOWN_ISSUES.md`. `<!-- TODO: confirm with maintainer -->`
+  60min file. See `KNOWN_ISSUES.md`. 
 
 ### `Azimuth[deg]` *(60min file only)*
 - **Human-readable name:** Solar azimuth angle
@@ -175,7 +172,7 @@ from the maintainer or the full paper text, not be guessed here.
 - **Source:** Not documented anywhere — not referenced by name in `Functions.py`,
   `RunMe.py`, or `MLForecasting.py`, and not listed in `Control_Var['PossibleFeatures']`
   in `MLForecasting.py`. Presumably computed from a solar-position calculation at
-  dataset-build time, but that computation isn't in this repo. `<!-- TODO: confirm with maintainer -->`
+  dataset-build time, but that computation isn't in this repo. 
 - **Resolution(s) observed:** 60min only. **Not present in `SOLETE_short.h5`.**
 - **Observed range:** -56.91 – 44.79°, but **10,959 of 10,969 rows (99.9%) are exactly
   0.0**; only 10 rows, all on a single calendar day (2019-01-16), carry a non-zero value.
@@ -187,7 +184,6 @@ from the maintainer or the full paper text, not be guessed here.
 - **Human-readable name:** Solar elevation angle
 - **Units:** Degrees
 - **Source:** Same as `Azimuth[deg]` — undocumented, unreferenced in code.
-  `<!-- TODO: confirm with maintainer -->`
 - **Resolution(s) observed:** 60min only. **Not present in `SOLETE_short.h5`.**
 - **Observed range:** 0.00 – 12.88°, with **10,960 of 10,969 rows (99.9%) exactly 0.0**;
   the only non-zero values are the same single day, 2019-01-16, as `Azimuth[deg]`, and

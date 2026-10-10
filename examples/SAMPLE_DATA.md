@@ -58,9 +58,6 @@ saved file.
   A persistence baseline on an all-zero target "forecasts" it perfectly (0.000 MAE/RMSE),
   which teaches a newcomer nothing, so a plain reuse of the main sample would make Task
   3.5's notebook look broken rather than illustrate anything real.
-  **Per the maintainer, this finding is not being added to `KNOWN_ISSUES.md` or
-  `DATA_DICTIONARY.md`** — it's flagged here and in `examples/04_wind_forecasting.ipynb`
-  itself instead, since it's specific to why that one notebook uses a different sample.
 - **Resolution:** a second, dedicated sample centered on the 2019-05-25 active day,
   with 60 days of surrounding context so the notebook still has enough rows for a
   train/test split and lagged features, even though `P_Gaia[kW]` remains zero for all

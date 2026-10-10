@@ -1,7 +1,4 @@
-# What the dataset pipeline needs (dataset/pipeline/*, including build_release.py). Checked in a clean virtual
-# environment: nothing else is required -- CoolProp, scikit-learn, matplotlib and TensorFlow belong to the
-# forecasting platform (requirements.txt at the repo root) and are not imported by the build. (The optional
-# "platform" row of the build verification is SKIPPED if they are missing.)
+# What the dataset pipeline needs (dataset/pipeline/*, including build_release.py). Checked in a clean virtual environment
 numpy
 pandas>=2.0
 tables      # PyTables: read/write the .h5 files (also solete/h5io.py)

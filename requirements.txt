@@ -2,7 +2,7 @@
 # Author: Daniel Vázquez Pombo (daniel.vazquez.pombo@gmail.com)
 # Licensed under the MIT License -- see LICENSE at the repo root.
 #
-# Updated dependencies to the latest stable releases as of 2026-09-09.
+# Updated dependencies to the latest stable releases as of 2026-10-10.
 
 pandas==3.0.5
 numpy==2.5.3
@@ -13,4 +13,4 @@ keras==3.15.1
 CoolProp==8.0.0
 tables==3.11.1     
 joblib==1.6.0      
-lightgbm==4.7.0    # Task 5.5 gradient-boosting baseline
+lightgbm==4.7.0    

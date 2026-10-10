@@ -2,7 +2,7 @@ SOLETE dataset, version 4
 =========================
 
 15 months (2018-06-01 00:00:00 to 2019-09-01 00:00:00, UTC) of co-located meteorology, wind-turbine power and PV power
-from DTU SYSLAB (Risoe campus, Denmark; latitude 55.6867 N, longitude 12.0985 E, altitude 10 m), at 1 s, 1 min, 5 min and
+from DTU SYSLAB (Risø campus, Denmark; latitude 55.6867 N, longitude 12.0985 E, altitude 10 m), at 1 s, 1 min, 5 min and
 60 min resolution. Code, documentation and the tests that build these files: the SOLETE repository (see the repository URL in the
 record description). Dataset record: https://doi.org/10.11583/DTU.17040767
 Original dataset paper: https://doi.org/10.1016/j.dib.2022.108046
@@ -20,12 +20,18 @@ THE FILES (each exists as HDF5 in hdf5/ and as Parquet in parquet/; same numbers
   data contain (the last 1 min / 5 min / 60 min row therefore summarises a single second). Nothing was removed.
 
   Rows, columns and sizes (written by the build from the files it produced; see also manifest.json and SHA256SUMS.txt):
-[[SIZES-BEGIN]]
-  (filled in by dataset/pipeline/build_release.py, stage manifest)
-[[SIZES-END]]
 
-Which file should I use?  For analysis: the Parquet files (SOLETE_Pombo_60min_v4.parquet is the usual starting point).
-For transparency and reproduction: the HDF5 files, in particular SOLETE_Pombo_1sec_original_v4.h5.
+  file                                                         rows  columns         size
+  hdf5/SOLETE_Pombo_1sec_original_v4.h5                  39,484,801        9     467.6 MB
+  hdf5/SOLETE_Pombo_1sec_v4.h5                           39,484,801       28   1,584.1 MB
+  hdf5/SOLETE_Pombo_1min_v4.h5                              658,081       36      64.8 MB
+  hdf5/SOLETE_Pombo_5min_v4.h5                              131,617       36      14.2 MB
+  hdf5/SOLETE_Pombo_60min_v4.h5                              10,969       36       1.3 MB
+  parquet/SOLETE_Pombo_1sec_original_v4.parquet          39,484,801       10     332.7 MB
+  parquet/SOLETE_Pombo_1sec_v4.parquet                   39,484,801       29   1,623.3 MB
+  parquet/SOLETE_Pombo_1min_v4.parquet                      658,081       37      47.8 MB
+  parquet/SOLETE_Pombo_5min_v4.parquet                      131,617       37      12.4 MB
+  parquet/SOLETE_Pombo_60min_v4.parquet                      10,969       37       1.2 MB
 
 TIME
 ----
@@ -34,8 +40,8 @@ There is no local-time column. Resampled rows are labelled by the START of their
 
 THE `_original` FILE
 --------------------
-The raw 1-second data of version 3, in chronological order (the version-3 file stores 457 blocks of 86,399, 86,400 or 86,401 rows in shuffled order, with no gap and no duplicate). Nine
-measured columns, values unchanged: TEMPERATURE[degC], HUMIDITY[%] (a 0-1 fraction despite the name), WIND_SPEED[m1s],
+The raw 1-second data of version 3, in chronological order (the version-3 file stores 457 blocks of 86,399, 86,400 or 86,401 rows in shuffled order, with no gap and no duplicate). 
+Nine measured columns, values unchanged: TEMPERATURE[degC], HUMIDITY[%] (a 0-1 fraction despite the name), WIND_SPEED[m1s],
 WIND_DIR[deg], GHI[kW1m2], POA Irr[kW1m2], P_Gaia[kW], P_Solar[kW], Pressure[mbar]. The version-3 columns Azimuth[deg] and
 Elevation[deg] are dropped: they are computed from the timestamp and the site, not measured, and the old values were faulty.
 It contains known problems (placeholder pressure values, wind direction above 360, sensor dropouts, glitches): that is why it is released
@@ -62,7 +68,7 @@ COLUMN PROVENANCE
   P_hybrid[kW]_qc,            flagged 6); P_hybrid[kW] = P_Solar_clean[kW] + P_Gaia[kW]; the hybrid flag and where it came from (0 none,
   P_hybrid[kW]_qc_source      1 P_Solar, 2 P_Gaia). Measured P_Solar[kW] is never overwritten.
 
-THE HOURLY MODEL COLUMNS ARE NOT AN AVERAGE OF 1-SECOND MODEL OUTPUT
+THE HOURLY MODEL COMPUTED COLUMNS ARE NOT AN AVERAGE OF 1-SECOND MODEL OUTPUT
 --------------------------------------------------------------------
 In the 1 min, 5 min and 60 min files the model columns are NOT the mean of the 1-second model columns. They are computed again, from that
 file's own (already averaged) inputs. This is deliberate: the PV model is not linear (cell temperature, clipping at zero and at the inverter

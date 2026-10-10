@@ -1,8 +1,6 @@
-# data/ — put the SOLETE data files here
+Get the associated code in https://github.com/DVPombo/SOLETE
 
-The data are **not stored in git**. They are published on figshare / DTU Data:
-
-> **https://doi.org/10.11583/DTU.17040767**  (SOLETE dataset, version 4)
+# data/ — put the SOLETE data files there
 
 Download the files and unzip them **into this folder, keeping the sub-folders**, so you end up with:
 
@@ -48,7 +46,7 @@ Someone who downloads only `SOLETE_Pombo_1sec_original_v4.h5` can regenerate eve
 | time | UTC |
 | `Azimuth[deg]` | 0 = south, east negative, west positive, range [-180, 180) |
 | `Elevation[deg]` | apparent elevation, **not** clipped at night (negative below the horizon) |
-| pvlib version | written into the Parquet metadata of every file and into `manifest.json` (the maintainer's build used the version recorded there) |
+| pvlib version | written into the Parquet metadata of every file and into `manifest.json` |
 
 The same values are embedded in the Parquet metadata of every file (key `solete`).
 
@@ -88,22 +86,3 @@ python dataset/pipeline/export_parquet.py    SOLETE_Pombo_60min_v4.h5           
 ```
 
 (The individual scripts are what `build_release.py` runs for you; use it for the release, the scripts for experiments.)
-
-## Keeping the data somewhere else
-
-Set the environment variable `SOLETE_DATA_DIR` to a folder with the same `hdf5/` + `parquet/` structure
-(for example an external drive or a cluster scratch directory):
-
-```bash
-export SOLETE_DATA_DIR=/mnt/bigdisk/solete        # Linux / macOS
-set SOLETE_DATA_DIR=D:\solete                      # Windows cmd
-```
-
-In Spyder: *Tools → Preferences → Python interpreter → Environment variables*, or set it at the top of your script
-with `os.environ["SOLETE_DATA_DIR"] = ...` **before** importing `solete`.
-
-## Which version does the platform read?
-
-The forecasting platform and the benchmarks were built on the **v3 hourly file** (`SOLETE_Pombo_60min.h5`) and still
-read it by default. The cleaned v4 files are what the dataset pipeline produces and what you should use for new
-analysis; see `docs/RESTRUCTURE_NOTES.md` for what remains before the platform consumes them.

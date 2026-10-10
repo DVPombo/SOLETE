@@ -56,10 +56,6 @@ uses a plain arithmetic mean, or whether wind direction gets special circular-me
 handling). The full paper text was not accessible during this phase (ScienceDirect is
 paywalled for the body text; the PMC mirror served a bot-check page instead of content).
 
-**This is filed as an ASK-FIRST item:** `<!-- TODO: confirm with maintainer --> `the
-exact per-variable aggregation method (especially for `WIND_DIR[deg]`) used to build the
-finer-resolution files into the coarser ones is not verifiable from what's in this repo.
-
 ## Wind direction: naive mean vs. circular mean
 
 This was the one thing we *could* check empirically, indirectly, using the 60min file

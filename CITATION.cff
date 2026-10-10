@@ -8,8 +8,8 @@ message: >-
   metadata from this file.
 type: software
 authors:
-  - given-names: Daniel
-    family-names: Vazquez Pombo
+  - given-names: Daniel V.
+    family-names: Pombo
     email: daniel.vazquez.pombo@gmail.com
     orcid: 'https://orcid.org/0000-0001-5664-9421'
 identifiers:

@@ -18,8 +18,8 @@ REBUILD_CHECK = "sample"                             # "sample" (default), "full
 KEEP_INTERMEDIATE = False                            # True keeps the scratch folder (several GB) after a successful build
 SKIP_EXISTING = True                                 # resume: skip a stage whose outputs already exist
 OVERWRITE = False                                    # True replaces existing outputs (needed to redo a stage)
-DRY_RUN = True                                       # True: plan + disk estimate only, nothing is written
-STAGES = "all"                                       # or a comma list, e.g. "manifest" or "verify,manifest" (stages: original, clean, resample, expand, parquet, verify, manifest)
+DRY_RUN = False                                       # True: plan + disk estimate only, nothing is written
+STAGES = "manifest"                                       # or a comma list, e.g. "manifest" or "verify,manifest" (stages: original, clean, resample, expand, parquet, verify, manifest)
 # -----------------------------------------------------------------------------------------------------
 import os
 import sys

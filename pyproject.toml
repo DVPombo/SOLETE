@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solete"
-version = "4.0.0.dev0"
-description = "SOLETE: co-located wind + PV + meteorological dataset, its cleaning pipeline, and a forecasting platform"
+version = "4.0.0"
+description = "SOLETE: co-located Wind + PV + meteorological dataset, its cleaning pipeline, and a forecasting platform"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Daniel Vazquez Pombo" }]

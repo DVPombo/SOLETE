@@ -59,7 +59,7 @@ here so the next rule added doesn't have to invent a tie-break from scratch.
 | 2 | Humidity >1.0 (1.7%, up to 2.7) | `HUMIDITY[%]` | 3 `physically_implausible` | `value > 1.0 or value < 0.0` |
 | 3 | Wind dir ≥360° (0.94%, up to 639.34°) | `WIND_DIR[deg]` | 3 `physically_implausible` | `value >= 360.0 or value < 0.0` |
 | 4 | Azimuth/Elevation ~99.9% zero, real values one day only | `Azimuth[deg]`, `Elevation[deg]` | 1 `missing` | `value == 0.0` (see §6 — these are a later, user-added derivation, not part of the original DTU release) |
-| 5 | Row order not chronological on disk (60min file) | *file-level, no `_qc` column* | — | Not represented in this schema. It's not a per-cell value problem — every value is correct once sorted — so it doesn't fit the `<column>_qc` pattern. **Decision (maintainer, 2026-09-10): documented here as a known caveat only; no code change this phase.** Revisit after the current GitHub pass — likely candidates are a `.sort_index()` in `import_SOLETE_data()`, or fixing wherever the 60min file is built from the source resolution. |
+| 5 | Row order not chronological on disk (60min file) | *file-level, no `_qc` column* | — | Not represented in this schema. It's not a per-cell value problem — every value is correct once sorted — so it doesn't fit the `<column>_qc` pattern. Revisit after the current GitHub pass — likely candidates are a `.sort_index()` in `import_SOLETE_data()`, or fixing wherever the 60min file is built from the source resolution. |
 | 6 | `P_Solar_model_substituted` (Phase 0.5, ~38%/~21%) | `P_Solar[kW]` | 6 `suspected_curtailment_or_model_substituted` | existing boolean `Pac >= 1.5 * P_Solar[kW]` (computed in `ExpandSOLETE`, unchanged) mapped `True → 6`, `False → 0` *(v4: the boolean now also requires `Pac > 0`, so night 0-vs-0 rows are no longer flagged)* |
 
 ### Note on finding #1's flag label
@@ -94,7 +94,7 @@ extending it later is a one-line change, not a rewrite.
 
 ## 6. Azimuth/Elevation — provenance note
 
-Per the maintainer: these two columns were **not** part of the original DTU release
+These two columns were **not** part of the original DTU release
 described in the SOLETE paper (which lists only temperature, humidity, pressure, wind
 speed/direction, GHI, POA irradiance, and WT/PV power) — they were added later using a
 separate Python library from GPS coordinates and timestamp. An independent check against
