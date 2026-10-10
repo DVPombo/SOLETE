@@ -6,7 +6,7 @@ This repository is the whole SOLETE project: `dataset/` (cleaning and quality co
 Rules that apply everywhere:
 
 1. **Paths.** Never hard-code a data path, never rely on the current directory. Use `solete/paths.py`
-   (`find_data_file`, `resolve_input`, `resolve_output_prefix`, `derived_path`, `output_path`). Data lives in `data/` (git-ignored, figshare layout `hdf5/` + `parquet/`).
+   (`find_data_file`, `resolve_input`, `resolve_output_prefix`, `derived_path`, `output_path`). Data lives in `data/` (git-ignored, figshare layout `hdf5/` + `parquet/`). v4 file names are built only in `solete/paths.py` (`data_filename`, `release_path`, `release_stems`); big files are read in slices with `solete/h5io.py`, never loaded whole.
 2. **Never modify a data file in place.** Outputs go to new files. Raw inputs are read-only.
 3. **Imports.** Import from the specific module (`from solete.qc import ...`). `solete/__init__.py` re-exports nothing; `solete.qc`, `solete.physics`, `solete.paths` must stay free of keras/tensorflow (a test enforces it).
 4. **New scripts** start with the repo-root `sys.path` bootstrap used by the existing ones (see `benchmarks/baseline_gbm.py`), so they run from any folder and from Spyder.

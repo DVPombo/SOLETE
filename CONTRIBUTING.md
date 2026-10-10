@@ -52,7 +52,7 @@ The repository has two halves that share one data folder and one flag-code vocab
 Import from the specific submodule you need: `from solete.qc import apply_qc_flags`. `solete/__init__.py`
 re-exports nothing on purpose, so importing `solete.qc`, `solete.physics` or `solete.paths` costs nothing beyond
 `pandas`/`numpy` — only `solete.modeling` pulls in `keras`/`tensorflow`. The dataset scripts rely on this
-(they import `solete.paths` only), and `tests/test_solete_pipeline_units.py` guards it.
+(they import only light submodules: `solete.paths`, `solete.h5io`, `solete.params`, `solete.qc_codes`, `solete.expansion`, `solete.physics`; CoolProp is imported lazily inside the one thermodynamic model that needs it), and `tests/test_solete_pipeline_units.py` guards it.
 
 Every runnable script starts with a two-line bootstrap that puts the repository root on `sys.path`, so
 scripts work from any folder and in Spyder without installing the package. Keep it when you add scripts.

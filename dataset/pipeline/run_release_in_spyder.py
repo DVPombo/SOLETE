@@ -14,11 +14,12 @@ Equivalent terminal command: python dataset/pipeline/build_release.py --raw <RAW
 DATA_DIR = ""
 RAW = ""
 SLICE_DAYS = 31                                      # 31 is about 1.8 GB peak; use 7 for a machine with little RAM
-REBUILD_CHECK = "full"                             # "sample" (default), "full" (second full build: do it once before publishing), "none"
+REBUILD_CHECK = "sample"                             # "sample" (default), "full" (second full build: do it once before publishing), "none"
 KEEP_INTERMEDIATE = False                            # True keeps the scratch folder (several GB) after a successful build
 SKIP_EXISTING = True                                 # resume: skip a stage whose outputs already exist
 OVERWRITE = False                                    # True replaces existing outputs (needed to redo a stage)
-DRY_RUN = False                                       # True: plan + disk estimate only, nothing is written
+DRY_RUN = True                                       # True: plan + disk estimate only, nothing is written
+STAGES = "all"                                       # or a comma list, e.g. "manifest" or "verify,manifest" (stages: original, clean, resample, expand, parquet, verify, manifest)
 # -----------------------------------------------------------------------------------------------------
 import os
 import sys
@@ -37,7 +38,7 @@ for name in [m for m in sys.modules if m == "solete" or m.startswith("solete.") 
 
 import build_release  # noqa: E402
 
-args = ["--slice-days", str(SLICE_DAYS), "--rebuild-check", REBUILD_CHECK]
+args = ["--slice-days", str(SLICE_DAYS), "--rebuild-check", REBUILD_CHECK, "--stages", STAGES]
 if RAW:
     args += ["--raw", RAW]
 for flag, on in (("--keep-intermediate", KEEP_INTERMEDIATE), ("--skip-existing", SKIP_EXISTING),

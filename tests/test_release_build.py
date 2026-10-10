@@ -307,6 +307,7 @@ def test_build_release_end_to_end_resume_refuse_and_tamper(tmp_path):
     df.to_hdf(p60, key="DATA", mode="w")
     bad = _run_build(data, "--stages", "verify", "--slice-days", "1", cwd=elsewhere)
     assert bad.returncode == 3 and "FAIL" in bad.stdout
+    assert "raw file not available" not in bad.stdout            # verify-only run still finds the raw file in its default place
     # a failed verification leaves no checksum list that could be published next to the bad files
     assert not (data / "SHA256SUMS.txt").exists() and not (data / "manifest.json").exists()
     assert "removed stale" in bad.stdout

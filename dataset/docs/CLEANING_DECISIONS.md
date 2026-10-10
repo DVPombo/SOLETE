@@ -6,9 +6,11 @@ from the scripts. Terms: *raw* = the 1-second file as published in v3;
 *v3* = the originally published release.
 
 ## 1. Row order
-The raw file stores 457 daily blocks in shuffled order (confirmed:
+The raw file stores 457 blocks in shuffled order (confirmed:
 `followup_A_index_order` — a complete, gap-free, duplicate-free 1-second grid,
-just not written in time order). The cleaned file is sorted chronologically.
+just not written in time order). The blocks are 86,399 (150 of them), 86,400 (156) or 86,401 (151) rows long, i.e. they are
+not cut exactly at midnight (`make_original.py` reports the run lengths; nothing in the pipeline depends on them). The raw file has
+39,484,801 rows: 457 x 86,400 plus the boundary second 2019-09-01 00:00:00. The v4 `_original` file is sorted chronologically.
 Nothing is added or removed.
 
 ## 2. Timestamps are UTC, not local time
@@ -123,7 +125,7 @@ The published values are dropped entirely (they carry a still-unexplained
 constant offset from pvlib of about -4.72° in azimuth and -0.45° in
 elevation, on top of the timezone error in #2 — see
 `solar_position_validation_v2`; the size of that offset is not pursued
-further, see "Reconciliation items" below). **None of the original values
+further: it is moot, because the published angles are dropped and recomputed). **None of the original values
 are delivered:** both columns are 100% pvlib-recomputed, no original values
 mixed in. Site: 55.6867°N, 12.0985°E (Risø, Denmark), 10 m altitude
 (`solar_position.py`: `SITE_LATITUDE`, `SITE_LONGITUDE`, `SITE_ALTITUDE_M`).
@@ -176,3 +178,17 @@ separate companion file, so they survive a plain `pd.read_hdf()` /
   `diagnostics/followup2_diagnostics.py`.
 - **Azimuth offset in the v3 column** (~4.72°, constant, on its one populated
   day) was never explained and is moot: those values are not delivered.
+
+## Counts from the v4 build on the real file
+What the rules above did on the real 1-second file (39,484,801 rows, 15 slices of about 31 days), taken from the `clean` stage report of the first real
+build (`build_summary_v4.json`, 2026-10-10). The `verify` stage re-derives the wind-direction, pressure-day and `P_Gaia`-day figures from the shipped file.
+
+| rule | real counts |
+|---|---|
+| `WIND_DIR` wrapped (code 1) | 1,343 rows: 1,153 above 360°, 190 exactly 360.0 (rewritten to 0.0), none below 0 |
+| `Pressure` placeholder (code 2) | 39,446,400 rows set to NaN: 39,440,760 exact multiples of 1000, plus 5,640 more in flatlines of 300 s or longer (the most frequent plateau value is 997.5 mbar, 1,260 s in total); 38,401 real readings remain, all on 2019-01-16 |
+| `WIND_SPEED`/`HUMIDITY` joint dropout | 26,242 seconds: 4,363 interpolated (code 3), 21,879 kept as recorded (code 4) |
+| glitch pass | `TEMPERATURE` 1 s interpolated (the −40.1 °C second), `POA Irr` 1 s interpolated, `HUMIDITY` 1 s interpolated and 86,401 s set to NaN (code 9; consistent with the one-day anomaly of §6), `GHI` and `Pressure` none |
+| `P_Gaia` | 172,800 rows code 10 (2018-08-31, 2019-05-25), 39,312,001 rows code 7 (99.56 %) |
+| `Azimuth`/`Elevation` | recomputed for every row; elevation from −57.75° to +57.76° (the summer-solstice maximum at this latitude is 57.75°) |
+

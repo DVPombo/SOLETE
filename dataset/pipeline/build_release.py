@@ -216,7 +216,8 @@ def run_stage(stage, a):
     elif stage == "verify":
         parquet = {k: v for k, v in pq_.items() if Path(v).exists()} or None
         scratch = sc if Path(sc["cleaned"]).exists() else None
-        R, extras = rv.verify(h5, raw=state.get("raw") or a.raw, scratch=scratch, rebuild_check=a.rebuild_check,
+        default_raw = paths.HDF5_DIR / paths.data_filename("1sec", "v3")        # RAW = "" in the launcher means this one
+        R, extras = rv.verify(h5, raw=state.get("raw") or a.raw or (default_raw if default_raw.exists() else None), scratch=scratch, rebuild_check=a.rebuild_check,
                               state=state, slice_days=a.slice_days, parquet=parquet)
         R.print_table()
         out = {"rows": R.rows, "extras": extras, "n_failed": len(R.failed)}

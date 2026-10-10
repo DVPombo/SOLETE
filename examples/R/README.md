@@ -12,7 +12,7 @@ branch in `../Functions.py` — not the full pipeline. It does not reimplement
 QC-flagging, `ExpandSOLETE()`, or the PV/thermodynamic models; those stay
 Python-only. Column names, units, and semantics are exactly the raw file's
 columns and are **not** re-described here — see
-[`../DATA_DICTIONARY.md`](../DATA_DICTIONARY.md) for what each one means, and
+[`../../docs/legacy/DATA_DICTIONARY_platform_v3.md`](../../docs/legacy/DATA_DICTIONARY_platform_v3.md) (v3 files; the v4 files are described in [`../../dataset/docs/DATA_DICTIONARY.md`](../../dataset/docs/DATA_DICTIONARY.md)) for what each one means, and
 `../QC_SCHEMA.md` if you need the QC-flag columns (which this loader does not
 compute).
 

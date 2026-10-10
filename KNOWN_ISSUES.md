@@ -113,7 +113,8 @@ detail on each.
   for one day), and whether the maintainer wants them documented as intentionally-partial
   or dropped from future exports.
 
-### 8. Row order in `SOLETE_Pombo_60min.h5` is not chronological on disk — **OPEN (usage caveat, not a data-value problem)**
+### 8. Row order in `SOLETE_Pombo_60min.h5` is not chronological on disk — **OPEN for the v3 files; fixed in the v4 files (usage caveat, not a data-value problem)**
+> **v4:** every v4 file (`SOLETE_Pombo_<res>_v4`, including `SOLETE_Pombo_1sec_original_v4`) is stored in chronological order. The v3 files are unchanged and keep this caveat; the raw v3 1 s file is the same (457 shuffled blocks).
 - **What it is:** `pd.read_hdf('SOLETE_Pombo_60min.h5').index.is_monotonic_increasing`
   is `False` — the file's rows are stored out of timestamp order (the index starts at
   2018-11-17 and ends at 2018-09-12, mid-file). Once sorted, the timestamps are a clean,
