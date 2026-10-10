@@ -18,7 +18,16 @@ THE FILES (each exists as HDF5 in hdf5/ and as Parquet in parquet/; same numbers
 
   File sizes (written by the build from the files it produced; see also manifest.json and SHA256SUMS.txt):
 [[SIZES-BEGIN]]
-  (filled in by dataset/pipeline/build_release.py, stage manifest)
+  hdf5/SOLETE_Pombo_1sec_original_v4.h5                      467.6 MB
+  hdf5/SOLETE_Pombo_1sec_v4.h5                             1,584.1 MB
+  hdf5/SOLETE_Pombo_1min_v4.h5                                64.8 MB
+  hdf5/SOLETE_Pombo_5min_v4.h5                                14.2 MB
+  hdf5/SOLETE_Pombo_60min_v4.h5                                1.3 MB
+  parquet/SOLETE_Pombo_1sec_original_v4.parquet              332.7 MB
+  parquet/SOLETE_Pombo_1sec_v4.parquet                     1,623.3 MB
+  parquet/SOLETE_Pombo_1min_v4.parquet                        47.8 MB
+  parquet/SOLETE_Pombo_5min_v4.parquet                        12.4 MB
+  parquet/SOLETE_Pombo_60min_v4.parquet                        1.2 MB
 [[SIZES-END]]
 
 Which file should I use?  For analysis: the Parquet files (SOLETE_Pombo_60min_v4.parquet is the usual starting point).
