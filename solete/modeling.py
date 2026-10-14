@@ -26,11 +26,23 @@ from sklearn.multioutput import MultiOutputRegressor
 from keras.models import Sequential
 from keras.layers import LSTM
 from keras.layers import Dense
-from keras.layers import Masking
 from keras.layers import Flatten
 from keras.layers import Conv1D
 from keras.layers import MaxPooling1D
 from keras.models import load_model
+from keras.callbacks import EarlyStopping
+from keras.utils import set_random_seed
+
+
+def _early_stopping_callback(cfg):
+    """Builds the EarlyStopping callback list for ML.fit() from a model's 'EarlyStopping' sub-dict
+    (see MLForecasting.py Control_Var doc). Returns [] when missing/disabled, so existing configs
+    train the full epo_num epochs exactly as before."""
+    if not cfg or not cfg.get('enabled', False):
+        return []
+    return [EarlyStopping(monitor='val_loss',
+                           patience=cfg.get('patience', 20),
+                           restore_best_weights=cfg.get('restore_best_weights', True))]
 
 
 def PrepareMLmodel(control, ml_data):
@@ -50,6 +62,12 @@ def PrepareMLmodel(control, ml_data):
     """
     
     filename = "Trained_" + control['MLtype']
+
+    #random_seed (Control_Var doc): None leaves training fully random (default); an int makes weight
+    #initialization/shuffling reproducible across runs (seeds Python, NumPy and the Keras backend together,
+    #but is not a GPU-determinism guarantee -- some backend ops stay nondeterministic there regardless).
+    if control.get('random_seed') is not None:
+        set_random_seed(control['random_seed'])
     
     if control['trainVSimport'] == True: #then, lets train a model
         
@@ -140,9 +158,7 @@ def train_LSTM(data, control):
     """
     pre=control["PRE"]
     hor=control["H"]
-    features= control["PossibleFeatures"].copy()
-    features.remove(control["IntrinsicFeature"])
-    
+
     train_data = data['X_TRAIN']#already a correctly-shaped (samples, pre+1, n_features) array from PreProcessDataset
     validation_data = data['X_VAL']
 
@@ -151,7 +167,7 @@ def train_LSTM(data, control):
     
     ##### Designing Neuronal Network #######
     ML = Sequential() #initialize
-    ML.add(Masking(mask_value=999, input_shape=(train_data.shape[1], train_data.shape[2]))) #add the mask so 999 = nan and are not taken into account
+    #no Masking layer: PreProcessDataset drops NaN rows outright, no 999 placeholder ever reaches training
     if control['LSTM']['Dense'][0] > 0: #add a dense if the number of neurons is higher than 0
         ML.add(Dense(control['LSTM']['Dense'][0]))
     if len(control["LSTM"]["Neurons"]) > 1: #if there is another LSTM coming afterwards we need the true
@@ -175,15 +191,15 @@ def train_LSTM(data, control):
     ML.compile(loss=control["LSTM"]["LossFun"], optimizer=control["LSTM"]["Optimizer"]) #, metrics=['mse', 'mae', 'mape', 'cosine']
     ML.summary()
     
-    
+    callbacks = _early_stopping_callback(control["LSTM"].get("EarlyStopping"))
     ANN_training = ML.fit(train_data, train_target,
                 epochs = control["LSTM"]["epo_num"], 
                 batch_size = control["LSTM"]["n_batch"],
                 validation_data = (validation_data, validation_target), #fed here the validation data
                 # validation_split
                 verbose=2, #0-> shows nothing, 1-> shows progress bar, 2-> shows the number of epoch.
-                shuffle=False)
-                # callbacks=[tbGraph])
+                shuffle=False,
+                callbacks=callbacks)
 
     return ML, ANN_training, #data, 
 
@@ -203,9 +219,7 @@ def train_CNN(data, control):
     """
     pre=control["PRE"]
     hor=control["H"]
-    features= control["PossibleFeatures"].copy()
-    features.remove(control["IntrinsicFeature"])
-    
+
     train_data = data['X_TRAIN']#.values.reshape(len(data['X_TRAIN'].index), pre+1, len(features))
     validation_data = data['X_VAL']#.values.reshape(len(data['X_VAL'].index), pre+1, len(features))
     
@@ -214,7 +228,6 @@ def train_CNN(data, control):
     
     ##### Designing Neuronal Network #######
     ML = Sequential() #initialize
-    #ML.add(TimeDistributed(Masking(mask_value=999, input_shape=(pre+1, len(features))))) #add the mask so 999 = nan and are not taken into account
     ML.add(Conv1D(filters=control["CNN"]["filters"], kernel_size=control["CNN"]["kernel_size"], padding='same',
                   activation=control["CNN"]["ActFun"], input_shape=(train_data.shape[1], train_data.shape[2])))
     if control['CNN']['Dense'][0] > 0: #add a dense if the number of neurons is higher than 0
@@ -227,15 +240,15 @@ def train_CNN(data, control):
     ML.compile(loss=control["CNN"]["LossFun"], optimizer=control["CNN"]["Optimizer"]) #, metrics=['mse', 'mae', 'mape', 'cosine']
     ML.summary()
     
-    
+    callbacks = _early_stopping_callback(control["CNN"].get("EarlyStopping"))
     ANN_training = ML.fit(train_data, train_target,
                 epochs = control["CNN"]["epo_num"], 
                 batch_size = control["CNN"]["n_batch"],
                 validation_data = (validation_data, validation_target), #fed here the validation data
                 # validation_split
                 verbose=2, #0-> shows nothing, 1-> shows progress bar, 2-> shows the number of epoch.
-                shuffle=False)
-                # callbacks=[tbGraph])
+                shuffle=False,
+                callbacks=callbacks)
     
     return ML, ANN_training,
 
@@ -254,9 +267,7 @@ def train_CNN_LSTM(data, control):
     """
     pre=control["PRE"]
     hor=control["H"]
-    features= control["PossibleFeatures"].copy()
-    features.remove(control["IntrinsicFeature"])
-    
+
     train_data = data['X_TRAIN']#already a correctly-shaped (samples, pre+1, n_features) array from PreProcessDataset
     validation_data = data['X_VAL']
 
@@ -273,7 +284,7 @@ def train_CNN_LSTM(data, control):
     if control['CNN_LSTM']['Dense'][1] > 0: #we only add the dense one if the number of neurons is higher than 0
                 ML.add(Dense(control['CNN_LSTM']['Dense'][1], activation = 'relu'))
     
-    ML.add(Masking(mask_value=999, input_shape=(train_data.shape[1], train_data.shape[2]))) #add the mask so 999 = nan and are not taken into account
+    #no Masking layer: PreProcessDataset drops NaN rows outright, and Conv1D/MaxPooling1D don't propagate masks anyway
     ML.add(LSTM(control["CNN_LSTM"]["Neurons"][0], input_shape=(train_data.shape[1], train_data.shape[2]),
                 activation = control["CNN_LSTM"]["LSTMActFun"],
                 bias_initializer = "zeros", kernel_initializer = "random_uniform",
@@ -284,14 +295,15 @@ def train_CNN_LSTM(data, control):
     ML.compile(loss=control["CNN_LSTM"]["LossFun"], optimizer=control["CNN_LSTM"]["Optimizer"]) #, metrics=['mse', 'mae', 'mape', 'cosine']
     ML.summary()
     
+    callbacks = _early_stopping_callback(control["CNN_LSTM"].get("EarlyStopping"))
     ANN_training = ML.fit(train_data, train_target,
                 epochs = control["CNN_LSTM"]["epo_num"], 
                 batch_size = control["CNN_LSTM"]["n_batch"],
                 validation_data = (validation_data, validation_target), #fed here the validation data
                 # validation_split
                 verbose=2, #0-> shows nothing, 1-> shows progress bar, 2-> shows the number of epoch.
-                shuffle=False)
-                # callbacks=[tbGraph])
+                shuffle=False,
+                callbacks=callbacks)
     
     return ML, ANN_training,
 
@@ -324,15 +336,7 @@ def TestMLmodel(control, data, ml, scaler):
     
     print("Testing " + control['MLtype'] + " This can take a while...")    
 
-    if control['MLtype'] in ['RF', "SVM"]:
-        predictions=ml.predict(data['X_TEST'])
-        persistence = generate_persistence(meas=data["X_TEST"][:,data["xcols"].index(control["IntrinsicFeature"]+"_(t)"),],
-                                           hor=control['H'])
-            
-    elif control['MLtype'] in ["LSTM", "CNN", "CNN_LSTM"]:        
-        predictions = ml.predict(data['X_TEST'])
-        persistence = generate_persistence(meas=data["X_TEST"][:,-1,data["xcols"].index(control["IntrinsicFeature"])],
-                                           hor=control['H'])
+    predictions = ml.predict(data['X_TEST'])
     
     print("...Done!\n")
     
@@ -343,7 +347,10 @@ def TestMLmodel(control, data, ml, scaler):
     Results={
         "Forecasted": pd.DataFrame(scaler['Y_data'].inverse_transform(predictions)), 
         "Observed": pd.DataFrame(scaler['Y_data'].inverse_transform(data["Y_TEST"].reshape(predictions.shape))),
-        "Persistence": pd.DataFrame(scaler['Y_data'].inverse_transform(persistence)),
+        #PERSISTENCE_TEST (built in PreProcessDataset straight from the raw series) is already in physical
+        #units, so no inverse_transform here -- avoids assuming Xscaler and Yscaler agree on how they
+        #scaled the intrinsic feature, which the old generate_persistence()-based approach relied on.
+        "Persistence": pd.DataFrame(np.asarray(data["PERSISTENCE_TEST"]).reshape(predictions.shape)),
         #"Persistence24": #Variant of persistence with 24 hours previous instead of latest available value #TODO
         }
         
@@ -364,31 +371,4 @@ def TestMLmodel(control, data, ml, scaler):
     print("...Done\n")
     
     return Results
-
-def generate_persistence(meas, hor,):
-    """
-    Short function that creates the naive persistance forecasters
-
-    Parameters
-    ----------
-    meas : numpy array
-        True values, observations to be repeated
-    hor : int
-        Horizon length in number of samples
-
-    Returns
-    -------
-    df : pd.DataFrame
-        DataFrame containing the naive Persistence forecaster
-
-    """
-    
-    meas = meas.reshape(len(meas),1) #it is neccessary to reshape otherwise 
-    #it doesnt allow to concatenate on the columns axis
-    df = meas.copy()
-    for i in range(1, hor): #it starts in 1 because it has the first copy already inside
-        df = np.concatenate((df, meas), axis=1)
-    
-    return df
-
 

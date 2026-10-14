@@ -44,7 +44,7 @@ The repository has two halves that share one data folder and one flag-code vocab
   - `physics.py` — `PV_Performance_Model`, `Rincon_Pombo_ThermodynamicModel`
   - `preprocessing.py` — `ExpandSOLETE`, `PreProcessDataset`, `series_to_forecast`
   - `io.py` — `import_SOLETE_data`, `import_SOLETE_sample`, `import_PV_WT_data`
-  - `modeling.py` — `PrepareMLmodel`, `train_LSTM`/`train_CNN`/`train_CNN_LSTM`, `TestMLmodel`, `generate_persistence`
+  - `modeling.py` — `PrepareMLmodel`, `train_LSTM`/`train_CNN`/`train_CNN_LSTM`, `TestMLmodel`
   - `postprocess.py` — `post_process`, `error_msg`
   - `metrics.py`, `dataset.py`, `benchmark/common.py` — metrics, the `SOLETE` convenience class, shared benchmark harness
 - **`benchmarks/`**, **`scripts/`**, **`examples/`** — runnable things built on the package.

@@ -187,6 +187,9 @@ def PreProcessDataset(data, control):
     Y.set_index('index', inplace=True)
     
     #the column names are needed to id what are the input and output var names
+    #RF/SVM below reassign these to the expanded shifted names (e.g. 'col_(t-1)'); the ANN branch
+    #intentionally leaves them as these pre-shift names, since TestMLmodel() indexes the 3D array's
+    #feature axis (built in this same per-column order) by plain feature name, not by shifted name.
     xcols = X.columns
     ycols = Y.columns
     
@@ -200,13 +203,24 @@ def PreProcessDataset(data, control):
             X_dict[col] = X_dict[col].reshape(int(X.shape[0]), PRE+1, n_var_out)  # (samples, PRE+1, n_variables_in)
     
     Y_dict = {} #convert time series data into supervised learning compatible
+    persistence_dict = {} #naive persistence baseline: the last known (t) value repeated across the horizon,
+    #kept in raw (unscaled) units throughout -- built here because this is the one place the raw '_(t)'
+    #value exists before series_to_forecast's result gets it dropped below
     for col in Y.columns: #for the output is based on the horizon length
         Y_dict[col] = Y[col]
-        Y_dict[col] = series_to_forecast(Y_dict[col], 0, H, dropnan=False).drop(col + '_(t)', axis=1)
+        shifted = series_to_forecast(Y_dict[col], 0, H, dropnan=False)
+        Y_dict[col] = shifted.drop(col + '_(t)', axis=1)
+        persistence_dict[col] = pd.concat([shifted[col + '_(t)']] * H, axis=1)
+        #distinct labels from Y_dict[col]'s: XY[ycols]/XY[pcols] below select by label, and pandas
+        #concat allows duplicate column names across frames, so reusing Y's names here would make
+        #XY[ycols] silently also pick up the persistence columns
+        persistence_dict[col].columns = [str(c) + '__persist' for c in Y_dict[col].columns]
         if control['MLtype'] in ['LSTM', 'CNN', 'CNN_LSTM']:
             #in the case of ANN it is neccessary to use 3D vectors
             Y_dict[col] = np.ravel(Y_dict[col])
             Y_dict[col] = Y_dict[col].reshape(int(Y.shape[0]), H, n_var_out)  # (samples, H, n_variables_predicted)
+            persistence_dict[col] = np.ravel(persistence_dict[col].to_numpy())
+            persistence_dict[col] = persistence_dict[col].reshape(int(Y.shape[0]), H, n_var_out)
         
         
         #There are a number of operations diverging from RF and SVM compared to ANN
@@ -215,10 +229,12 @@ def PreProcessDataset(data, control):
         # First we concatenate all arrays by the number of variables as columns
         X = pd.concat([X_dict[x] for x in X_dict], axis=1)
         Y = pd.concat([Y_dict[x] for x in Y_dict], axis=1)
+        P = pd.concat([persistence_dict[x] for x in persistence_dict], axis=1)
         
         #the column names must be updated 
         xcols = X.columns
         ycols = Y.columns
+        pcols = P.columns
         
         #Then we contact the arrays into a single DataFrame in order to remove al rows with nans
         #X and Y are reset to a unique positional index first: the row order between
@@ -227,14 +243,25 @@ def PreProcessDataset(data, control):
         #timestamps (a known SOLETE data quirk) and the padding step upstream can
         #append multiple NaN-labelled rows, either of which pandas now refuses to
         #align/reindex during concat.
-        XY=pd.concat([X.reset_index(drop=True), Y.reset_index(drop=True)], axis=1).dropna(axis=0, how='any')
+        XY=pd.concat([X.reset_index(drop=True), Y.reset_index(drop=True), P.reset_index(drop=True)], axis=1).dropna(axis=0, how='any')
         
-        del X, Y #done to release memory
-        
-        # split the dataset into training and testing. In general, ensemble methods do not require validation set (unlike ANN)
-        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(XY[xcols], XY[ycols], test_size=train_val_test[-1] / 100, shuffle=False,
-                                                            random_state=None)
-        del XY #done to release memory
+        del X, Y, P #done to release memory
+
+        #RF_SVM_use_val_as_train (see MLForecasting.py Control_Var doc): ensembles don't need a held-out
+        #validation set for early stopping like ANN does, so by default they train on train+val (90%) and
+        #only the final test % is held out. Set it to False to instead match the ANN's exact train % (70%),
+        #leaving the validation % unused, for a strictly apples-to-apples comparison across model types.
+        if control.get('RF_SVM_use_val_as_train', True):
+            X_TRAIN, X_TEST, Y_TRAIN, Y_TEST, P_TRAIN, P_TEST = train_test_split(
+                XY[xcols], XY[ycols], XY[pcols], test_size=train_val_test[-1] / 100, shuffle=False, random_state=None)
+        else:
+            X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST, P_TRAIN, P_VAL_TEST = train_test_split(
+                XY[xcols], XY[ycols], XY[pcols], train_size=train_val_test[0] / 100, shuffle=False, random_state=None)
+            _, X_TEST, _, Y_TEST, _, P_TEST = train_test_split(
+                X_VAL_TEST, Y_VAL_TEST, P_VAL_TEST, train_size=train_val_test[1] / (100 - train_val_test[0]),
+                shuffle=False, random_state=None)
+            del X_VAL_TEST, Y_VAL_TEST, P_VAL_TEST
+        del XY, P_TRAIN #done to release memory; persistence is only needed for the held-out test rows
 
         # apply the scaler: note that we fit/train it into the training set only
         #and then we apply it on the remaining sets. If we were to fit_transform 
@@ -258,6 +285,7 @@ def PreProcessDataset(data, control):
             "X_TEST": X_TEST,
             "Y_TRAIN": Y_TRAIN,
             "Y_TEST": Y_TEST,
+            "PERSISTENCE_TEST": P_TEST.to_numpy(), #raw units already, no scaler involved
             "xcols": list(xcols),
             "ycols": list(ycols),
         }
@@ -267,18 +295,22 @@ def PreProcessDataset(data, control):
         # First we concatenate all arrays by the number of variables as columns
         X = np.concatenate([X_dict[x] for x in X_dict], 2)
         Y = np.concatenate([Y_dict[x] for x in Y_dict], 2)
+        P = np.concatenate([persistence_dict[x] for x in persistence_dict], 2)
                 
         if H > PRE:
             #Now we remove the nans from the begining of the dataset (caused by the number previous samples)
             X= X[PRE:-PRE-1,:,:]
             Y = Y[PRE:-PRE - 1, :, :]
+            P = P[PRE:-PRE - 1, :, :]
             
             #Then, we do the same with the nans in the end of the dataset (caused by horizon)
             X = X[0:-(H), :, :]
             Y=Y[0:-(H-PRE)-1,:,:]
+            P=P[0:-(H-PRE)-1,:,:]
         elif PRE > H:
             X= X[PRE:-PRE-1,:,:]
             Y = Y[PRE:-PRE-1, :, :]
+            P = P[PRE:-PRE-1, :, :]
             
         #match lenght of arrays
         dif = X.shape[0]-Y.shape[0]
@@ -286,6 +318,7 @@ def PreProcessDataset(data, control):
             X = X[0:-dif, :, :]
         elif dif < 0:
             Y = Y[0:dif, :, :]
+            P = P[0:dif, :, :]
             
         #remove nans
         id_nans=np.argwhere(np.isnan(X))
@@ -293,22 +326,26 @@ def PreProcessDataset(data, control):
             id_nans=np.unique(id_nans[:,0])
             X=np.delete(X, id_nans, axis=0)
             Y=np.delete(Y, id_nans, axis=0)
+            P=np.delete(P, id_nans, axis=0)
         
         id_nans=np.argwhere(np.isnan(Y))
         if id_nans.any():
             id_nans=np.unique(id_nans[:,0])
             X=np.delete(X, id_nans, axis=0)
             Y=np.delete(Y, id_nans, axis=0)
+            P=np.delete(P, id_nans, axis=0)
         
         #again, we split the dataset in training, validation, and testing. We use a scikit learn function
         #thus we must use it twice in order to split it as we want it
-        X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST = train_test_split(X, Y, train_size=train_val_test[0]/100, shuffle=False, random_state=None)
+        X_TRAIN, X_VAL_TEST, Y_TRAIN, Y_VAL_TEST, P_TRAIN, P_VAL_TEST = train_test_split(
+            X, Y, P, train_size=train_val_test[0]/100, shuffle=False, random_state=None)
         
-        del X, Y #done to release memory
+        del X, Y, P #done to release memory
         
-        X_VAL, X_TEST, Y_VAL, Y_TEST = train_test_split(X_VAL_TEST, Y_VAL_TEST, train_size=train_val_test[1]/(100-train_val_test[0]), shuffle=False, random_state=None)
+        X_VAL, X_TEST, Y_VAL, Y_TEST, P_VAL, P_TEST = train_test_split(
+            X_VAL_TEST, Y_VAL_TEST, P_VAL_TEST, train_size=train_val_test[1]/(100-train_val_test[0]), shuffle=False, random_state=None)
             
-        del X_VAL_TEST, Y_VAL_TEST #done to release memory
+        del X_VAL_TEST, Y_VAL_TEST, P_VAL_TEST, P_TRAIN, P_VAL #done to release memory; persistence only needed for the test split
         
         #the scaler can only take 2D arrays, thus we must undo the reshape of the splat sets 
         X_TRAIN=X_TRAIN.reshape(int(X_TRAIN.shape[0]*X_TRAIN.shape[1]), n_var_in)
@@ -355,6 +392,7 @@ def PreProcessDataset(data, control):
             "Y_TRAIN": Y_TRAIN,
             "Y_VAL": Y_VAL,
             "Y_TEST": Y_TEST,
+            "PERSISTENCE_TEST": P_TEST, #raw units already, no scaler involved
             "xcols": list(xcols),
             "ycols": list(ycols),
             }

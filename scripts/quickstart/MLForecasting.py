@@ -111,6 +111,19 @@ Control_Var = {
     'trainVSimport' : True, #True - trains the ML model, False - imports the model
     'saveMLmodel' : True, #saves the trained model if True, but also trainVSimport must be True, otherwise does nothing.
     'Train_Val_Test' : [70, 20, 10], #train validation test division of the available DATA
+    'RF_SVM_use_val_as_train' : True, # RF/SVM don't early-stop on a validation set like the ANN models do, so this decides what
+                                        # happens to the validation % above for them:
+                                        #   True  -> train RF/SVM on train+val (e.g. 90%), only the test % is held out.
+                                        #            Gives RF/SVM more data (closer to how you'd actually deploy them), but
+                                        #            they then see more training data than LSTM/CNN/CNN_LSTM.
+                                        #   False -> train RF/SVM on train only (e.g. 70%), same boundaries as the ANN
+                                        #            models, validation % left unused. Choose this to compare model
+                                        #            types on strictly identical training data.
+    'random_seed' : None, # int or None. None (default) -> fully random each run, same as before this option existed.
+                            # Set an int (e.g. 42) to make ANN weight initialization/shuffling reproducible across runs
+                            # (seeds Python, NumPy and the Keras backend in one call). RF's own 'random_state' below is
+                            # independent of this. Not a GPU-determinism guarantee -- some backend ops stay
+                            # nondeterministic there regardless of seed.
     'Scaler': 'MinMax01', #scaling technique, choose: 'MinMax01', 'MinMax11' 'Standard' see notes in PreProcessDataset()
     'IntrinsicFeature' : 'P_Solar[kW]', #feature to be predicted
     'PossibleFeatures': ['TEMPERATURE[degC]', 'HUMIDITY[%]', 'WIND_SPEED[m1s]', 'WIND_DIR[deg]',
@@ -149,7 +162,13 @@ LSTM = {'_description_' : 'Holds the values related to LSTM ANN design',
         'Dense'  : [0, 0], #number of dense layers and neurons in them. If left as 0 they are not created.
         'ActFun' : 'tanh', #sigmoid, tanh, elu, relu - activation function as a str 
         'LossFun' : 'mean_absolute_error', #mean_absolute_error or mean_squared_error
-        'Optimizer' : 'adam' # adam RMSProp - optimization method adam is the default of the guild 
+        'Optimizer' : 'adam', # adam RMSProp - optimization method adam is the default of the guild 
+        'EarlyStopping' : {'enabled' : True, # stop training once 'patience' epochs pass with no val_loss improvement, instead
+                                              # of always running all epo_num epochs. Set False to disable (old behaviour).
+                            'patience' : 20, # epochs to wait for a val_loss improvement before stopping.
+                            'restore_best_weights' : True, # roll back to the best epoch's weights when stopping, instead
+                                                            # of keeping the last (possibly already-overfit) ones.
+                            },
         }
 
 CNN = {'_description_' : 'Holds the values related to LSTM NN design',
@@ -161,7 +180,8 @@ CNN = {'_description_' : 'Holds the values related to LSTM NN design',
         'Dense'  : [10, 10],#see note in LSTM
         'ActFun' : 'tanh', #see note in LSTM
         'LossFun' : 'mean_absolute_error', #see note in LSTM
-        'Optimizer' : 'adam' #see note in LSTM
+        'Optimizer' : 'adam', #see note in LSTM
+        'EarlyStopping' : {'enabled' : True, 'patience' : 20, 'restore_best_weights' : True}, #see note in LSTM
         }
 
 CNN_LSTM = {'_description_' : 'Holds the values related to LSTM NN design',
@@ -177,7 +197,8 @@ CNN_LSTM = {'_description_' : 'Holds the values related to LSTM NN design',
         'LSTMActFun' : 'sigmoid', #see note in LSTM
         
         'LossFun' : 'mean_absolute_error', #see note in LSTM
-        'Optimizer' : 'adam' #see note in LSTM
+        'Optimizer' : 'adam', #see note in LSTM
+        'EarlyStopping' : {'enabled' : True, 'patience' : 20, 'restore_best_weights' : True}, #see note in LSTM
         }
 
 Control_Var['RF'] = RF

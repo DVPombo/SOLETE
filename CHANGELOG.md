@@ -5,7 +5,7 @@ All notable changes to the SOLETE platform are documented in this file. From lat
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history; see those files for more detail, and see `releases/v3.0_notes.md` for the full corrigendum text.
 
 ## [4.0] - 2026-10-10
-This entry is unbearably wrong because it describes a lot of work done over the spam of a few months.
+This entry is unbearably long because it describes a lot of work done over the spam of a few months.
 
 ### Added — v4 dataset release pipeline
 - Added `dataset/pipeline/build_release.py` to build the ten HDF5 and Parquet release files, checksums, manifest, methodology and build summary in one command. Supports resumable stages, dry runs, overwrite protection and disk-space checks. Failed or invalidated builds remove stale checksums and manifests.
@@ -41,6 +41,13 @@ This entry is unbearably wrong because it describes a lot of work done over the 
 - Refactored `Rincon_Pombo_ThermodynamicModel` to batch CoolProp calculations, reducing runtime on the 60-minute dataset by a 2.6× factor, with bit-for-bit identical output on both source files.
 - Fixed sample paths and Colab download destinations in the example notebooks. All five current notebooks execute without error.
 - Regenerated non-TensorFlow benchmark results affected by the revised QC rule. 
+
+### Changed — ML quickstart (`scripts/quickstart/MLForecasting.py`, `solete/preprocessing.py`, `solete/modeling.py`)
+- Added `Control_Var['RF_SVM_use_val_as_train']` toggle: `True` (default) trains RF/SVM on train+val, `False` matches the ANN models' train-only split for a strictly apples-to-apples comparison.
+- Added `Control_Var['random_seed']` (default `None`): set an int to make ANN weight initialization/shuffling reproducible via `keras.utils.set_random_seed`.
+- Added a per-model `EarlyStopping` sub-dict (`enabled`/`patience`/`restore_best_weights`) for LSTM/CNN/CNN_LSTM, enabled by default.
+- Fixed the naive persistence baseline: `PreProcessDataset` now builds it directly from the raw (unscaled) series and carries it row-aligned with `Y_TEST` through every split/filter step, instead of extracting it from `Xscaler`-scaled test data and inverse-transforming with `Yscaler` — an implicit, unchecked assumption that the two scalers agreed on that column. Removed the now-unused `generate_persistence()`.
+- Removed the inert `Masking(mask_value=999, ...)` layers from `train_LSTM`/`train_CNN_LSTM` (no 999 placeholder is ever produced; NaN rows are dropped outright) and the unused `features` variable from all three `train_*` functions.
 
 ### Known issues
 - `P_Gaia[kW]` is zero for 99.56% of the full record, limiting the interpretation of wind and hybrid forecasting results. The cause remains unresolved, the most probable reasons are out-of-service Turbine, or faulty data adquisition.

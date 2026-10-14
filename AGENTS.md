@@ -3,7 +3,22 @@
 This repository is the whole SOLETE project: `dataset/` (cleaning and quality control of the dataset, version 4) and
 `solete/` + `benchmarks/` (forecasting platform). **Read `dataset/AGENTS.md` before touching anything under `dataset/`.**
 
-Rules that apply everywhere:
+## Environment and commands
+
+- **Python environment:** Check if there is a existing one called `.solete-env`. If it is not there, let the user know and create it using `requirements.txt`. 
+  **Never delete or rebuild a virtual environment.** If a package is missing, `pip install` it into `solete-env`, add it to `requirements.txt`, and tell me.
+- **Run scripts** with that environment's interpreter, from any folder (scripts bootstrap `sys.path`, see rule 4).
+- **Tests:** `pytest` from the repo root (rule 8).
+- **Large files:** never read a data file whole or print its contents. Inspect the schema and a few rows via `solete/h5io.py`, then write a script that processes the data and prints summaries.
+
+## Working style
+
+- Plan first for any task touching more than one file; wait for approval before editing.
+- Keep output terse: report what was changed, what was run, and what was not run. No restating the task.
+- If a setup or tooling step fails twice, stop and ask instead of retrying or working around it.
+
+
+## Rules that apply everywhere:
 
 1. **Paths.** Never hard-code a data path, never rely on the current directory. Use `solete/paths.py`
    (`find_data_file`, `resolve_input`, `resolve_output_prefix`, `derived_path`, `output_path`). Data lives in `data/` (git-ignored, figshare layout `hdf5/` + `parquet/`). v4 file names are built only in `solete/paths.py` (`data_filename`, `release_path`, `release_stems`); big files are read in slices with `solete/h5io.py`, never loaded whole.
@@ -16,4 +31,6 @@ Rules that apply everywhere:
    resampled from 1 s; model-derived columns are computed per resolution and never averaged up
    (`dataset/docs/METHODOLOGY.md`). The released files never overwrite measured `P_Solar[kW]`.
 7. Every behaviour-affecting change gets a `CHANGELOG.md` entry under `[Unreleased]`.
-8. Run `pytest` from the repo root. Tests needing `data/hdf5/SOLETE_Pombo_60min.h5` skip when it is absent.
+8. Run `pytest` from the repo root. Tests needing `data/hdf5/SOLETE_Pombo_<resolution>.h5` skip when it is absent.
+
+
