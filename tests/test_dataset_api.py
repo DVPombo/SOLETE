@@ -55,7 +55,7 @@ def test_qc_exclusion_matches_qc_mask():
 
     # qc_exclude=True must be a subset of qc_exclude=False's rows. (Since the substitution rule requires
     # Pac > 0, the v3 hourly file has NO code-6 row any more, so the two are equal here; before that rule
-    # change 751 night rows were excluded. See CHANGELOG / docs/RESTRUCTURE_NOTES.md section 2.)
+    # change 751 night rows were excluded. See CHANGELOG / dataset/docs/QC_SCHEMA.md §1.)
     assert set(X_test_excl.index).issubset(set(X_test_incl.index))
     assert len(X_test_excl) <= len(X_test_incl)
 

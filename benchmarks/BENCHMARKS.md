@@ -115,7 +115,7 @@ reduced/default-epoch LSTM-CNN-family caveat) and apply identically here.
 > ramp-rate tooling — not a demonstrated complementarity finding.** The root cause of
 > wind's zero-degeneracy is itself unconfirmed: it may be a genuine turbine outage, or a
 > resolution-aggregation pipeline artifact (there's a confirmed related bug — `WIND_DIR[deg]`
-> out-of-range values, `docs/RESOLUTIONS.md` — in the same pipeline). The maintainer is pursuing
+> out-of-range values, `docs/legacy/RESOLUTIONS_v3_investigation.md` — in the same pipeline). The maintainer is pursuing
 > raw/finer-resolution data from the original project to settle this; the numbers below
 > should be re-run against that data if/when it arrives, using the same `task6_2_*`/`task6_3_*`
 > scripts unchanged. Full scoping: `examples/05_hybrid_forecasting.ipynb`.

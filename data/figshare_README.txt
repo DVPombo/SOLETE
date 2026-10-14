@@ -20,18 +20,8 @@ THE FILES (each exists as HDF5 in hdf5/ and as Parquet in parquet/; same numbers
   data contain (the last 1 min / 5 min / 60 min row therefore summarises a single second). Nothing was removed.
 
   Rows, columns and sizes (written by the build from the files it produced; see also manifest.json and SHA256SUMS.txt):
-
-  file                                                         rows  columns         size
-  hdf5/SOLETE_Pombo_1sec_original_v4.h5                  39,484,801        9     467.6 MB
-  hdf5/SOLETE_Pombo_1sec_v4.h5                           39,484,801       28   1,584.1 MB
-  hdf5/SOLETE_Pombo_1min_v4.h5                              658,081       36      64.8 MB
-  hdf5/SOLETE_Pombo_5min_v4.h5                              131,617       36      14.2 MB
-  hdf5/SOLETE_Pombo_60min_v4.h5                              10,969       36       1.3 MB
-  parquet/SOLETE_Pombo_1sec_original_v4.parquet          39,484,801       10     332.7 MB
-  parquet/SOLETE_Pombo_1sec_v4.parquet                   39,484,801       29   1,623.3 MB
-  parquet/SOLETE_Pombo_1min_v4.parquet                      658,081       37      47.8 MB
-  parquet/SOLETE_Pombo_5min_v4.parquet                      131,617       37      12.4 MB
-  parquet/SOLETE_Pombo_60min_v4.parquet                      10,969       37       1.2 MB
+[[SIZES-BEGIN]]
+[[SIZES-END]]
 
 TIME
 ----

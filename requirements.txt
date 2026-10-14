@@ -14,3 +14,4 @@ CoolProp==8.0.0
 tables==3.11.1     
 joblib==1.6.0      
 lightgbm==4.7.0    
+pytest==9.1.1      # dev/test only: runs tests/ (see CONTRIBUTING.md)

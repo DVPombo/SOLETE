@@ -1,4 +1,12 @@
-# SOLETE — Resolutions and Aggregation Methodology
+> **Historical, pre-v4 investigation (superseded).** Written before `dataset/pipeline/resample_solete.py`
+> existed, when the repo had only a single hourly `.h5` file and no resampling code to inspect. Its "no
+> resampling/aggregation code anywhere in this repo" finding below is **no longer true**: the current,
+> authoritative description of how resampling works is [`dataset/docs/METHODOLOGY.md`](../../dataset/docs/METHODOLOGY.md).
+> Kept here only because its one still-relevant finding (a `WIND_DIR[deg]` angle-wrapping bug in the v3
+> hourly file) is cited elsewhere as the discovery that motivated the v4 fix, documented in
+> [`dataset/docs/CLEANING_DECISIONS.md`](../../dataset/docs/CLEANING_DECISIONS.md) §3.
+
+# SOLETE — Resolutions and Aggregation Methodology (v3 investigation)
 
 ## Available resolutions
 

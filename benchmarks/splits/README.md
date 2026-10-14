@@ -79,8 +79,8 @@ revisited.
 for the full discussion.** Two explanations are on the table, neither confirmed nor ruled
 out by anything in this repo: the turbine could have been physically out of service for
 nearly the whole record, or the near-zero pattern could be a resolution/aggregation
-pipeline artifact — the latter has real precedent, since `docs/RESOLUTIONS.md` already found a
-related, confirmed-symptom problem (an angle-wrapping bug pattern in `WIND_DIR[deg]`) in
+pipeline artifact — the latter has real precedent, since `docs/legacy/RESOLUTIONS_v3_investigation.md`
+already found a related, confirmed-symptom problem (an angle-wrapping bug pattern in `WIND_DIR[deg]`) in
 the same aggregation pipeline, with no aggregation code or finer-resolution source file in
 this repo to check either issue against directly. Phase 6 (`examples/05_hybrid_forecasting.ipynb`,
 `KNOWN_ISSUES.md` #10) treats this as open and is scoped accordingly — its wind/hybrid
@@ -93,7 +93,7 @@ pursue).
 
 **Decided: flagged, not auto-excluded.** Rows where `P_Solar[kW]_qc == 6` (King's PV
 model substituted for the raw sensor reading — see `docs/legacy/QC_SCHEMA_platform_v3.md` finding #6, ~38% of the
-full record under the old rule; since v4 the rule also requires `Pac > 0` and no row of the hourly file is flagged, see `docs/RESTRUCTURE_NOTES.md` §2) are kept in **train, val, and test alike**. The split does not remove or
+full record under the old rule; since v4 the rule also requires `Pac > 0` and no row of the hourly file is flagged, see `dataset/docs/QC_SCHEMA.md` §1 "What code 6 means") are kept in **train, val, and test alike**. The split does not remove or
 relabel them; the `P_Solar[kW]_qc` column is preserved on every row so that each
 baseline/model/metric call decides for itself whether to apply a QC-exclusion mask.
 

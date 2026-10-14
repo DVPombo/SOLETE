@@ -33,11 +33,11 @@ Each entry: what it is, where it lives, current status, what to do in the meanti
      plausible (11 kW research turbines at a single site can sit idle for maintenance,
      grid-connection, or project reasons for long stretches), but nothing in this repo
      (logbook, maintenance record, status column) confirms it either way.
-  2. **Resolution/aggregation pipeline artifact.** `docs/RESOLUTIONS.md` already found a related,
+  2. **Resolution/aggregation pipeline artifact.** `docs/legacy/RESOLUTIONS_v3_investigation.md` already found a related,
      *confirmed-symptom* problem in the same aggregation pipeline: `WIND_DIR[deg]` in this
      same 60min file holds 103 rows (0.94%) above the physically-valid 360° compass range,
      a pattern consistent with a non-circular-mean bug in whatever built the coarser
-     resolution files from the finer ones (see `docs/RESOLUTIONS.md` and finding #6 above). No
+     resolution files from the finer ones (see `docs/legacy/RESOLUTIONS_v3_investigation.md` and finding #6 above). No
      aggregation code or finer-resolution (`1sec`/`1min`/`5min`) source file exists in this
      repo to check directly against, for either `WIND_DIR[deg]` or `P_Gaia[kW]` — so this
      explanation is equally unconfirmed, not equally unlikely. A pipeline step that zeroes

@@ -1,4 +1,4 @@
-> **Platform-era document (version 3).** This describes the quality-flag codes and columns as the *forecasting platform* currently implements them (`solete/qc.py`). The authoritative description of the released version 4 files is [`../../dataset/docs/DATA_DICTIONARY.md`](../../dataset/docs/DATA_DICTIONARY.md); the code sets were **reconciled** into one vocabulary (`solete/qc_codes.py`; decision in [`../RESTRUCTURE_NOTES.md`](../RESTRUCTURE_NOTES.md) §2). **The numbers below are the OLD platform numbers and are no longer emitted**: old 1 (missing) and 3 (physically implausible) are now code 11 `QC_UNTREATED_IMPLAUSIBLE` on v3 files, and 6 keeps its meaning (model-substituted) but is **evaluated per resolution** and is platform-owned. File names written in this document refer to the layout before the merge of the dataset and platform repositories; the migration table is in that same file.
+> **Platform-era document (version 3).** This describes the quality-flag codes and columns as the *forecasting platform* currently implements them (`solete/qc.py`). The authoritative description of the released version 4 files is [`../../dataset/docs/DATA_DICTIONARY.md`](../../dataset/docs/DATA_DICTIONARY.md); the code sets were **reconciled** into one vocabulary (`solete/qc_codes.py`; decision in [`../../dataset/docs/QC_SCHEMA.md`](../../dataset/docs/QC_SCHEMA.md) §1). **The numbers below are the OLD platform numbers and are no longer emitted**: old 1 (missing) and 3 (physically implausible) are now code 11 `QC_UNTREATED_IMPLAUSIBLE` on v3 files, and 6 keeps its meaning (model-substituted) but is **evaluated per resolution** and is platform-owned. File names written in this document refer to the layout before the merge of the dataset and platform repositories (see `CHANGELOG.md`'s `[4.0]` entry for the summary).
 
 # SOLETE Data Dictionary
 
@@ -16,7 +16,7 @@ in this repo:
 
 Both files are **1-hour resolution**. No 1-second, 1-minute, or 5-minute file was found
 at the repo root — see the "Resolutions found" note at the bottom of this file, and
-`RESOLUTIONS.md` for what this means for the `Control_Var['resolution']` options the
+`RESOLUTIONS_v3_investigation.md` (same folder) for what this means for the `Control_Var['resolution']` options the
 code exposes.
 
 Where a fact comes only from the paper (sensor make/model, exact site, calibration) and
@@ -214,7 +214,7 @@ calibration records, and precise GPS coordinates are not in the repo files or co
   - `SOLETE_Pombo_60min.h5`: **38.33%** of rows (4,204 of 10,969)
   See `KNOWN_ISSUES.md` for discussion of why these two rates differ so much and what
   that might imply.
-  > **Superseded (v4):** these rows were all night rows (`0 >= 1.5 * 0`); the flag now also requires `Pac > 0` and is 0 on both files. See `docs/RESTRUCTURE_NOTES.md` §2.
+  > **Superseded (v4):** these rows were all night rows (`0 >= 1.5 * 0`); the flag now also requires `Pac > 0` and is 0 on both files. See `dataset/docs/QC_SCHEMA.md` §1 "What code 6 means".
 
 ### `P_hybrid[kW]` *(derived column, added by `ExpandSOLETE()` in Phase 6, not present in the raw files)*
 - **Human-readable name:** Combined wind + solar active power (`P_Solar[kW] + P_Gaia[kW]`)

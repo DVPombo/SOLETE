@@ -42,7 +42,7 @@ FILE VERSIONS
 The forecasting platform and the benchmarks in this repository were built on
 the v3 hourly file and still read it by default (version="v3"). Reading the v4
 files through the platform works (`Control_Var["data_version"] = "v4"`): their flags are read
-as they are, the model columns are computed by solete/expansion.py (docs/RESTRUCTURE_NOTES.md §2).
+as they are, the model columns are computed by solete/expansion.py (dataset/docs/QC_SCHEMA.md §1).
 """
 
 from __future__ import annotations
