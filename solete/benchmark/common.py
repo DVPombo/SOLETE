@@ -45,19 +45,33 @@ WIND_CAVEAT = (
     "forecasting skill. See benchmarks/splits/README.md."
 )
 
-_df_cache = None
+_df_cache = {}
 
 
-def load_full_df():
-    """Load the full, sorted SOLETE_Pombo_60min.h5 via the canonical recipe
-    in benchmarks/splits/README.md. Cached in-process since this reruns the Build
-    pipeline (King's PV model, QC flagging) each call otherwise."""
-    global _df_cache
-    if _df_cache is not None:
-        return _df_cache.copy()
+def load_full_df(resolution="60min", data_version="v3"):
+    """Load the full, sorted SOLETE_Pombo_<resolution>[_v4].h5 via the canonical recipe
+    in benchmarks/splits/README.md (originally 60min/v3-only; resolution and data_version
+    are now parameters so solete.dataset.SOLETE can use the same loader at
+    1sec/1min/5min/60min and against either file version -- see CHANGELOG.md).
+    Cached in-process per (resolution, data_version), since this reruns the Build
+    pipeline (King's PV model, QC flagging) each time otherwise.
+
+    data_version="v3" (default) matches every existing caller of this function
+    (the benchmark baselines were built against the legacy v3 files); "v4" reads
+    the current figshare release files instead (solete/paths.py), which is the
+    only version an installation that only downloaded the v4 release will have.
+
+    1sec is supported but loads the full 1-second file (large, slow -- a few
+    minutes); callers that only need a quick check should prefer 5min/60min.
+    """
+    resolution = _paths.normalize_resolution(resolution)
+    key = (resolution, data_version)
+    if key in _df_cache:
+        return _df_cache[key].copy()
 
     Control_Var = {
-        "resolution": "60min",
+        "resolution": resolution,
+        "data_version": data_version,
         "SOLETE_builvsimport": "Build",
         "SOLETE_save": False,
         "OriginalFeatures": [],
@@ -65,7 +79,7 @@ def load_full_df():
     }
     PVinfo, WTinfo = import_PV_WT_data()
     df = import_SOLETE_data(Control_Var, PVinfo, WTinfo).sort_index()
-    _df_cache = df
+    _df_cache[key] = df
     return df.copy()
 
 
@@ -81,12 +95,27 @@ def load_split_boundaries():
 
 
 def split_df(df):
-    """Return (train, val, test) DataFrames sliced per benchmarks/splits/v1.json."""
+    """Return (train, val, test) DataFrames sliced per benchmarks/splits/v1.json.
+
+    Blocks are sliced as half-open intervals ([train_start, val_start), [val_start,
+    test_start), [test_start, end of df]) rather than using each block's own
+    (inclusive) "end" timestamp from the JSON. At 60min resolution -- the only
+    resolution v1.json's row counts were computed for -- this is identical to the
+    old inclusive-end slicing, because every pair of adjacent blocks in v1.json
+    already abuts with exactly one 60min step of gap between "end" and the next
+    block's "start". At finer resolutions (solete.dataset.SOLETE's 1min/5min/1sec
+    support) it matters: slicing on each block's own inclusive hourly "end" would
+    silently drop every row between that hour and the next block's start (e.g. the
+    59 minutes after 23:00 at 1min resolution), leaving them in neither block.
+    """
     bounds = load_split_boundaries()
-    out = {}
-    for name, (start, end) in bounds.items():
-        out[name] = df[(df.index >= start) & (df.index <= end)]
-    return out["train"], out["val"], out["test"]
+    train_start = bounds["train"][0]
+    val_start = bounds["val"][0]
+    test_start = bounds["test"][0]
+    train = df[(df.index >= train_start) & (df.index < val_start)]
+    val = df[(df.index >= val_start) & (df.index < test_start)]
+    test = df[df.index >= test_start]
+    return train, val, test
 
 
 def score_block(y_true_full, y_pred_full, block_index, qc_col_full=None, exclude_flags=(6,)):

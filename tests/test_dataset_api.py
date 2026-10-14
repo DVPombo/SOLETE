@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 tests/test_dataset_api.py -- SOLETE Phase 5 continuation, Task 5.8
+(+ later resolution/horizon/data_version generalization, see CHANGELOG.md)
 
 Covers:
     1. Correct shapes from SOLETE(...).forecasting()
@@ -10,6 +11,12 @@ Covers:
        numbers EXACTLY (not approximately) -- the regression guard that the
        API wrapper didn't subtly change the split or metric behaviour it
        wraps.
+    4. Resolution/horizon generalization (data_version="v4", since that's the
+       file an installation is most likely to actually have -- see
+       solete/paths.py): lag columns scale correctly with resolution and
+       horizon, int and Timedelta-string horizons agree, a non-exact-multiple
+       horizon raises, and split_df's half-open blocks still partition the
+       full index with no gap at sub-hourly resolutions.
 """
 
 import json
@@ -113,6 +120,53 @@ def test_persistence_round_trip_matches_task_5_3_exactly():
 
 def test_persistence_round_trip_qc_excluded():
     _persistence_round_trip(True, "qc_excluded")
+
+
+# --- Resolution / horizon generalization (data_version="v4") ---------------------------------
+#
+# These use data_version="v4" rather than the suite's default v3, since v4 is the current
+# figshare release and the one an installation is most likely to actually have; they SKIP
+# (via conftest.py's DataFileNotFoundError hook) if the corresponding v4 file is absent.
+# 1sec is deliberately not covered here -- it loads the full 1.5 GB file (a few minutes); it was
+# checked manually against real data instead (see CHANGELOG.md).
+
+@pytest.mark.parametrize("resolution,daily_lag", [("60min", 24), ("5min", 288), ("1min", 1440)])
+def test_resolution_generalization_lag_columns_scale_with_step(resolution, daily_lag):
+    ds = SOLETE(resolution=resolution, target="pv_power", split="v1", data_version="v4")
+    X_train, y_train, X_test, y_test = ds.forecasting(horizon=1)  # horizon_steps=1 at any resolution
+
+    # at horizon_steps=1 the lags are unshifted: (1, 2, 3, daily_lag) -- daily_lag scales with
+    # resolution (86400s / this resolution's step seconds), not a fixed "24".
+    assert set(c for c in X_train.columns if c.startswith("lag_")) == {
+        f"lag_{l}" for l in (1, 2, 3, daily_lag)
+    }
+    assert len(X_train) == len(y_train) > 0
+    assert len(X_test) == len(y_test) > 0
+
+    # split_df's half-open blocks must still partition the full (pre-feature-drop) index exactly,
+    # with no gap between blocks at this (possibly sub-hourly) resolution.
+    assert len(ds._train) + len(ds._val) + len(ds._test) == len(ds._df)
+
+
+def test_horizon_generalization_string_and_int_steps_agree():
+    ds = SOLETE(resolution="5min", target="pv_power", split="v1", data_version="v4")
+    X_str, y_str, _, _ = ds.forecasting(horizon="1h")   # "1h" at 5min == 12 steps
+    X_int, y_int, _, _ = ds.forecasting(horizon=12)
+    assert list(X_str.columns) == list(X_int.columns)
+    assert X_str.equals(X_int)
+    assert y_str.equals(y_int)
+
+    # A longer horizon shifts every lag back by (horizon_steps - 1) relative to horizon=1.
+    X_h3, _, _, _ = ds.forecasting(horizon="3h")  # 36 steps
+    assert set(c for c in X_h3.columns if c.startswith("lag_")) == {
+        f"lag_{35 + l}" for l in (1, 2, 3, 288)
+    }
+
+
+def test_horizon_non_exact_multiple_raises():
+    ds = SOLETE(resolution="60min", target="pv_power", split="v1", data_version="v4")
+    with pytest.raises(ValueError):
+        ds.forecasting(horizon="90min")  # 1.5 steps at 60min -- not a whole step count
 
 
 if __name__ == "__main__":

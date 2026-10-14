@@ -4,6 +4,35 @@ All notable changes to the SOLETE platform are documented in this file. From lat
 
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Entries for v1.0 through v3.0 were backfilled from the git history; see the "Corrigendum" section of [README.md](README.md) for the full corrigendum text.
 
+## [Unreleased]
+This section tracks forecasting-platform work on top of the already-released v4 **dataset** (`## [4.0]`
+below is the dataset release; the platform's own version, `solete.__version__`, is still `4.0.0.dev0`).
+
+### Changed — `solete.dataset.SOLETE` convenience class
+- Generalized `SOLETE` beyond its original single-resolution (60min), single-horizon (1h) scope:
+  `resolution` now accepts any of `1sec`/`1min`/`5min`/`60min` (`solete.paths.RESOLUTIONS`), and
+  `horizon` accepts an int step count or any `pandas.Timedelta`-parseable string (e.g. `"1h"`,
+  `"30min"`), scaled to the chosen resolution's native step; a horizon that isn't an exact multiple
+  of that step raises `ValueError` instead of silently rounding. The recent-history lag features stay
+  `(1, 2, 3)` native steps; the "same time yesterday" lag now scales with resolution (`86400 /
+  step_seconds`) instead of a fixed `24`. The default (`resolution="60min"`, `horizon="1h"`) is an
+  exact behavioral no-op: it reproduces the original fixed `LAGS=(1,2,3,24)` exactly.
+- Added a `data_version` parameter (`"v3"` default, matching every existing caller; `"v4"` reads the
+  current figshare release files instead) to `SOLETE.__init__` and `solete.benchmark.common.load_full_df`,
+  since an installation that only downloaded the v4 dataset release otherwise has no v3 file for this
+  class to find at any resolution.
+- Verified against the real v4 data files at all four resolutions, including the full 1-second file
+  (slow, ~2.5 minutes, but functions correctly); the automated test suite covers 60min/5min/1min only
+  (1sec is impractical to run routinely).
+- `solete.benchmark.common.split_df` now slices train/val/test as half-open intervals
+  (`[block_start, next_block_start)`) instead of each block's own inclusive "end" timestamp from
+  `benchmarks/splits/v1.json`. Identical to the old behavior at 60min (the only resolution v1.json's
+  row counts were computed for -- every pair of adjacent blocks already abuts with exactly one 60min
+  step of gap); without this fix, sub-hourly resolutions would silently drop every row between a
+  block's old hourly "end" and the next block's start into neither block.
+- `solete/dataset.py`'s single-split (`v1`) and single-feature-set scope are unchanged by design: a
+  second split version is a maintainer data decision, not something this class should default its way
+  into (see the module docstring).
 
 ## [4.0] - 2026-10-10
 This entry is unbearably long because it describes a lot of work done over the spam of a few months.
