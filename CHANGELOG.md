@@ -8,6 +8,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This section tracks forecasting-platform work on top of the already-released v4 **dataset** (`## [4.0]`
 below is the dataset release; the platform's own version, `solete.__version__`, is still `4.0.0.dev0`).
 
+### Added — CLI/config file for `scripts/quickstart/MLForecasting.py`
+- `MLForecasting.py` no longer requires editing Python source to configure a run. Its `Control_Var`
+  dict (the tier-1 scalars plus the five per-model hyperparameter dicts: RF/SVM/LSTM/CNN/CNN_LSTM) is
+  now built by new `scripts/quickstart/ml_config.py` from, in increasing precedence: the shipped
+  `scripts/quickstart/configs/default_control_var.json` < an optional `--config path/to/file.json`
+  < explicit CLI flags (`--resolution`, `--mltype`, `-H/--horizon`, `--pre/--lookback`,
+  `--train-val-test`, `--scaler`, `--train/--import-model`, `--save-model/--no-save-model`,
+  `--random-seed`, `--build/--import-solete`, `--use-val-as-train/--no-use-val-as-train`; run
+  `python MLForecasting.py -h` for the full list). Field meanings (including the ones that used to
+  be inline comments next to the old dict literal) are documented in
+  `scripts/quickstart/configs/README.md`.
+- Purely additive/regression-safe: running the script with no CLI arguments at all -- including
+  Spyder's "Run file", where `sys.argv` carries no flags -- reproduces the previous hardcoded
+  `Control_Var` defaults exactly (verified in `tests/test_quickstart_cli.py`).
+- `solete.postprocess.error_msg` gained three new keys (`config_file_not_found`,
+  `invalid_config_json`, `invalid_train_val_test`) for CLI/config-file validation errors, following
+  the function's existing print-guidance-then-exit convention instead of ad hoc messages.
+
 ### Added — model-serving path (`solete.modeling.load_model_bundle`, `solete.inference`)
 - `PrepareMLmodel` (`solete/modeling.py`) now accepts an optional `scaler` kwarg; when given (and
   `saveMLmodel`/`trainVSimport` are True, as before), it persists the exact fitted `Scaler`

@@ -154,6 +154,10 @@ New to SOLETE? The notebooks in `examples/` walk through the dataset on a small 
 2. Open **scripts/quickstart/RunMe.py**. This allows you to load SOLETE and sneak a peek at its contents.
 3. Open **scripts/quickstart/MLForecasting.py**. This allows you to configure Random Forest (RF), Support Vector Machine (SVM), and three kinds of Artificial Neuronal Networks: Convolutional Neuronal Network (CNN), Long-Short Term Memory (LSTM), and a Hybrid (CNN-LSTM).
    - The file itself contains notes explaining how to use it.
+   - Configure it by editing `scripts/quickstart/configs/default_control_var.json` directly, by
+     passing `--config path/to/your_copy.json`, and/or with CLI flags for the common options
+     (`--resolution`, `--mltype`, `-H`, `--pre`, ...) -- run `python MLForecasting.py -h` for the
+     full list. No arguments at all (including Spyder's "Run file") keeps today's defaults.
    - The main objective is to introduce the SOLETE dataset and help people learning basics of time series forecasting based on Machine Learning
    - You can basically replicate most of the methodology from [2, 3, 4] and build on top.
    - I included some error messages to debug what I expect are the most common errors when running stuff.

@@ -1,0 +1,81 @@
+{
+    "resolution": "60min",
+    "SOLETE_builvsimport": "Build",
+    "SOLETE_save": true,
+    "trainVSimport": true,
+    "saveMLmodel": true,
+    "Train_Val_Test": [70, 20, 10],
+    "RF_SVM_use_val_as_train": true,
+    "random_seed": null,
+    "Scaler": "MinMax01",
+    "IntrinsicFeature": "P_Solar[kW]",
+    "PossibleFeatures": [
+        "TEMPERATURE[degC]", "HUMIDITY[%]", "WIND_SPEED[m1s]", "WIND_DIR[deg]",
+        "GHI[kW1m2]", "POA Irr[kW1m2]", "P_Gaia[kW]", "P_Solar[kW]", "Pressure[mbar]",
+        "Pac", "Pdc", "TempModule", "TempCell",
+        "HoursOfDay", "MeanPrevH", "StdPrevH", "MeanWindSpeedPrevH", "StdWindSpeedPrevH"
+    ],
+    "MLtype": "CNN",
+    "H": 10,
+    "PRE": 5,
+    "RF": {
+        "n_trees": 1,
+        "random_state": 32
+    },
+    "SVM": {
+        "kernel": "rbf",
+        "degree": 3,
+        "gamma": "scale",
+        "coef0": 0,
+        "C": 3,
+        "epsilon": 0.1
+    },
+    "LSTM": {
+        "n_batch": 16,
+        "epo_num": 1000,
+        "Neurons": [15, 15, 15],
+        "Dense": [0, 0],
+        "ActFun": "tanh",
+        "LossFun": "mean_absolute_error",
+        "Optimizer": "adam",
+        "EarlyStopping": {
+            "enabled": true,
+            "patience": 20,
+            "restore_best_weights": true
+        }
+    },
+    "CNN": {
+        "n_batch": 16,
+        "epo_num": 3,
+        "filters": 32,
+        "kernel_size": 2,
+        "pool_size": 3,
+        "Dense": [10, 10],
+        "ActFun": "tanh",
+        "LossFun": "mean_absolute_error",
+        "Optimizer": "adam",
+        "EarlyStopping": {
+            "enabled": true,
+            "patience": 20,
+            "restore_best_weights": true
+        }
+    },
+    "CNN_LSTM": {
+        "n_batch": 16,
+        "epo_num": 1000,
+        "filters": 32,
+        "kernel_size": 3,
+        "pool_size": 2,
+        "Dense": [0, 0],
+        "CNNActFun": "tanh",
+        "Neurons": [10, 15, 10],
+        "LSTMActFun": "sigmoid",
+        "LossFun": "mean_absolute_error",
+        "Optimizer": "adam",
+        "EarlyStopping": {
+            "enabled": true,
+            "patience": 20,
+            "restore_best_weights": true
+        }
+    }
+}

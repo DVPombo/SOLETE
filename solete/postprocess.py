@@ -141,7 +141,27 @@ def error_msg(key):
         print("     4-Run it once like this (no need to train any ML model)")
         print("     5-Revert Control_Var[SOLETE_builvsimport] back to Import")
         print("It should be fixed now, try to import again.\n\n\n")        
-        
+
+    elif key == "config_file_not_found":
+        print("ERROR: The --config JSON file you pointed MLForecasting.py at does not exist.\n")
+        print("Worry not, it is easy to fix:")
+        print("     1-Double check the path you passed to --config")
+        print("     2-See scripts/quickstart/configs/README.md for the expected file shape")
+        print("     3-Or drop --config entirely to use scripts/quickstart/configs/default_control_var.json")
+
+    elif key == "invalid_config_json":
+        print("ERROR: The config JSON file could not be parsed (or is not a JSON object).\n")
+        print("Worry not, it is easy to fix:")
+        print("     1-Make sure the file is valid JSON (no trailing commas, matching braces/quotes)")
+        print("     2-Compare it against scripts/quickstart/configs/default_control_var.json")
+        print("     3-See scripts/quickstart/configs/README.md for the expected file shape")
+
+    elif key == "invalid_train_val_test":
+        print("ERROR: Control_Var['Train_Val_Test'] must be three percentages that sum to 100.\n")
+        print("Worry not, it is easy to fix:")
+        print("     1-Edit Train_Val_Test in your config JSON, or pass --train-val-test TRAIN VAL TEST")
+        print("     2-Make sure the three numbers add up to 100, e.g. 70 20 10")
+
     print("\n")    
     sys.exit("Did I do that? ¯\\_(ツ)_/¯ \n\n\nCheck at the top for hints on what went wrong!!!")
     #yes, that was a reference to good old Steve Urkel

@@ -47,22 +47,25 @@ Using SOLETE for the first time:
         b) If that didn't solve it... You have a problem my friend ¯\_(ツ)_/¯ 
     
 How to use the second and subsequent times:
-    1- Go to section: "Control the Script"
-        In the dictionary called Control_Var you can modify different values, like the
-        horizon to forecast, the division between training, validation and testing, what
-        is the metric to be predicted, which should be used as extrinsic features, etc.
-               
-        Modify "SOLETE_builvsimport" from "Build" to "Import". This avoid expanding the dataset
-        all the time and simply imports last built version. However, note that each version is
-        exclusive of a resolution. By default that is set to 60min, you can try 5min as well.
-    2- Go to section: Define Machine Learning Configuration and Hyperparameters
-        Use those dictionaries to define different topologies for the 5 ML methods 
-        covered in references [1,2,3]. However, be careful with ANN, they have a 
-        particular shape, you can't control each layer's position from there. 
-        But you can edit that yourself.
-    3- After setting those parameters just run it. Take into account the size of 
+    1- Configure it. Running with no arguments at all (including Spyder's "Run file") reproduces
+        today's defaults exactly -- pick whichever of these three is most convenient, mix as needed:
+            a) Edit scripts/quickstart/configs/default_control_var.json directly. It holds
+               everything that used to be the hardcoded Control_Var dict + the 5 per-model
+               hyperparameter dicts (RF/SVM/LSTM/CNN/CNN_LSTM). Field meanings are documented in
+               scripts/quickstart/configs/README.md. This is the only place to edit ANN topology
+               (Neurons/Dense are lists, not scalar CLI flags) or EarlyStopping settings.
+            b) Copy that JSON file, change what you want, and run with
+               `python MLForecasting.py --config path/to/your_copy.json`.
+            c) Pass CLI flags for the handful of scalar options you're most likely to want to
+               change without touching JSON, e.g. `--resolution 5min --mltype RF -H 10 --pre 5`.
+               Run `python MLForecasting.py -h` for the full list. CLI flags win over --config,
+               which wins over the shipped default JSON.
+        Modify "SOLETE_builvsimport" from "Build" to "Import" (--import-solete) to avoid expanding
+        the dataset every time and simply import the last built version. Note each version is
+        exclusive to a resolution; the default is 60min, you can try 5min as well.
+    2- After setting those parameters just run it. Take into account the size of 
     the data, it might take a while for the algorithm to finish.
-    4- Now that you have some time to spare while it runs: 
+    3- Now that you have some time to spare while it runs: 
         a) Drink some water, you are probably not hydrated enough.
         b) If you found SOLETE useful, and want to send some kudos, do so.
 
@@ -95,118 +98,24 @@ DISCLAIMERS:
 import sys as _sys  # _REPO_ROOT_BOOT
 from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))  # repo root: `import solete` works from any cwd / Spyder
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))  # this dir: `import ml_config` works from any cwd / Spyder
 
 from solete.io import import_SOLETE_data, import_PV_WT_data
 from solete.preprocessing import PreProcessDataset
 from solete.modeling import PrepareMLmodel, TestMLmodel
 from solete.postprocess import post_process
+import ml_config
 
 #%% Control The Script:
+# Control_Var holds every value that defines the behaviour of the algorithm: horizon to forecast,
+# train/validation/test split, which feature to predict, which to use as extrinsic features, and
+# the 5 per-model hyperparameter dicts (RF/SVM/LSTM/CNN/CNN_LSTM). It is built from
+# scripts/quickstart/configs/default_control_var.json, optionally layered with a --config file and/or
+# CLI flags (run `python MLForecasting.py -h` for the list) -- see that file's docstring-equivalent,
+# scripts/quickstart/configs/README.md, for what each key means. Running with no arguments at all
+# (e.g. Spyder's "Run file") reproduces the shipped JSON defaults exactly.
 
-Control_Var = {
-    '_description_' : 'Holds all the variables that define the behaviour of the algoritm',
-    'resolution' : '60min', #either 1sec, 1min, 5min or 60min
-    'SOLETE_builvsimport': 'Build', # Takes 'Build' or 'Import'. The first expands the dataset, the second imports a existing expansion
-    'SOLETE_save': True, # saves the built SOLETE. Only works if SOLETE_builvsload=='Build' 
-    'trainVSimport' : True, #True - trains the ML model, False - imports the model
-    'saveMLmodel' : True, #saves the trained model if True, but also trainVSimport must be True, otherwise does nothing.
-    'Train_Val_Test' : [70, 20, 10], #train validation test division of the available DATA
-    'RF_SVM_use_val_as_train' : True, # RF/SVM don't early-stop on a validation set like the ANN models do, so this decides what
-                                        # happens to the validation % above for them:
-                                        #   True  -> train RF/SVM on train+val (e.g. 90%), only the test % is held out.
-                                        #            Gives RF/SVM more data (closer to how you'd actually deploy them), but
-                                        #            they then see more training data than LSTM/CNN/CNN_LSTM.
-                                        #   False -> train RF/SVM on train only (e.g. 70%), same boundaries as the ANN
-                                        #            models, validation % left unused. Choose this to compare model
-                                        #            types on strictly identical training data.
-    'random_seed' : None, # int or None. None (default) -> fully random each run, same as before this option existed.
-                            # Set an int (e.g. 42) to make ANN weight initialization/shuffling reproducible across runs
-                            # (seeds Python, NumPy and the Keras backend in one call). RF's own 'random_state' below is
-                            # independent of this. Not a GPU-determinism guarantee -- some backend ops stay
-                            # nondeterministic there regardless of seed.
-    'Scaler': 'MinMax01', #scaling technique, choose: 'MinMax01', 'MinMax11' 'Standard' see notes in PreProcessDataset()
-    'IntrinsicFeature' : 'P_Solar[kW]', #feature to be predicted
-    'PossibleFeatures': ['TEMPERATURE[degC]', 'HUMIDITY[%]', 'WIND_SPEED[m1s]', 'WIND_DIR[deg]',
-                        'GHI[kW1m2]', 'POA Irr[kW1m2]', 'P_Gaia[kW]', 'P_Solar[kW]', 'Pressure[mbar]', 
-                        'Pac', 'Pdc','TempModule', 'TempCell', #'TempModule_RP', 
-                        'HoursOfDay', 'MeanPrevH', 'StdPrevH', 'MeanWindSpeedPrevH', 'StdWindSpeedPrevH',
-                        ],
-    'MLtype' : 'CNN', # RF SVM LSTM CNN CNN_LSTM
-    'H' : 10, #horizon length in number of samples
-    'PRE' : 5, #previous samples to be used in the predictor
-    }  
-
-#%% Define Machine Learning Configuration and Hyperparameters
-# edit this dictionaries to tailor-made the ML model that you want 
-
-RF = {'_description_' : 'Holds the values related to Random Forest',
-        'n_trees' : 1, #number of trees
-        'random_state' : 32, #initialization number, can be removed for random seed generation
-        }
-
-SVM = {'_description_' : 'Holds the values related to Support Vector Machine',
-       'kernel' : 'rbf', #‘linear’, ‘poly’, ‘rbf’, ‘sigmoid’, ‘precomputed’ <--> default=’rbf’
-        'degree' : 3, # Degree of the polynomial kernel function (‘poly’). Ignored by all other kernels.  
-        'gamma' : 'scale', # ‘scale’, ‘auto’ -> if you don't know what you are doing leave it as scale
-        'coef0' : 0, # Independent term in kernel function. It is only significant in ‘poly’ and ‘sigmoid’. 
-        'C' : 3, # Regularization parameter. The strength of the regularization is inversely proportional to C. 
-                # Must be strictly positive. The penalty is a squared l2 penalty.
-        'epsilon' : 0.1, # Epsilon in the epsilon-SVR model. It specifies the epsilon-tube within which no penalty 
-                        # is associated in the training loss function with points predicted within a distance epsilon from the actual value.
-        }
-
-LSTM = {'_description_' : 'Holds the values related to LSTM ANN design',
-        'n_batch' : 16, #int <-> # number of samples fed together - helps with paralelization  (smaller takes longer, improves performance carefull with overfitting)
-        'epo_num' : 1000, # 5 - epoc number of iterations of each batch - same reasoning as for the batches'
-        'Neurons' : [15,15,15], #number of neurons per layer <-> you can feed up to three layers using list e.g. [15, 10] makes two layers of 15 and 10 neurons, respectively.
-        'Dense'  : [0, 0], #number of dense layers and neurons in them. If left as 0 they are not created.
-        'ActFun' : 'tanh', #sigmoid, tanh, elu, relu - activation function as a str 
-        'LossFun' : 'mean_absolute_error', #mean_absolute_error or mean_squared_error
-        'Optimizer' : 'adam', # adam RMSProp - optimization method adam is the default of the guild 
-        'EarlyStopping' : {'enabled' : True, # stop training once 'patience' epochs pass with no val_loss improvement, instead
-                                              # of always running all epo_num epochs. Set False to disable (old behaviour).
-                            'patience' : 20, # epochs to wait for a val_loss improvement before stopping.
-                            'restore_best_weights' : True, # roll back to the best epoch's weights when stopping, instead
-                                                            # of keeping the last (possibly already-overfit) ones.
-                            },
-        }
-
-CNN = {'_description_' : 'Holds the values related to LSTM NN design',
-        'n_batch' : 16, #see note in LSTM
-        'epo_num' : 3, #see note in LSTM
-        'filters' : 32, #number of nodes per layer, usually top layers have higher values
-        'kernel_size' : 2, #size of the filter used to extract features
-        'pool_size' : 3, #down sampling feature maps in order to gain robustness to changes
-        'Dense'  : [10, 10],#see note in LSTM
-        'ActFun' : 'tanh', #see note in LSTM
-        'LossFun' : 'mean_absolute_error', #see note in LSTM
-        'Optimizer' : 'adam', #see note in LSTM
-        'EarlyStopping' : {'enabled' : True, 'patience' : 20, 'restore_best_weights' : True}, #see note in LSTM
-        }
-
-CNN_LSTM = {'_description_' : 'Holds the values related to LSTM NN design',
-        'n_batch' : 16, #see note in LSTM
-        'epo_num' : 1000, #see note in LSTM        
-        'filters' : 32, #see note in CNN
-        'kernel_size' : 3, #see note in CNN
-        'pool_size' : 2, #see note in CNN
-        'Dense'  : [0, 0], #see note in LSTM
-        'CNNActFun' : 'tanh', #see note in CNN
-        
-        'Neurons' : [10,15,10], #see note in LSTM
-        'LSTMActFun' : 'sigmoid', #see note in LSTM
-        
-        'LossFun' : 'mean_absolute_error', #see note in LSTM
-        'Optimizer' : 'adam', #see note in LSTM
-        'EarlyStopping' : {'enabled' : True, 'patience' : 20, 'restore_best_weights' : True}, #see note in LSTM
-        }
-
-Control_Var['RF'] = RF
-Control_Var['SVM'] = SVM
-Control_Var['LSTM'] = LSTM
-Control_Var['CNN'] = CNN
-Control_Var['CNN_LSTM'] = CNN_LSTM
-del RF, SVM, LSTM, CNN, CNN_LSTM
+Control_Var = ml_config.get_control_var()
 
 #%% Import Data
 
