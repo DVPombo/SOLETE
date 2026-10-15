@@ -45,14 +45,102 @@ def _early_stopping_callback(cfg):
                            restore_best_weights=cfg.get('restore_best_weights', True))]
 
 
-def PrepareMLmodel(control, ml_data):
+#Keys copied verbatim from Control_Var into the manifest sidecar (see _save_manifest/load_model_bundle):
+#enough to tell, at load time, whether a saved model was trained for the feature set/horizon/lookback/
+#resolution/scaling the caller is about to use it for.
+_MANIFEST_CONTROL_KEYS = ('PossibleFeatures', 'IntrinsicFeature', 'H', 'PRE', 'resolution', 'Scaler')
+
+
+def _manifest_path(control):
+    return output_path("Trained_" + control['MLtype'] + "_manifest.joblib")
+
+
+def _save_manifest(control, scaler):
+    """Persists the fitted Scaler (PreProcessDataset's Xscaler/Yscaler, fit on the training split
+    only) alongside the small bits of Control_Var needed to tell whether a saved model is being
+    reused in a compatible way later (see load_model_bundle). Saved as one joblib dict next to
+    Trained_<MLtype>.joblib/.h5 -- a new, optional sidecar, it does not change the existing model
+    filename/format."""
+    manifest = {key: control[key] for key in _MANIFEST_CONTROL_KEYS if key in control}
+    manifest['MLtype'] = control['MLtype']
+    manifest['data_version'] = control.get('data_version', 'v3')
+    manifest['scaler'] = scaler
+    path = _manifest_path(control)
+    print("Saving model manifest (scaler + feature/horizon metadata) with name: " + path.name)
+    joblib.dump(manifest, str(path))
+
+
+def load_model_bundle(control):
+    """
+    Loads a model saved by PrepareMLmodel(..., saveMLmodel=True) together with the manifest
+    sidecar _save_manifest wrote next to it (the fitted Scaler the model was trained with, plus
+    PossibleFeatures/IntrinsicFeature/H/PRE/resolution/Scaler-type), and checks that the two agree
+    with whatever of those keys are present in `control` -- this is the compatibility check that
+    plain joblib.load/keras.load_model can't give you (a shape-mismatch exception at best, or a
+    silent wrong-semantics "success" at worst, if two configs happen to have matching shapes).
+
+    Parameters
+    ----------
+    control : dict
+        Must contain at least 'MLtype'. Any of _MANIFEST_CONTROL_KEYS present here are compared
+        against the manifest; mismatches raise ValueError before anything is predicted.
+
+    Returns
+    -------
+    dict with keys: 'model' (the loaded keras/sklearn object), 'scaler' (the Scaler dict PreProcess-
+    Dataset produced, i.e. {'X_data':..., 'Y_data':...}), 'possible_features', 'intrinsic_feature',
+    'H', 'PRE', 'resolution', 'scaler_type', 'mltype', 'data_version'.
+    """
+    manifest_path = _manifest_path(control)
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            "No manifest found at " + str(manifest_path) + " -- this model was saved before the "
+            "manifest sidecar existed, or saveMLmodel/scaler were not set when it was trained. "
+            "Re-train and save it with PrepareMLmodel(control, ml_data, scaler=Scaler) to get one.")
+    manifest = joblib.load(str(manifest_path))
+
+    mismatches = []
+    for key in _MANIFEST_CONTROL_KEYS:
+        if key in control and key in manifest and control[key] != manifest[key]:
+            mismatches.append("%s: requested=%r, saved model was trained with=%r" % (key, control[key], manifest[key]))
+    if mismatches:
+        raise ValueError(
+            "load_model_bundle: control is NOT compatible with the saved " + control['MLtype'] +
+            " model/manifest:\n  " + "\n  ".join(mismatches))
+
+    model_control = dict(control, trainVSimport=False) #reuse the existing load branch, below
+    model = PrepareMLmodel(model_control, ml_data=None)
+
+    return {
+        'model': model,
+        'scaler': manifest['scaler'],
+        'possible_features': manifest.get('PossibleFeatures'),
+        'intrinsic_feature': manifest.get('IntrinsicFeature'),
+        'H': manifest.get('H'),
+        'PRE': manifest.get('PRE'),
+        'resolution': manifest.get('resolution'),
+        'scaler_type': manifest.get('Scaler'),
+        'mltype': manifest['MLtype'],
+        'data_version': manifest['data_version'],
+    }
+
+
+def PrepareMLmodel(control, ml_data, scaler=None):
     """
     Parameters
     ----------
     control : dict
         Control_Var
     ml_data : dict of dataframes
-        It contains the training, validation and testing sets
+        It contains the training, validation and testing sets. Ignored (may be None) when
+        control['trainVSimport'] is False, since importing a model needs no training data.
+    scaler : dict, optional
+        The Scaler dict PreProcessDataset returned alongside ml_data (fit on the training split).
+        Only used when trainVSimport and saveMLmodel are both True: if given, it is persisted in a
+        manifest sidecar next to the model (see _save_manifest) so a later load_model_bundle() call
+        can reuse the *exact* fitted scaler instead of silently refitting a new one on whatever data
+        happens to be passed through PreProcessDataset next time. Omitting it reproduces the old
+        behavior exactly (model saved, no manifest).
 
     Returns
     -------
@@ -122,6 +210,12 @@ def PrepareMLmodel(control, ml_data):
                 print("Saving Trained Model with name: " + filename)
                 ML.save(str(output_path(filename)))
             print("...Done\n")
+
+            if scaler is not None:
+                _save_manifest(control, scaler)
+            else:
+                print(control['MLtype'] + " manifest was NOT saved (no scaler passed to "
+                      "PrepareMLmodel): load_model_bundle() will not work for it.\n")
         else:
             print(control['MLtype'] + " was NOT saved.\n")
 

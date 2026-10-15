@@ -8,6 +8,37 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This section tracks forecasting-platform work on top of the already-released v4 **dataset** (`## [4.0]`
 below is the dataset release; the platform's own version, `solete.__version__`, is still `4.0.0.dev0`).
 
+### Added — model-serving path (`solete.modeling.load_model_bundle`, `solete.inference`)
+- `PrepareMLmodel` (`solete/modeling.py`) now accepts an optional `scaler` kwarg; when given (and
+  `saveMLmodel`/`trainVSimport` are True, as before), it persists the exact fitted `Scaler`
+  PreProcessDataset returned, plus `PossibleFeatures`/`IntrinsicFeature`/`H`/`PRE`/`resolution`/
+  `Scaler` type, into a new sidecar `outputs/Trained_<MLtype>_manifest.joblib`. Previously only the
+  raw model was saved, and nothing recorded what that model expected or with what scaler it was
+  trained -- reloading it for inference meant re-running `PreProcessDataset` on new data, which
+  silently *refits* a brand-new scaler instead of reusing the one the model actually learned with.
+  Purely additive: omitting `scaler` reproduces the old save behavior exactly (model saved, no
+  manifest), and existing `Trained_<MLtype>.joblib`/`.h5` filenames/formats are unchanged.
+- New `solete.modeling.load_model_bundle(control)` loads a model together with its manifest and
+  validates `PossibleFeatures`/`IntrinsicFeature`/`H`/`PRE`/`resolution`/`Scaler` against `control`
+  before returning, raising a clear `ValueError` (not a bare shape-mismatch exception, or worse, a
+  silent wrong-semantics "success") on any mismatch.
+- New `solete/inference.py`: `build_inference_features()` windows/scales new, already-`ExpandSOLETE`'d
+  rows the same way `PreProcessDataset`'s X-side does (same `series_to_forecast` helper), applying
+  the bundle's *loaded* scaler (`.transform()` only, never refit); `predict_with_bundle()` runs the
+  model and inverse-transforms back to physical units. This is the actual "trained model + new rows
+  -> forecast" path that didn't exist before: even `MLForecasting.py` with `trainVSimport=False`
+  still re-ran the full training-split pipeline just to assemble inputs for `TestMLmodel`.
+- New `scripts/quickstart/predict_with_saved_model.py`: a standalone worked example of the above
+  (load a model saved by `MLForecasting.py`, score held-out rows, print the forecasts).
+- New `tests/test_modeling_persistence.py`: save -> load -> predict round trip (RF), asserting the
+  reloaded model/scaler reproduce the in-memory ones exactly and `predict_with_bundle()`'s output
+  matches a hand-built reference window; plus the incompatible-`control`/missing-manifest error
+  paths. Closes a zero-coverage gap (`PrepareMLmodel`'s save/load branches and `TestMLmodel` had no
+  functional test before this).
+- Verified against the real v4 60min data file (RF and a 3-epoch CNN): `predict_with_bundle()`'s
+  forecast for the dataset's last row matched `TestMLmodel`'s own forecast for that row exactly, for
+  both model families.
+
 ### Changed — `solete.dataset.SOLETE` convenience class
 - Generalized `SOLETE` beyond its original single-resolution (60min), single-horizon (1h) scope:
   `resolution` now accepts any of `1sec`/`1min`/`5min`/`60min` (`solete.paths.RESOLUTIONS`), and

@@ -51,6 +51,7 @@ This is useful, with honestly-documented limits: real, long-duration, colocated 
 | understand the columns and quality flags | [`dataset/docs/DATA_DICTIONARY.md`](dataset/docs/DATA_DICTIONARY.md), [`dataset/docs/QC_SCHEMA.md`](dataset/docs/QC_SCHEMA.md) |
 | see how the raw data became version 4 | [`dataset/`](dataset/): `pipeline/` (the code), [`docs/CLEANING_DECISIONS.md`](dataset/docs/CLEANING_DECISIONS.md) (every rule and why), `diagnostics/` (the investigations) |
 | train forecasting models | [`solete/`](solete/) (the package) and [`scripts/quickstart/MLForecasting.py`](scripts/quickstart/MLForecasting.py) |
+| score a saved model without retraining | [`scripts/quickstart/predict_with_saved_model.py`](scripts/quickstart/predict_with_saved_model.py) (`solete.modeling.load_model_bundle` + [`solete/inference.py`](solete/inference.py)) |
 | reproduce or extend the benchmarks | [`benchmarks/`](benchmarks/BENCHMARKS.md) |
 | learn by example | the notebooks in [`examples/`](examples/) (they run on a tiny sample, no additional download needed) |
 | see what's known-wrong or in progress | [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md), [`CHANGELOG.md`](CHANGELOG.md) |
@@ -64,7 +65,7 @@ SOLETE/
 ├── dataset/       cleaning + quality-control pipeline, its documentation and diagnostics
 ├── solete/        the importable package: paths, io, qc, physics, preprocessing, modeling, metrics, ...
 ├── benchmarks/    baselines and benchmark scripts, fixed splits, stored results
-├── scripts/       quickstart/RunMe.py, quickstart/MLForecasting.py, dataset inspection tools
+├── scripts/       quickstart/RunMe.py, quickstart/MLForecasting.py, quickstart/predict_with_saved_model.py, dataset inspection tools
 ├── examples/      notebooks + tiny sample files
 ├── matlab/  R/    loaders for MATLAB and R users
 ├── tests/  docs/
@@ -158,7 +159,11 @@ New to SOLETE? The notebooks in `examples/` walk through the dataset on a small 
    - I included some error messages to debug what I expect are the most common errors when running stuff.
    - Trained models and result files are written to `outputs/` (git-ignored).
    - Let me know if you like it or what needs to be fixed.
-4. Have Fun!
+4. Once you've trained and saved a model (`saveMLmodel = True`), open **scripts/quickstart/predict_with_saved_model.py**
+   to see the serving/inference path: it loads the saved model together with the exact scaler and
+   metadata it was trained with (`solete.modeling.load_model_bundle`), and scores new rows
+   (`solete.inference.predict_with_bundle`) without re-running the training pipeline.
+5. Have Fun!
 
 You can of course use your own dataset, you will have to adapt things here and there, but you will be able to reuse most of the code.
 
