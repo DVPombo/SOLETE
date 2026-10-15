@@ -24,14 +24,15 @@ def _whole(df):
 
 
 @pytest.mark.parametrize("slice_rows", [7_000, 20_011, 60_000])
-def test_sliced_cleaning_equals_whole_file(tmp_path, slice_rows):
+@pytest.mark.parametrize("jobs", [1, 2])
+def test_sliced_cleaning_equals_whole_file(tmp_path, slice_rows, jobs):
     # defects straddle the natural cut points of THIS slicing
     cuts = range(slice_rows, 3 * DAY, slice_rows)
     df = raw_defects(3, cut_points=cuts)
     src = tmp_path / "in.h5"
     df.to_hdf(src, key="DATA", mode="w", format="table")
     whole, rep_whole = _whole(df)
-    rep = cl.clean_file(src, tmp_path / "out.h5", slice_rows=slice_rows, verbose=False)
+    rep = cl.clean_file(src, tmp_path / "out.h5", slice_rows=slice_rows, verbose=False, jobs=jobs)
     got = read_rows(tmp_path / "out.h5")
     assert_frame_equal(got, whole, check_exact=True)
     # reports: the additive counts equal the whole-file ones
@@ -140,9 +141,10 @@ def _cleaned_fixture(tmp_path, n_days=5, drop_day=None, boundary=False):
 
 @pytest.mark.parametrize("slice_days,drop_day,boundary", [(1, None, False), (2, None, False), (2, 2, False), (3, 1, False),
                                                           (31, None, False), (2, None, True), (1, None, True)])
-def test_sliced_resample_equals_whole_file(tmp_path, slice_days, drop_day, boundary):
+@pytest.mark.parametrize("jobs", [1, 2])
+def test_sliced_resample_equals_whole_file(tmp_path, slice_days, drop_day, boundary, jobs):
     cleaned, path = _cleaned_fixture(tmp_path, 5, drop_day, boundary)
-    got = rs.resample_file(path, "DATA", ["1min", "5min", "60min"], slice_days, verbose=False)
+    got = rs.resample_file(path, "DATA", ["1min", "5min", "60min"], slice_days, verbose=False, jobs=jobs)
     for rule in ("1min", "5min", "60min"):
         want = rs.resample_dataframe(cleaned, rule)
         assert_frame_equal(got[rule], want, check_exact=True, check_freq=False), rule

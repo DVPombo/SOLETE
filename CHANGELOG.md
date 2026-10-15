@@ -34,6 +34,21 @@ below is the dataset release; the platform's own version, `solete.__version__`, 
   second split version is a maintainer data decision, not something this class should default its way
   into (see the module docstring).
 
+### Changed — `dataset/pipeline/build_release.py` orchestration
+- Added a `--jobs N` flag (default 1, sequential, unchanged behavior). When `N > 1`, the three stages
+  that loop sequentially over slices of the 39.48M-row 1-second file -- `clean` (`clean_solete_1sec.
+  clean_file`), `resample` (`resample_solete.resample_file`), and the 1-second half of `expand`
+  (`release_stages.stage_expand_1s`) -- compute their slices in a `ProcessPoolExecutor` of that size
+  instead of one at a time; each worker reads only its own row range from disk (never the whole file)
+  and results are written/concatenated back in original slice order (`ProcessPoolExecutor.map`
+  preserves input order even though workers may finish out of order), so output is identical to
+  `--jobs 1` for any `N`. Resolution-level parallelism (the coarse `expand`/`parquet` loops) was found
+  to be low-value (the three coarse files are 0.3-1.7% the row count of the 1-second file) and is out
+  of scope. `--jobs` is also exposed directly on `clean_solete_1sec.py --jobs` and
+  `resample_solete.py --jobs` for standalone use; `--dry-run` prints a rough extra-RAM estimate for
+  `--jobs > 1`. Stage-level checkpointing/resume (`--skip-existing`) was already in place and is
+  unchanged.
+
 ## [4.0] - 2026-10-10
 This entry is unbearably long because it describes a lot of work done over the spam of a few months.
 

@@ -34,6 +34,11 @@ pip install -r dataset/requirements.txt
 python dataset/pipeline/build_release.py --raw SOLETE_Pombo_1sec.h5 --skip-existing    # all ten v4 files + checksums; --dry-run first
 ```
 
+`clean`/`resample`/`expand` each process the 1-second file slice by slice; add `--jobs N` to run those
+slice loops in `N` worker processes instead of one (results are identical either way -- writes stay in
+original slice order). Each extra worker holds one more slice in RAM at a time, so raise `--jobs` only
+with cores and RAM to spare (`--dry-run` prints a rough estimate of the extra memory).
+
 `build_release.py` runs the stages in order (each implemented once, elsewhere — this
 module only moves slices between them):
 

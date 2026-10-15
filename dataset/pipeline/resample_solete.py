@@ -49,6 +49,7 @@ Usage:
 import argparse
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -254,9 +255,21 @@ def day_slices(index, slice_days):
     return [(int(a), int(b)) for a, b in zip(pos[:-1], pos[1:]) if b > a], edges
 
 
-def resample_file(path, key, rules, slice_days=31, verbose=True):
+def _resample_one_slice(args):
+    """Worker body for the `jobs > 1` path: reads only its own row range (never the whole file) and
+    resamples it to every rule. Module-level (not nested) so it is picklable on Windows."""
+    path, key, a, b, rules = args
+    block = read_rows(path, key, a, b)
+    return {r: resample_dataframe(block, r) for r in rules}
+
+
+def resample_file(path, key, rules, slice_days=31, verbose=True, jobs=1):
     """Resample a sorted cleaned 1 s file (table or fixed format) to each of `rules`, slice by slice on
-    day boundaries. Returns ({rule: DataFrame}, {rule: sorted unique foreign-code warnings})."""
+    day boundaries. Returns ({rule: DataFrame}, {rule: sorted unique foreign-code warnings}).
+
+    jobs: 1 (default) resamples slices one at a time in this process, exactly as before. jobs > 1
+    computes slices in a `ProcessPoolExecutor` of that size (each worker reads only its own row range);
+    `executor.map` preserves input order so the pieces are concatenated in the same order either way."""
     rules = [normalize_resolution(r) for r in rules]
     info = h5_info(path, key)
     idx = read_index(path, key)
@@ -265,13 +278,25 @@ def resample_file(path, key, rules, slice_days=31, verbose=True):
     slices, _ = day_slices(idx, slice_days)
     grids = {r: resolution_grid(idx[0], idx[-1], r) for r in rules}
     pieces = {r: [] for r in rules}
-    for i, (a, b) in enumerate(slices, 1):
-        block = read_rows(path, key, a, b)
-        for r in rules:
-            pieces[r].append(resample_dataframe(block, r))
-        if verbose:
-            print(f"  slice {i}/{len(slices)}: rows {a:,}..{b:,} resampled", flush=True)
-        del block
+    jobs = max(1, min(int(jobs), len(slices)))
+    if jobs == 1:
+        for i, (a, b) in enumerate(slices, 1):
+            block = read_rows(path, key, a, b)
+            for r in rules:
+                pieces[r].append(resample_dataframe(block, r))
+            if verbose:
+                print(f"  slice {i}/{len(slices)}: rows {a:,}..{b:,} resampled", flush=True)
+            del block
+    else:
+        tasks = [(path, key, a, b, rules) for a, b in slices]
+        with ProcessPoolExecutor(max_workers=jobs) as pool:
+            # pool.map preserves input order: results line up with `slices` even though workers may
+            # finish out of order, so pieces are still concatenated in original slice order below.
+            for i, ((a, b), resampled) in enumerate(zip(slices, pool.map(_resample_one_slice, tasks)), 1):
+                for r in rules:
+                    pieces[r].append(resampled[r])
+                if verbose:
+                    print(f"  slice {i}/{len(slices)}: rows {a:,}..{b:,} resampled ({jobs} jobs)", flush=True)
     # buckets that no slice produced (a whole day missing in the source) exist in a whole-file resample as
     # NaN rows; the global grid puts them back, and nothing outside the data's own span
     return {r: pd.concat(pieces[r]).reindex(grids[r]) for r in rules}
@@ -284,6 +309,9 @@ def main():
     parser.add_argument("--out-prefix", default="SOLETE_resampled")
     parser.add_argument("--rules", nargs="+", default=["1min", "5min", "60min"])
     parser.add_argument("--slice-days", type=int, default=31)
+    parser.add_argument("--jobs", type=int, default=1,
+                        help="resample this many slices in parallel worker processes (default 1 = sequential); "
+                             "each worker holds one slice in RAM, so memory use scales roughly with --jobs")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
     args.path = str(resolve_input(args.path))                 # bare names are looked up in data/hdf5/
@@ -306,7 +334,7 @@ def main():
     qc_cols = [c for c in kept_cols if c.endswith(QC_SUFFIX)]
     angular_present = sorted(set(ANGULAR_COLUMNS) & set(data_cols))
 
-    results = resample_file(args.path, args.key, rules, args.slice_days)
+    results = resample_file(args.path, args.key, rules, args.slice_days, jobs=args.jobs)
     per_resolution_report = {}
     for rule in rules:
         out = results[rule]

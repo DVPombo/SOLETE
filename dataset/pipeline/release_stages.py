@@ -16,6 +16,7 @@ Stage order (docs: dataset/README.md "Building the v4 release"):
   parquet   the five h5 files     -> the five .parquet files            (export_parquet.h5_to_parquet)
 """
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -42,13 +43,13 @@ def stage_original(raw, out, overwrite=False, chunk_rows=2_000_000):
     return rep
 
 
-def stage_clean(original, cleaned, slice_days=31, overwrite=False):
-    return cl.clean_file(original, cleaned, KEY, slice_rows=max(int(slice_days * DAY), 1), overwrite=overwrite)
+def stage_clean(original, cleaned, slice_days=31, overwrite=False, jobs=1):
+    return cl.clean_file(original, cleaned, KEY, slice_rows=max(int(slice_days * DAY), 1), overwrite=overwrite, jobs=jobs)
 
 
-def stage_resample(cleaned, resampled_by_rule, slice_days=31, overwrite=False):
+def stage_resample(cleaned, resampled_by_rule, slice_days=31, overwrite=False, jobs=1):
     """resampled_by_rule: {'1min': path, '5min': path, '60min': path} (fixed-format files)."""
-    results = rs.resample_file(cleaned, KEY, list(resampled_by_rule), slice_days)
+    results = rs.resample_file(cleaned, KEY, list(resampled_by_rule), slice_days, jobs=jobs)
     rep = {}
     for rule, path in resampled_by_rule.items():
         write_fixed(results[rule], path, KEY, overwrite=overwrite)
@@ -66,19 +67,41 @@ def stage_expand_coarse(resampled, out, overwrite=False):
     return {"rows": len(df), "columns": len(df.columns)}
 
 
-def stage_expand_1s(cleaned, out, slice_days=31, overwrite=False):
+def _expand_one_slice(args):
+    """Worker body for the `jobs > 1` path: reads only its own row range (never the whole file) and
+    expands it. Module-level (not nested) so it is picklable on Windows."""
+    cleaned, a, b, PV = args
+    block = read_rows(cleaned, KEY, a, b)
+    expand_physical(block, PV)          # pointwise: any slicing gives the same rows
+    return block
+
+
+def stage_expand_1s(cleaned, out, slice_days=31, overwrite=False, jobs=1):
     PV, _ = import_PV_WT_data()
     n = h5_info(cleaned, KEY)["nrows"]
     step = max(int(slice_days * DAY), 1)
+    bounds = [(a, min(a + step, n)) for a in range(0, n, step)]
+    jobs = max(1, min(int(jobs), len(bounds)))
     written = 0
     with TableWriter(out, KEY, overwrite=overwrite) as w:
-        for a in range(0, n, step):
-            block = read_rows(cleaned, KEY, a, min(a + step, n))
-            expand_physical(block, PV)          # pointwise: any slicing gives the same rows
-            w.append(block)
-            written += len(block)
-            print(f"  expand 1 s: {written:,} / {n:,}", flush=True)
-            del block
+        if jobs == 1:
+            for a, b in bounds:
+                block = read_rows(cleaned, KEY, a, b)
+                expand_physical(block, PV)          # pointwise: any slicing gives the same rows
+                w.append(block)
+                written += len(block)
+                print(f"  expand 1 s: {written:,} / {n:,}", flush=True)
+                del block
+        else:
+            tasks = [(cleaned, a, b, PV) for a, b in bounds]
+            with ProcessPoolExecutor(max_workers=jobs) as pool:
+                # pool.map preserves input order: results line up with `bounds` even though workers
+                # may finish out of order, so writes below stay in original slice order.
+                for block in pool.map(_expand_one_slice, tasks):
+                    w.append(block)
+                    written += len(block)
+                    print(f"  expand 1 s: {written:,} / {n:,} ({jobs} jobs)", flush=True)
+                    del block
     return {"rows": written}
 
 

@@ -86,6 +86,7 @@ docs/CLEANING_DECISIONS.md before trusting a new output file.
 import argparse
 import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -427,10 +428,25 @@ def plan_slices(path, key, slice_rows, max_slice_rows=None, window=200_000):
     return list(zip(cuts[:-1], cuts[1:]))
 
 
+def _clean_one_slice(args):
+    """Worker body for the `jobs > 1` path: reads only its own row range (never the whole file) and
+    cleans it. Module-level (not nested) so it is picklable for ProcessPoolExecutor on Windows."""
+    in_path, key, a, b, dropout_max_run, glitch_max_run, flatline_min_run, chunk_rows = args
+    block = read_rows(in_path, key, a, b)
+    cleaned, rep = clean_block(block, dropout_max_run, glitch_max_run, flatline_min_run, chunk_rows, verbose=False)
+    rep["n_slices"] = 1
+    return cleaned, rep
+
+
 def clean_file(in_path, out_path, key="DATA", slice_rows=DEFAULT_SLICE_DAYS * 86400, max_slice_rows=None,
                dropout_max_run=5, glitch_max_run=3, flatline_min_run=300, chunk_rows=2_000_000,
-               overwrite=False, verbose=True):
-    """Clean a sorted table/fixed-format 1 s file slice by slice. Returns the final report."""
+               overwrite=False, verbose=True, jobs=1):
+    """Clean a sorted table/fixed-format 1 s file slice by slice. Returns the final report.
+
+    jobs: 1 (default) cleans slices one at a time in this process, exactly as before. jobs > 1 computes
+    slices in a `ProcessPoolExecutor` of that size (each worker reads only its own row range) but still
+    writes them to `out_path` in original slice order -- `executor.map` preserves input order even
+    though workers may finish out of order, so the output is identical to the jobs=1 path."""
     info = h5_info(in_path, key)
     n = info["nrows"]
     idx = read_index(in_path, key)
@@ -444,16 +460,29 @@ def clean_file(in_path, out_path, key="DATA", slice_rows=DEFAULT_SLICE_DAYS * 86
     if verbose:
         print(f"{in_path}: {n:,} rows ({info['format']} format) -> {len(slices)} slices", flush=True)
     report = None
+    jobs = max(1, min(int(jobs), len(slices)))
     with TableWriter(out_path, key, overwrite=overwrite) as w:
-        for i, (a, b) in enumerate(slices, 1):
-            block = read_rows(in_path, key, a, b)
-            cleaned, rep = clean_block(block, dropout_max_run, glitch_max_run, flatline_min_run, chunk_rows, verbose=False)
-            rep["n_slices"] = 1
-            report = merge_reports(report, rep)
-            w.append(cleaned)
-            if verbose:
-                print(f"  slice {i}/{len(slices)}: rows {a:,}..{b:,} ({b - a:,}) done", flush=True)
-            del block, cleaned
+        if jobs == 1:
+            for i, (a, b) in enumerate(slices, 1):
+                block = read_rows(in_path, key, a, b)
+                cleaned, rep = clean_block(block, dropout_max_run, glitch_max_run, flatline_min_run, chunk_rows, verbose=False)
+                rep["n_slices"] = 1
+                report = merge_reports(report, rep)
+                w.append(cleaned)
+                if verbose:
+                    print(f"  slice {i}/{len(slices)}: rows {a:,}..{b:,} ({b - a:,}) done", flush=True)
+                del block, cleaned
+        else:
+            tasks = [(in_path, key, a, b, dropout_max_run, glitch_max_run, flatline_min_run, chunk_rows) for a, b in slices]
+            with ProcessPoolExecutor(max_workers=jobs) as pool:
+                # pool.map preserves input order: results line up with `slices` even though workers
+                # may finish out of order, so writes below stay in original slice order.
+                for i, ((a, b), (cleaned, rep)) in enumerate(zip(slices, pool.map(_clean_one_slice, tasks)), 1):
+                    report = merge_reports(report, rep)
+                    w.append(cleaned)
+                    if verbose:
+                        print(f"  slice {i}/{len(slices)}: rows {a:,}..{b:,} ({b - a:,}) done ({jobs} jobs)", flush=True)
+                    del cleaned
     report = finish_report(report)
     report["slice_boundaries_rows"] = [a for a, _ in slices[1:]]
     return report
@@ -471,6 +500,9 @@ def main():
     ap.add_argument("--chunk-rows", type=int, default=2_000_000, help="pvlib chunk")
     ap.add_argument("--slice-days", type=float, default=DEFAULT_SLICE_DAYS, help="approximate slice length in days")
     ap.add_argument("--max-slice-rows", type=int, default=None)
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="clean this many slices in parallel worker processes (default 1 = sequential); "
+                         "each worker holds one slice in RAM, so memory use scales roughly with --jobs")
     ap.add_argument("--in-memory", action="store_true",
                     help="old whole-file path: loads and sorts everything first (needs ~7 GB RAM; accepts the shuffled raw file)")
     ap.add_argument("--overwrite", action="store_true")
@@ -487,6 +519,8 @@ def main():
     common = dict(dropout_max_run=args.dropout_max_run, glitch_max_run=args.glitch_max_run,
                   flatline_min_run=args.pressure_flatline_min_run, chunk_rows=args.chunk_rows)
     if args.in_memory:
+        if args.jobs > 1:
+            print("--jobs is ignored in --in-memory mode (there is no slice loop to parallelize).")
         print(f"Loading {args.path} (whole file) ...")
         df = pd.read_hdf(args.path, key=args.key)
         print("Sorting chronologically (one column at a time) ...")
@@ -501,7 +535,7 @@ def main():
     else:
         slice_rows = max(int(args.slice_days * 86400), 1)
         report = clean_file(args.path, out_data, args.key, slice_rows=slice_rows,
-                            max_slice_rows=args.max_slice_rows, overwrite=args.overwrite, **common)
+                            max_slice_rows=args.max_slice_rows, overwrite=args.overwrite, jobs=args.jobs, **common)
         n = report["n_rows"]
     report.update(input=args.path, output=out_data, dropout_max_run=args.dropout_max_run,
                   glitch_max_run=args.glitch_max_run, mode="in-memory" if args.in_memory else "sliced")

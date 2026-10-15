@@ -22,6 +22,11 @@ Nothing is overwritten without --overwrite; files are written as *.tmp and renam
 outputs exist is skipped with --skip-existing, so an interrupted build resumes at the stage level.
 Inputs are never modified. The raw v3 file keeps its name (SOLETE_Pombo_1sec.h5) and is read from --raw.
 
+Within clean/resample/expand, the 1-second file is processed slice by slice in this one process by default.
+--jobs N computes those slices in N worker processes instead (writes/concatenation stay in original slice
+order either way, so the output is identical); each extra worker holds one more slice in RAM at a time, so
+raise --jobs only with both the cores and the RAM to spare (--dry-run prints a rough estimate of the extra).
+
 WHERE THINGS GO: all paths come from solete/paths.py: <data>/hdf5, <data>/parquet, scratch in
 <data>/derived/build_v4 (--scratch). <data> is the repo's data/ folder or $SOLETE_DATA_DIR.
 
@@ -34,6 +39,7 @@ SPYDER (Run > Configuration per file...):
     Equivalent terminal command:
            python dataset/pipeline/build_release.py --raw D:/solete/SOLETE_Pombo_1sec.h5 --skip-existing
     Smaller machine: --slice-days 7 (slices of a week; same output, a little slower).
+    Multi-core machine: --jobs 4 (or however many cores/RAM you can spare) to parallelize clean/resample/expand.
     After a successful build, replace the synthetic effect table in dataset/docs/METHODOLOGY.md with
         python scripts/expansion_checks.py effect --input <a cleaned 1 s slice of the real build>
 """
@@ -197,12 +203,12 @@ def run_stage(stage, a):
         state["original_verification"] = out["verification"]
         state["raw"] = str(raw)
     elif stage == "clean":
-        out = st.stage_clean(h5["original"], sc["cleaned"], a.slice_days, overwrite=ow)
+        out = st.stage_clean(h5["original"], sc["cleaned"], a.slice_days, overwrite=ow, jobs=a.jobs)
         state["clean_report"] = out
     elif stage == "resample":
-        out = st.stage_resample(sc["cleaned"], sc["resampled"], a.slice_days, overwrite=ow)
+        out = st.stage_resample(sc["cleaned"], sc["resampled"], a.slice_days, overwrite=ow, jobs=a.jobs)
     elif stage == "expand":
-        out["1sec"] = st.stage_expand_1s(sc["cleaned"], h5["1sec"], a.slice_days, overwrite=ow)
+        out["1sec"] = st.stage_expand_1s(sc["cleaned"], h5["1sec"], a.slice_days, overwrite=ow, jobs=a.jobs)
         for r in COARSE:
             out[r] = st.stage_expand_coarse(sc["resampled"][r], h5[r], overwrite=ow)
         import resample_solete as rs
@@ -289,7 +295,7 @@ def write_manifest(h5, pq_, a):
 # ---------------------------------------------------------------------------------------------
 def child_command(stage, a):
     cmd = [sys.executable, str(Path(__file__).resolve()), "--stage-worker", stage, "--slice-days", str(a.slice_days),
-           "--scratch", str(a.scratch), "--rebuild-check", a.rebuild_check]
+           "--scratch", str(a.scratch), "--rebuild-check", a.rebuild_check, "--jobs", str(a.jobs)]
     if a.raw:
         cmd += ["--raw", str(a.raw)]
     if a.overwrite:
@@ -315,6 +321,11 @@ def parse_args(argv=None):
     ap.add_argument("--stages", default="all", help="comma list of: " + ", ".join(STAGES) + " (default: all)")
     ap.add_argument("--raw", default=None, help="raw v3 1 s file (default: the v3 name in the data/hdf5 folder); never modified")
     ap.add_argument("--slice-days", type=float, default=31.0, help="approximate slice length in days (default 31; 7 for a small machine)")
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="parallelize the clean/resample/expand slice loops over this many worker processes "
+                         "(default 1 = sequential, same behavior as before); each worker holds one slice in "
+                         "RAM at a time, so peak memory scales roughly with --jobs -- raise it only if you "
+                         "have both the cores and the RAM to spare")
     ap.add_argument("--scratch", default=str(paths.DERIVED_DIR / "build_v4"), help="scratch folder for the intermediate files")
     ap.add_argument("--keep-intermediate", action="store_true", help="do not delete the scratch folder at the end")
     ap.add_argument("--skip-existing", action="store_true", help="skip a stage whose outputs already exist (resume)")
@@ -409,7 +420,12 @@ def main(argv=None):
     est = disk_estimate(n_rows)
     print(f"data folder : {paths.DATA_DIR}\nscratch     : {a.scratch}\nraw v3 file : {raw}{'' if raw.exists() else '  (not found)'}")
     print(f"stages      : " + ", ".join(f"{s}={actions[s]}" for s in a.stage_list))
-    print(f"slice size  : {a.slice_days:g} days; rebuild check: {a.rebuild_check}")
+    print(f"slice size  : {a.slice_days:g} days; rebuild check: {a.rebuild_check}; jobs: {a.jobs}")
+    if a.jobs > 1:
+        slice_rows = max(int(a.slice_days * DAY_ROWS), 1)
+        extra_mb = disk_estimate(slice_rows)["scratch cleaned 1 s (h5)"] * (a.jobs - 1) / 1e6
+        print(f"--jobs {a.jobs}: each extra worker holds one ~{a.slice_days:g}-day slice in RAM at a time; "
+              f"rough extra peak RAM vs. --jobs 1: ~{extra_mb:,.0f} MB (on top of the parent process's own working set)")
     print("expected disk use (UPPER bound from {:,} rows, uncompressed; the real files are usually smaller):".format(n_rows))
     for k, v in est.items():
         print(f"    {k:<58s}{v / 1e9:>8.2f} GB")
@@ -440,7 +456,7 @@ def main(argv=None):
         remove_stale_manifest("the release files are about to change")
     summary = {"version": "v4", "started_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
                "data_dir": str(paths.DATA_DIR), "slice_days": a.slice_days, "rebuild_check": a.rebuild_check,
-               "disk_upper_bound_gb": {k: round(v / 1e9, 2) for k, v in est.items()}, "stages": {}}
+               "jobs": a.jobs, "disk_upper_bound_gb": {k: round(v / 1e9, 2) for k, v in est.items()}, "stages": {}}
     failed = None
     for stage in a.stage_list:
         if actions[stage] == "skip":
