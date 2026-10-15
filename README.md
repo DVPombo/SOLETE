@@ -105,6 +105,7 @@ per-folder `README.md`s already linked below.
 |---|---|
 | [`benchmarks/BENCHMARKS.md`](benchmarks/BENCHMARKS.md) | The leaderboard tables, with every caveat attached directly to the numbers it qualifies |
 | [`benchmarks/splits/README.md`](benchmarks/splits/README.md) | The train/val/test split, its boundary rationale, QC-exclusion decision |
+| [`scripts/quickstart/configs/README.md`](scripts/quickstart/configs/README.md) | Field-by-field reference for `MLForecasting.py`'s config JSON / CLI flags |
 | [`examples/SAMPLE_DATA.md`](examples/SAMPLE_DATA.md) | What's in the small bundled sample files the notebooks run on |
 
 **Historical / superseded** (all in [`docs/legacy/`](docs/legacy/) — kept for citation/traceability, not for current facts)

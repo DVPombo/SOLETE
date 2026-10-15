@@ -138,3 +138,17 @@ test  = df[df.index >= "2019-05-01 00:00:00"]
 Or load the boundary timestamps programmatically from `benchmarks/splits/v1.json` rather than
 hardcoding them a second time (see `metrics.py`/`solete/dataset.py` in later tasks, which
 do this).
+
+### Using this split at other resolutions or data versions
+
+`solete.benchmark.common.load_full_df(resolution=..., data_version=...)` and
+`solete.dataset.SOLETE` (its wrapper) can load this same `v1` split at `1sec`/`1min`/`5min`/`60min`
+and against either the `v3` (default, as above) or `v4` figshare files — the boundary
+timestamps in `v1.json` are plain calendar values that slice cleanly at any resolution.
+`split_df` slices the three blocks as half-open intervals
+(`[train_start, val_start)`, `[val_start, test_start)`, `[test_start, end of df]`) rather than
+each block's own inclusive "end" timestamp from the JSON. This is identical to the inclusive-end
+slicing shown above at 60min (every pair of adjacent blocks in `v1.json` already abuts with
+exactly one 60min step of gap), but matters at finer resolutions, where slicing on the inclusive
+hourly "end" would silently drop every row between that hour and the next block's start (e.g. the
+59 minutes after 23:00 at 1min resolution) into neither block.

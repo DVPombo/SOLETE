@@ -35,6 +35,11 @@ QC pipeline for the SOLETE dataset (wind + PV + meteorology, 1 s resolution, 39.
   column so a 6 can never be averaged up. Model columns (`Pac`, `P_hybrid[kW]`, ...) are computed per
   resolution by `solete/expansion.py`, not here. A new rule takes the next free number after 11.
 - File names are built in one place, `solete/paths.py` (`data_filename`, `release_path`): `SOLETE_Pombo_<res>_v4`, `SOLETE_Pombo_1sec_original_v4`. The cleaning rules are in `clean_solete_1sec.clean_block` and nowhere else; the build (`build_release.py`) only moves slices between the rule functions. Slices are cut only at `find_safe_cut` boundaries: a new run-based rule must be added to `unsafe_row_mask`/`safe_boundaries` or sliced cleaning will silently differ from whole-file cleaning (`tests/test_release_build.py` has the exactness test).
+- `build_release.py`, `clean_solete_1sec.py`, and `resample_solete.py` all accept `--jobs N` to run their
+  slice loops (`clean`, `resample`, the 1-second half of `expand`) in `N` worker processes instead of one;
+  output is identical to `--jobs 1` (writes stay in original slice order), but each extra worker holds one
+  more slice in RAM, so raise it only with cores/RAM to spare (`--dry-run` estimates the extra memory). Any
+  new slice-loop stage you add should offer the same flag rather than only ever running sequentially.
 - For `P_Gaia` only, `_qc_frac_flagged` is always 1.0 (every row is code 7 or 10; checked by a test); use `_qc_worst`. Azimuth/Elevation have no flag column in v4 (D1); code 8 is reserved, not emitted by any v4 column.
 
 ## Using the data
