@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-benchmarks/baseline_climatology_ar.py -- SOLETE Phase 5 continuation, Task 5.4
-
 Climatology
 -----------
 Hour-of-day average computed from `train` only, applied to `test`.
