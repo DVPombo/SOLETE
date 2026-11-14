@@ -1,14 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-metrics.py -- SOLETE Phase 5, Task 5.2 (+ Phase 7 Session 6 probabilistic
-metrics)
-
 Standard evaluation metrics for the canonical SOLETE forecasting benchmark
 (benchmarks/splits/v1.json). Every function accepts an optional QC-flag mask/exclusion
-argument so the exclusion logic lives in exactly one place, consistent with
-Task 5.1.3's decision: `P_Solar[kW]_qc == 6` (model-substituted) rows are
-kept in every split, and it is up to whoever calls these functions to decide
-whether to exclude them from a given evaluation.
+argument so the exclusion logic lives in exactly one place.
 
 Point-forecast metrics:
     - mae(y_true, y_pred, mask=None)
@@ -16,7 +10,7 @@ Point-forecast metrics:
     - nrmse(y_true, y_pred, capacity=None, method="capacity", mask=None)
     - skill_score(y_true, y_pred, y_reference, mask=None)
 
-Probabilistic-forecast metrics (Phase 7 Session 6):
+Probabilistic-forecast metrics:
     - pinball_loss(y_true, y_pred_quantile, quantile, mask=None)
     - crps_from_quantiles(y_true, quantile_preds, mask=None)
     - interval_coverage(y_true, lower, upper, mask=None)
@@ -197,7 +191,7 @@ def nrmse(y_true, y_pred, capacity=None, method="capacity", mask=None):
 
     Note
     ----
-    Per maintainer decision (2026-09-16): BOTH normalizations are supported.
+    BOTH normalizations are supported.
     "capacity" is the default (matches the leaderboard in benchmarks/BENCHMARKS.md
     unless stated otherwise); "mean"/"range" are available for callers who
     want a relative-error reading instead. Always state which one a reported
