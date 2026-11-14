@@ -1,5 +1,7 @@
 # SOLETE benchmark leaderboard
 
+**Note that this is still an active part of the project. Do not take conclusions or numbers at face value.**
+
 **Split:** `benchmarks/splits/v1.json` ("v1") — chronological, non-overlapping train / val / test
 blocks over `SOLETE_Pombo_60min.h5`. Test block: **2019-05-01 00:00 → 2019-09-01 00:00**,
 2,953 rows. See `benchmarks/splits/README.md` for the full boundary rationale and reproduction
@@ -210,10 +212,4 @@ GBM caveat) and applies identically here.
 
 ## Historical / pre-corrigendum numbers
 
-None included. This repository's `CHANGELOG.md` documents a v3.0 corrigendum
-("Train/validation/test data-splitting bug… affected all results computed with v2.3 or
-earlier," plus a related RMSE-calculation bug fixed in the same release) — any numbers
-from v2.3 or earlier releases or the original SOLETE papers would need to be clearly
-separated and labeled pre-corrigendum/non-comparable per that note, and none were
-available to this session to include on that basis. All numbers above are v1-split,
-current-codebase results only.
+None included. Everything has been run with v3.0.
