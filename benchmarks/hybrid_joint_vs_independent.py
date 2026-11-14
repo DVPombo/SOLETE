@@ -1,16 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-benchmarks/hybrid_joint_vs_independent.py -- SOLETE Phase 6, Task 6.2
-
 Joint-vs-independent forecasting comparison for P_hybrid[kW] = P_Solar[kW] +
-P_Gaia[kW], scoped by Task 6.0's decision (path (b), see KNOWN_ISSUES.md #10
-and examples/05_hybrid_forecasting.ipynb): this script exists to build and
-document the *methodology*, honestly, on data too wind-degenerate to support
+P_Gaia[kW], this script exists to build and document the *methodology*, 
+honestly, on data too wind-degenerate to support
 a general complementarity claim -- not to manufacture one.
 
-Two comparisons are reported, not one, because the single number the Task
-6.2 spec asks for (sum of independent RMSEs vs. RMSE of a jointly-trained
-model) is easy to build but easy to misread in isolation:
+Two comparisons are reported: 
+sum of independent RMSEs vs. RMSE of a jointly-trained models
 
   (A) "Same feature set" comparison (primary, most defensible):
       independent = AR(p) fit separately on P_Solar[kW] and on P_Gaia[kW],
@@ -18,9 +14,8 @@ model) is easy to build but easy to misread in isolation:
                     feature protocol as the joint model below.
       joint       = AR(p) fit directly on P_hybrid[kW] (its own tuned lag
                     order), scored against true P_hybrid[kW].
-      This is the literal Task 6.2 ask, with "whichever baseline scored best
-      per-target" interpreted as "the best baseline usable under an
-      identical, fair feature set for both the independent and joint arms" --
+      Reason: "whichever baseline scored best per-target" interpreted as "the best 
+      baseline usable under an identical, fair feature set for both the independent and joint arms" --
       not literally the single lowest RMSE per target in benchmarks/BENCHMARKS.md, which
       would silently mix the same-timestamp-weather GBM row (PV) with a
       lag-only row (wind) and make "joint, same feature set" impossible to
@@ -31,18 +26,15 @@ model) is easy to build but easy to misread in isolation:
       RMSE(best wind row) taken directly from benchmarks/BENCHMARKS.md, regardless of
       what feature set each used. Explicitly NOT compared against a joint
       model here, because no joint model trained on GBM's same-timestamp-
-      weather features was built for this task -- listed only so a reader
-      who wants the "literal best available number per target" isn't left
-      wondering why it isn't the headline.
+      weather features was built -- listed only so a reader who wants the 
+      "literal best available number per target" isn't left wondering why it isn't the headline.
 
 A third quantity is also reported: RMSE of the SUMMED independent
 predictions (pred_solar + pred_wind) against the true P_hybrid[kW] series.
 This is a stricter, more standard way to ask "does forecasting the parts
 separately and adding them beat forecasting the sum directly?" than adding
 two RMSEs computed on different target series (which don't share units of
-comparison the way two RMSEs on the SAME target do) -- included because the
-Task 6.2 spec's literal sum-of-RMSEs number is a common but slightly loose
-proxy, and the more rigorous version is one extra computation away.
+comparison the way two RMSEs on the SAME target do).
 """
 
 import sys as _sys  # _REPO_ROOT_BOOT
@@ -69,9 +61,6 @@ def run():
     train, val, test = bc.split_df(df)
     test_idx = test.index
 
-    # --- Same-feature-set AR(p) models, one per target, each independently
-    # lag-tuned on val (matches benchmarks/baseline_climatology_ar.py's own protocol
-    # exactly, reused unchanged rather than reimplemented) ---
     pred_solar, p_solar, val_rmse_solar = ar_fit_and_predict(df, train, val, test, SOLAR_COL)
     pred_wind, p_wind, val_rmse_wind = ar_fit_and_predict(df, train, val, test, WIND_COL)
     pred_hybrid_joint, p_hybrid, val_rmse_hybrid = ar_fit_and_predict(df, train, val, test, HYBRID_COL)
@@ -84,7 +73,7 @@ def run():
     rmse_wind = M.rmse(y_wind, pred_wind.loc[test_idx])
     rmse_hybrid_joint = M.rmse(y_hybrid, pred_hybrid_joint.loc[test_idx])
 
-    # (A) literal Task 6.2 ask: sum of independent RMSEs vs. joint RMSE
+    # (A): sum of independent RMSEs vs. joint RMSE
     sum_independent_rmse = rmse_solar + rmse_wind
 
     # Stricter version: sum the independent PREDICTIONS, then score once
