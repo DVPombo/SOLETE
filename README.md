@@ -9,26 +9,16 @@ ORCID: https://orcid.org/0000-0001-5664-9421
 
 See [CHANGELOG.md](CHANGELOG.md) for release history, including the v3.0 corrigendum.
 
-**This repository is the one-stop home of the whole SOLETE project**: the cleaning and quality-control pipeline behind version 4 (v4) of the dataset, and the forecasting platform and benchmarks built on it. (The data files themselves live on figshare, see below.)
+**This repository is the one-stop home of the whole SOLETE project**: the cleaning and quality-control pipeline behind version 4 (v4) of the dataset, and the forecasting platform and benchmarks built on it. (Note that the data files live on Figshare, see below.)
 
-This repository used to be complementary material to its twin "Data in Brief" article [1], and a series of papers covering Solar PV power forecasting [2, 3, 4]. The objective is to increase the transparency of my work, which is one of the main limitations of Machine Learning in general.
-However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
-I included a number of functions that can be used by beginners to kickstart their projects with solar power, machine learning, forecasting, or simply python.
-
-Long Live Open Science!
-
-The papers were developed under the PhD thesis Operation and Planning of Isolated Hybrid Power Systems at the Technical University of Denmark (DTU).
-Version v1.0 was released during the PhD thus, Copyright 2021 Technical University of Denmark.
-Version v2.0 was released months after finalising my employment at DTU, therefore, Copyright belongs to me (yeah baby!).
-Version v3.0 was motivated by the discovery of some nasty bugs. Thank you very much to Pierre Pinson for letting me know about his suspicion. 
-Version v4.0 is motivated by the desire of facilitating access to data scientist. The community has spoken and I have done my best to address their concerns and more.
+**Long Live Open Science!**
 
 # What SOLETE actually is
 
 Two stacked halves in one repository:
 
-1. **The cleaning & quality-control pipeline** (`dataset/` + the core `solete/{paths,h5io,qc_codes,qc,expansion,physics}.py` modules) — turns the raw 15-month, 1-second-resolution recording (colocated wind turbine + solar PV + weather) into the published, quality-controlled **version 4 release**: ten files (1sec/1min/5min/60min × hdf5/parquet, plus an "original" unresampled-but-cleaned 1sec file). Every correction is tagged with one of 11 QC codes (`solete/qc_codes.py`) instead of applied silently, and is excludable per-column by anyone consuming the data.
-2. **The forecasting platform** (`solete/{preprocessing,modeling,postprocess,metrics,dataset.py}` + `benchmarks/` + `scripts/quickstart/`) — a small ML forecasting teaching tool/benchmark suite built on top of that cleaned data (Random Forest, SVM, CNN, LSTM, CNN-LSTM, gradient boosting, and persistence/climatology baselines).
+1. **The Cleaning & Quality-Control (QC) Pipeline** (`dataset/` + the core `solete/{paths,h5io,qc_codes,qc,expansion,physics}.py` modules) — turns the raw 15-month, 1-second-resolution recording (colocated wind turbine + solar PV + weather) into the published, quality-controlled **version 4 release**: ten files (1sec/1min/5min/60min × hdf5/parquet, plus an "original" unresampled-but-cleaned 1sec file). Every correction is tagged with one of 11 QC codes (`solete/qc_codes.py`) instead of applied silently, and is excludable per-column by anyone consuming the data.
+2. **The Forecasting Platform** (`solete/{preprocessing,modeling,postprocess,metrics,dataset.py}` + `benchmarks/` + `scripts/quickstart/`) — a small ML forecasting teaching tool/benchmark suite built on top of that cleaned data (Random Forest, SVM, CNN, LSTM, CNN-LSTM, gradient boosting, and persistence/climatology baselines).
 
 | Folder | What it does |
 |---|---|
@@ -41,7 +31,6 @@ Two stacked halves in one repository:
 | `examples/` | Five runnable notebooks on a tiny bundled sample (no download needed) |
 | `matlab/`, `R/` | Loaders for non-Python users |
 
-This is useful, with honestly-documented limits: real, long-duration, colocated wind+PV+weather data is rare, the QC system is unusually rigorous, and the benchmarks are reproducible and self-critical about their own caveats (e.g. the gradient-boosting baseline uses same-timestamp weather, which is leakage-like; the wind channel is 99.56% exactly zero outside two days, so wind/hybrid results are explicitly "infrastructure, not findings" — see [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)).
 
 # What is where
 
@@ -73,9 +62,7 @@ SOLETE/
 
 ## Documentation map
 
-Every prose doc in the repo, one line each, so nothing has to be rediscovered by browsing folders.
-Markdown files not listed here are either trivial (`.github/` issue templates) or self-evident
-per-folder `README.md`s already linked below.
+Here you can find online line description for every prose doc in the repo, so nothing has to be rediscovered by browsing folders. Markdown files not listed here are either trivial (`.github/` issue templates) or self-evident per-folder `README.md`s already linked below.
 
 **Start here**
 
@@ -118,7 +105,7 @@ per-folder `README.md`s already linked below.
 
 
 # Dependencies
-The pinned dependency versions live in `requirements.txt`. Target interpreter: Python 3.13 (the newest Python that every pinned package currently ships wheels for). The dataset-cleaning scripts need less: see `dataset/requirements.txt`.
+Find the pinned dependency versions in `requirements.txt`. Target interpreter: Python 3.13 although the dataset-cleaning scripts need less: see `dataset/requirements.txt`.
 
 ## Setup
 ```
@@ -204,7 +191,7 @@ Technically, you should cite the repository itself, however I don't get those ci
 }
 
 
-Nontheless, here is the citation for the git itself:
+Nonetheless, here is the citation for the git itself:
 D. V. Pombo, The SOLETE platform (March, 2023).doi:10.11583/DTU.17040626.URL https://data.dtu.dk/articles/software/TheSOLETEplatform/17040626
 
 @article{SOLETE2021Code,
@@ -217,9 +204,17 @@ doi = "10.11583/DTU.17040626"
 } 
 
 
-
-
 # References
+This repository used to be complementary material to its twin "Data in Brief" article [1], and a series of papers covering Solar PV power forecasting [2, 3, 4]. The objective is to increase the transparency of my work, which is one of the main limitations of Machine Learning in general.
+However, as it sometimes happens, the project has grown life by itself and has now become a platform to experiment on time-series forecasting based on Machine Learning.
+I included a number of functions that can be used by beginners to kickstart their projects with solar power, machine learning, forecasting, or simply python.
+
+The papers were developed under the PhD thesis Operation and Planning of Isolated Hybrid Power Systems at the Technical University of Denmark (DTU).
+Version v1.0 was released during the PhD thus, Copyright 2021 Technical University of Denmark.
+Version v2.0 was released months after finalising my employment at DTU, therefore, Copyright belongs to me (yeah baby!).
+Version v3.0 was motivated by the discovery of some nasty bugs. Thank you very much to Pierre Pinson for letting me know about his suspicion. 
+Version v4.0 is motivated by the desire of facilitating access to data scientist. The community has spoken and I have done my best to address their concerns and more.
+
     [1] Pombo, D. V., Gehrke, O., & Bindner, H. W. (2022). SOLETE, a 15-month long holistic dataset including: Meteorology, co-located wind and solar PV power from Denmark with various resolutions. Data in Brief, 42, 108046.
         
     [2] Pombo, D. V., Bindner, H. W., Spataru, S. V., Sørensen, P. E., & Bacher, P. (2022). Increasing the accuracy of hourly multi-output solar power forecast with physics-informed machine learning. Sensors, 22(3), 749.
@@ -230,7 +225,7 @@ doi = "10.11583/DTU.17040626"
 
 # Corrigendum
 Versions of the SOLETE Platform up to and including v2.3 contained two major bugs.
-1. When spliting the data in training, validation, and testing sets. This was directly affecting accuracy. 
+1. When splitting the data in training, validation, and testing sets. This was directly affecting accuracy. 
 2. In the postprocessing of results, when calculating RMSE. This was affecting evaluation quality.
 
 I can only apologize for these mistakes, which have been corrected in versions v3.0 and upwards. 
