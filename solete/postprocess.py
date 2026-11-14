@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Part of the solete_pipeline package -- split out of the original
-solete/ (Phase 7, Session 8) for independent testability.
+Part of the solete_pipeline package for independent testability.
 See solete/ (kept as a re-export shim) and CONTRIBUTING.md for
 why this split happened and how the modules relate to each other.
 
