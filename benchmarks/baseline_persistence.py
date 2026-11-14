@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-benchmarks/baseline_persistence.py -- SOLETE Phase 5 continuation, Task 5.3
-
 Plain persistence:        y_hat(t) = y(t - 1h)      (1-step-ahead, 60min res.)
 Smart/seasonal persistence: y_hat(t) = y(t - 24h)    (same hour, previous day)
 
@@ -17,7 +15,7 @@ split).
 
 Evaluated at horizon = 1 (single-step, 1 hour ahead at this dataset's 60min
 resolution) against benchmarks/splits/v1.json's test block, via solete/benchmark/common.py /
-metrics.py exclusively (no parallel scoring path).
+metrics.py exclusively.
 """
 
 import sys as _sys  # _REPO_ROOT_BOOT
