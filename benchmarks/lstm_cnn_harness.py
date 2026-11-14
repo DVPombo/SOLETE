@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-benchmarks/lstm_cnn_harness.py -- SOLETE Phase 5 continuation, Task 5.6
-
 Re-runs the existing LSTM / CNN / CNN-LSTM architectures from
 scripts/quickstart/MLForecasting.py / solete/ (train_LSTM, train_CNN, train_CNN_LSTM --
 imported, NOT reimplemented) against benchmarks/splits/v1.json and metrics.py, instead
@@ -14,13 +12,10 @@ used as-is -- not modified, not duplicated -- so any performance difference
 vs. the original scripts/quickstart/MLForecasting.py numbers reflects the split/metric change
 specifically, not a silently different model.
 
-ASK FIRST -- compute feasibility (flagged per the continuation prompt,
-Task 5.6.2): scripts/quickstart/MLForecasting.py's own default hyperparameters use
+scripts/quickstart/MLForecasting.py's own default hyperparameters use
 `epo_num: 1000` for LSTM and CNN_LSTM. A full 1000-epoch training run per
 architecture per target (6 runs total: {LSTM, CNN, CNN_LSTM} x {pv, wind})
-on this sandbox's CPU-only environment is not practical to complete within
-this session. What this script does instead, so the harness itself is
-verified correct and the maintainer can decide on the full run:
+is still pending:
     - Implements the complete harness (windowing, date-based split,
       scaling, model training call, inverse-scaling, scoring via
       metrics.py) exactly as it would run at full scale.
@@ -29,7 +24,7 @@ verified correct and the maintainer can decide on the full run:
       valid shapes and finite, scoreable predictions end-to-end.
     - Does NOT present these reduced-epoch numbers as the final Task 5.6
       benchmark result -- benchmarks/results/lstm_cnn_smoke_test.json is labeled
-      accordingly, and benchmarks/BENCHMARKS.md (Task 5.7) does NOT include LSTM/CNN
+      accordingly, and benchmarks/BENCHMARKS.md does NOT include LSTM/CNN
       rows for this reason, also flagged there.
 The maintainer can re-run this exact script with SMOKE_EPOCHS raised (or
 removed, to use scripts/quickstart/MLForecasting.py's original epo_num values) wherever more
@@ -49,12 +44,6 @@ from solete.benchmark import common as bc
 from solete.io import import_SOLETE_data, import_PV_WT_data
 from solete.modeling import train_LSTM, train_CNN, train_CNN_LSTM
 
-# Reduced for this sandbox run -- see ASK FIRST note above. None means "use
-# this architecture's own original epo_num from scripts/quickstart/MLForecasting.py" (CNN's
-# original default is already only 3 epochs, so it needs no reduction;
-# LSTM/CNN_LSTM's original default of 1000 is reduced to 150 -- still not
-# the full 1000, but enough epochs for the loss curves to actually
-# converge/plateau rather than being a pure shape-correctness smoke test).
 EPOCHS_BY_ARCH = {"LSTM": 20, "CNN": None, "CNN_LSTM": 20}
 SMOKE_EPOCHS = None  # kept for backward compat inside run_one's `control` dict; overridden per-arch below
 
@@ -74,7 +63,7 @@ def load_expanded_df(target_col):
     lines ~468-477), matching scripts/quickstart/MLForecasting.py's own feature set."""
     # NOTE: StdPrevH / StdWindSpeedPrevH are rolling().std() over a window of
     # size H (solete/ ExpandSOLETE). At H=1 (this harness's horizon,
-    # chosen for comparability with Tasks 5.3-5.5) a 1-sample rolling std is
+    # chosen for comparability) a 1-sample rolling std is
     # undefined (NaN) for every row, which would wipe out the entire
     # dataset after the NaN-drop below. Excluded for that reason at H=1;
     # MeanPrevH/MeanWindSpeedPrevH degrade gracefully instead (mean of 1
