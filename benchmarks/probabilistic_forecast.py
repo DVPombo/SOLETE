@@ -1,27 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-benchmarks/probabilistic_forecast.py -- SOLETE Phase 7, Session 6
-
 Probabilistic (quantile/interval) forecasting benchmark, extending the
-Phase 5/6 point-forecast infrastructure (solete/benchmark/common.py, metrics.py,
+point-forecast infrastructure (solete/benchmark/common.py, metrics.py,
 benchmarks/splits/v1.json) rather than duplicating it.
 
-ASK FIRST outcome (maintainer, 2026-09-18): quantile regression, via
-LightGBM's native `objective="quantile"` -- the same library
-benchmarks/baseline_gbm.py (Task 5.5) already chose, not a second gradient-boosting
-library, per the session prompt's instruction. Reuses benchmarks/baseline_gbm.py's own
-feature set (build_features, MET_COLS, LAGS) and hyperparameter grid
-unchanged, for direct parity with the point-forecast GBM row in
-benchmarks/BENCHMARKS.md -- the only thing that changes per quantile level is the
+Reuses benchmarks/baseline_gbm.py's own feature set (build_features, 
+MET_COLS, LAGS) and hyperparameter grid unchanged, for direct parity 
+with the point-forecast GBM row in benchmarks/BENCHMARKS.md -- 
+the only thing that changes per quantile level is the
 model's objective/alpha and which metric (pinball loss instead of RMSE)
 selects the best hyperparameters on val.
 
-ASK FIRST outcome (maintainer, 2026-09-18) -- wind: attempt it anyway,
-despite the same P_Gaia[kW] near-total zero-degeneracy caveat that already
-applies to every wind row in benchmarks/BENCHMARKS.md (KNOWN_ISSUES.md #10) --
-maintainer's reasoning: better wind data may arrive later (see
-KNOWN_ISSUES.md #10's note about pursuing raw/finer-resolution data), and
-this session's job is to have a WORKING probabilistic method ready to
+Despite the same P_Gaia[kW] near-total zero-degeneracy caveat that already
+applies to every wind row in benchmarks/BENCHMARKS.md (KNOWN_ISSUES.md) --
+maintainer's reasoning: better wind data may arrive later, and
+the objective here is to have a WORKING probabilistic method ready to
 re-point at that data when it lands, not to produce a meaningful wind
 result today. Every wind number in benchmarks/results/probabilistic_wind.json and
 benchmarks/BENCHMARKS.md's wind section carries this caveat explicitly -- read the
