@@ -131,7 +131,7 @@ def apply_qc_flags(data, rules):
 
 def legacy_v3_raw_value_rules(data):
     """
-    Raw-value checks for the ORIGINAL v3 files (KNOWN_ISSUES.md findings #1-#4), which carry no
+    Raw-value checks for the ORIGINAL v3 files (see KNOWN_ISSUES.md), which carry no
     flags of their own: implausible Pressure/Humidity/WindDir values and the Azimuth/Elevation
     "== 0.0" missingness proxy. The detectors are exactly the ones the platform always used; the
     flag they write is QC_UNTREATED_IMPLAUSIBLE (11): the value is kept as recorded, it is not

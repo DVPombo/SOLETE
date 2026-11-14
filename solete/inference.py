@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Part of the solete_pipeline package -- split out of the original
-solete/ (Phase 7, Session 8) for independent testability.
-See solete/ (kept as a re-export shim) and CONTRIBUTING.md for
-why this split happened and how the modules relate to each other.
+Part of the solete package. See CONTRIBUTING.md for how the modules relate to each other.
 
 The standalone "serving" path: given a model bundle loaded with
 solete.modeling.load_model_bundle() and a DataFrame already expanded the same

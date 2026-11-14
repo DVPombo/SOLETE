@@ -13,23 +13,15 @@ vs. the original scripts/quickstart/MLForecasting.py numbers reflects the split/
 specifically, not a silently different model.
 
 scripts/quickstart/MLForecasting.py's own default hyperparameters use
-`epo_num: 1000` for LSTM and CNN_LSTM. A full 1000-epoch training run per
-architecture per target (6 runs total: {LSTM, CNN, CNN_LSTM} x {pv, wind})
-is still pending:
-    - Implements the complete harness (windowing, date-based split,
-      scaling, model training call, inverse-scaling, scoring via
-      metrics.py) exactly as it would run at full scale.
-    - Runs it at a SMALL, explicitly-labeled epoch count (`SMOKE_EPOCHS`
-      below) as a correctness smoke test -- proving the harness produces
-      valid shapes and finite, scoreable predictions end-to-end.
-    - Does NOT present these reduced-epoch numbers as the final Task 5.6
-      benchmark result -- benchmarks/results/lstm_cnn_smoke_test.json is labeled
-      accordingly, and benchmarks/BENCHMARKS.md does NOT include LSTM/CNN
-      rows for this reason, also flagged there.
-The maintainer can re-run this exact script with SMOKE_EPOCHS raised (or
-removed, to use scripts/quickstart/MLForecasting.py's original epo_num values) wherever more
-compute/time is available; nothing about the harness itself needs to
-change.
+`epo_num: 1000` for LSTM and CNN_LSTM, which is too slow to run for every
+architecture and target (6 runs: {LSTM, CNN, CNN_LSTM} x {pv, wind}). So this
+script runs them at a reduced, explicitly labeled epoch count (`EPOCHS_BY_ARCH`
+below). The harness itself (windowing, date-based split, scaling, model
+training call, inverse-scaling, scoring via metrics.py) is complete, and the
+results are labeled as indicative, not final, in
+benchmarks/results/lstm_cnn_smoke_test.json and benchmarks/BENCHMARKS.md.
+To run at the original epoch counts, set the entries of `EPOCHS_BY_ARCH` to
+None (None = the original `epo_num`, e.g. CNN's 3); nothing else needs to change.
 """
 
 import sys as _sys  # _REPO_ROOT_BOOT
@@ -212,7 +204,7 @@ def run_one(target_key, target_col, arch):
 def run():
     payload = {
         "model": "lstm_cnn_cnn_lstm_smoke_test",
-        "status": f"REDUCED-EPOCH RUN -- epo_num per architecture: {EPOCHS_BY_ARCH} (CNN's is its own unmodified original default; LSTM/CNN_LSTM reduced from their original 1000 -- see ASK FIRST note in module docstring). Loss curves converge/plateau at this epoch count (see training logs) but this is still not the full original run; treat as indicative, not final.",
+        "status": f"REDUCED-EPOCH RUN -- epo_num per architecture: {EPOCHS_BY_ARCH} (CNN's is its own unmodified original default; LSTM/CNN_LSTM reduced from their original 1000). Loss curves converge/plateau at this epoch count (see training logs) but this is still not the full original run; treat as indicative, not final.",
         "split_version": "v1",
         "horizon": "1 step (1h)",
         "pre_window": PRE,

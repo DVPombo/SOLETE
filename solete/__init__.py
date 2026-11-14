@@ -34,7 +34,7 @@ import warnings
 
 import pandas as pd
 
-__version__ = "4.0.0.dev0"
+__version__ = "4.0"
 
 # Carried over from the original Functions.py -- suppresses a pandas
 # PerformanceWarning that fires from a call pattern elsewhere in this

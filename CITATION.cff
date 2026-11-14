@@ -21,4 +21,13 @@ identifiers:
     description: Link to DOI
 repository-code: 'https://github.com/DVPombo/SOLETE'
 license: MIT
-date-released: '2023-04-03'
+version: '4.0'
+date-released: '2026-11-14'
+references:
+  - type: dataset
+    title: The SOLETE dataset
+    authors:
+      - given-names: Daniel V.
+        family-names: Pombo
+    doi: 10.11583/DTU.17040767
+    year: 2026

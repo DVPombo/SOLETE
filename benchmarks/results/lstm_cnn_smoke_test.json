@@ -1,10 +1,10 @@
 {
   "model": "lstm_cnn_cnn_lstm_smoke_test",
-  "status": "REDUCED-EPOCH RUN -- epo_num per architecture: {'LSTM': 20, 'CNN': None, 'CNN_LSTM': 20} (CNN's is its own unmodified original default; LSTM/CNN_LSTM reduced from their original 1000 -- see ASK FIRST note in module docstring). Loss curves converge/plateau at this epoch count (see training logs) but this is still not the full original run; treat as indicative, not final.",
+  "status": "REDUCED-EPOCH RUN -- epo_num per architecture: {'LSTM': 20, 'CNN': None, 'CNN_LSTM': 20} (CNN's is its own unmodified original default; LSTM/CNN_LSTM reduced from their original 1000). Loss curves converge/plateau at this epoch count (see training logs) but this is still not the full original run; treat as indicative, not final.",
   "split_version": "v1",
   "horizon": "1 step (1h)",
   "pre_window": 5,
-  "architectures_source": "Functions.py: train_LSTM / train_CNN / train_CNN_LSTM (imported, unmodified)",
+  "architectures_source": "solete/: train_LSTM / train_CNN / train_CNN_LSTM (imported, unmodified)",
   "results": {
     "LSTM": {
       "pv_power": {

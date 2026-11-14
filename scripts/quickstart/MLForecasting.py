@@ -38,13 +38,9 @@ Licensed under the MIT License -- see LICENSE at the repo root. If you use this 
 Using SOLETE for the first time:
     1- Put all the files in the same folder and click run. If you get the message "Done!" in the console that is it.
     2- If it didn't work:
-        a) Check the dependencies: 
-            -Python 3.9.12          -Pandas 1.5.0 
-            -Numpy 1.23.1           -Matplotlib 3.6.0
-            -Scikit-Learn 1.1.      -Keras 2.10.0
-            -TensorFlow 2.10.0      -CoolProp 6.4.3   
-            -The SOLETE dataset [1] -> https://doi.org/10.11583/DTU.17040767 
-        b) If that didn't solve it... You have a problem my friend ¯\_(ツ)_/¯ 
+        a) Check the dependencies against requirements.txt, and that the SOLETE dataset [1]
+           (https://doi.org/10.11583/DTU.17040767) is in data/.
+        b) If that didn't solve it... You have a problem my friend ¯\\_(ツ)_/¯ 
     
 How to use the second and subsequent times:
     1- Configure it. Running with no arguments at all (including Spyder's "Run file") reproduces

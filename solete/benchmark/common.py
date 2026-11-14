@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-solete/benchmark/common.py -- SOLETE Phase 5 continuation (Tasks 5.3-5.8)
+solete/benchmark/common.py -- shared benchmark harness
 
-Shared data-loading / split / scoring harness so every baseline in 5.3-5.6
-goes through exactly one loading path and exactly one scoring path
-(metrics.py), per the continuation prompt's instruction not to write a
-parallel scoring path per task.
+Shared data-loading / split / scoring harness so every baseline goes through
+exactly one loading path and exactly one scoring path (metrics.py), rather
+than a parallel scoring path per script.
 
 Canonical loading recipe is copied verbatim from benchmarks/splits/README.md
 ("Reproducing this split").

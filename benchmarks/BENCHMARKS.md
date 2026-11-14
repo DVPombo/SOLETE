@@ -12,7 +12,7 @@ recipe.
 **Metrics:** MAE and RMSE (target units, kW) from `metrics.py`, plus nRMSE under both
 supported normalizations — `nrmse(method="capacity")` (**headline**, fixed installed-
 capacity denominator) and `nrmse(method="mean")` (secondary, mean-of-target denominator).
-Per the Task 5.2 decision, no bare "nRMSE" is presented anywhere below without saying
+Per the metrics convention, no bare "nRMSE" is presented anywhere below without saying
 which normalization it is.
 
 **QC setting:** every result is scored under **both** QC settings (`qc_included` = all
@@ -57,9 +57,8 @@ see only lagged target (and, for LSTM/CNN, a lag window) — not same-timestamp 
 Its very low RMSE (0.025 kW, qc_included) reflects that near-determinism, not superior
 forecasting skill under a comparable information set.
 
-**‡ LSTM / CNN / CNN-LSTM caveat (must travel with these rows):** the sandbox this ran in
-had a hard ~300-second wall-clock limit per command, which made `scripts/quickstart/MLForecasting.py`'s own
-original `epo_num=1000` (LSTM, CNN_LSTM) infeasible. What is reported above is **LSTM and
+**‡ LSTM / CNN / CNN-LSTM caveat (must travel with these rows):** the original `epo_num=1000` of `scripts/quickstart/MLForecasting.py` (LSTM, CNN_LSTM) was too slow
+to run for this benchmark. What is reported above is **LSTM and
 CNN_LSTM trained for 20 of their original 1000 epochs**; **CNN** ran at its own original,
 already-small default of **3 epochs** (unchanged, not reduced). Loss curves plateau at 20
 epochs in the run log, but this is explicitly **not** the full original run — see
@@ -71,7 +70,7 @@ is available for these rows — the harness did not separately score a `qc_exclu
 
 ## Wind (`P_Gaia[kW]`)
 
-> **Wind caveat (Task 5.1, repeated here directly above the table, per instruction):**
+> **Wind caveat (repeated here directly above the table):**
 > `P_Gaia[kW]` is exactly `0.0` for 10,921 of 10,969 rows (99.56%) in the full record —
 > only 48 rows total, on two isolated calendar days (2018-08-31 and 2019-05-25), are
 > non-zero, despite thousands of hours elsewhere with wind speed above the turbine's
@@ -105,21 +104,21 @@ reduced/default-epoch LSTM-CNN-family caveat) and apply identically here.
 
 ---
 
-## Hybrid wind+solar (`P_hybrid[kW]`, Phase 6)
+## Hybrid wind+solar (`P_hybrid[kW]`)
 
 > **This is not a leaderboard table — read the caveat before the numbers.**
 > `P_hybrid[kW] = P_Solar[kW] + P_Gaia[kW]` inherits wind's near-total zero-degeneracy
-> (`KNOWN_ISSUES.md` #10): on the v1 test split, wind is active on only 24 of 2,953 rows
+> (`KNOWN_ISSUES.md`): on the v1 test split, wind is active on only 24 of 2,953 rows
 > (0.81%), contributing 3.86% of `P_hybrid[kW]`'s total energy and 11.36% of its variance,
 > with solar↔wind covariance of ~0.0068 (correlation ≈ 0.007 — no measurable interaction).
-> **Task 6.0's decision (path (b)): this phase's deliverable is the hybrid-forecasting
+> **The deliverable here is the hybrid-forecasting
 > *infrastructure* — the derived column, the joint-vs-independent methodology, the
 > ramp-rate tooling — not a demonstrated complementarity finding.** The root cause of
 > wind's zero-degeneracy is itself unconfirmed: it may be a genuine turbine outage, or a
 > resolution-aggregation pipeline artifact (there's a confirmed related bug — `WIND_DIR[deg]`
 > out-of-range values, `docs/legacy/RESOLUTIONS_v3_investigation.md` — in the same pipeline). The maintainer is pursuing
 > raw/finer-resolution data from the original project to settle this; the numbers below
-> should be re-run against that data if/when it arrives, using the same `task6_2_*`/`task6_3_*`
+> should be re-run against that data if/when it arrives, using the same `hybrid_joint_vs_independent.py`/`ramp_rate_analysis.py`
 > scripts unchanged. Full scoping: `examples/05_hybrid_forecasting.ipynb`.
 
 **Joint vs. independent forecasting** (`benchmarks/hybrid_joint_vs_independent.py`, AR(p),
@@ -149,7 +148,7 @@ dataset.
 
 ---
 
-## Probabilistic forecasting (Phase 7 Session 6)
+## Probabilistic forecasting
 
 **Model:** LightGBM quantile regression (`objective="quantile"`), one model per quantile
 level, on the same feature set as the point-forecast Gradient boosting row above
@@ -184,9 +183,9 @@ silently corrected.
 > ~0 everywhere** (val pinball loss of exactly `0.0` at all seven levels — the model learned
 > the target's own degeneracy, not a forecasting relationship), so all three intervals
 > collapse to essentially the same near-zero band and report **the same empirical coverage
-> (0.992) regardless of nominal width** in the row below. **ASK FIRST outcome (maintainer,
-> 2026-09-18): produced anyway, specifically so a working probabilistic pipeline exists to
-> re-point at better wind data if/when it arrives (`KNOWN_ISSUES.md` #10) — not offered as a
+> (0.992) regardless of nominal width** in the row below. **Produced anyway, specifically so a
+> working probabilistic pipeline exists to
+> re-point at better wind data if/when it arrives (`KNOWN_ISSUES.md`) — not offered as a
 > forecast-skill result today.** No QC column exists for wind, so only one setting is shown.
 
 | n | CRPS (kW) | 90% interval: coverage / sharpness (kW) | 80%: coverage / sharpness | 50%: coverage / sharpness |

@@ -1,6 +1,6 @@
 {
-  "task": "6.2 -- joint vs independent hybrid forecasting comparison",
-  "decision_gate": "Task 6.0 chose path (b): infrastructure + honest limitation. See KNOWN_ISSUES.md #10 and examples/05_hybrid_forecasting.ipynb.",
+  "task": "joint vs independent hybrid forecasting comparison",
+  "decision_gate": "The hybrid deliverable is the infrastructure and an honest limitation. See KNOWN_ISSUES.md and examples/05_hybrid_forecasting.ipynb.",
   "split_version": "v1",
   "horizon": "1 step (1h)",
   "test_n": 2953,
@@ -26,7 +26,7 @@
       }
     },
     "joint_minus_independent_stricter_check": -0.013239521354612815,
-    "interpretation": "Joint RMSE (0.5912) vs. independent-summed-predictions RMSE (0.6045) against the SAME true P_hybrid[kW] series: difference = -0.0132 kW. Given test-split wind is active on 24 of 2953 rows (0.81%) with ~zero solar-wind covariance (0.0068, see KNOWN_ISSUES.md #10), ANY difference this small, in either direction, is not distinguishable from noise/near-zero-target artifacts on a target that is 96%+ solar by energy. This is NOT a demonstrated 'joint beats independent' or 'independent beats joint' finding -- it is what near-identical performance looks like when the summed variable has almost no wind content for a joint model to exploit."
+    "interpretation": "Joint RMSE (0.5912) vs. independent-summed-predictions RMSE (0.6045) against the SAME true P_hybrid[kW] series: difference = -0.0132 kW. Given test-split wind is active on 24 of 2953 rows (0.81%) with ~zero solar-wind covariance (0.0068, see KNOWN_ISSUES.md), ANY difference this small, in either direction, is not distinguishable from noise/near-zero-target artifacts on a target that is 96%+ solar by energy. This is NOT a demonstrated 'joint beats independent' or 'independent beats joint' finding -- it is what near-identical performance looks like when the summed variable has almost no wind content for a joint model to exploit."
   },
   "secondary_reference_B_benchmarks_literal_not_feature_matched": {
     "pv_best_row": {

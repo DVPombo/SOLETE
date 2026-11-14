@@ -95,9 +95,9 @@ def run():
     }
 
     result = {
-        "task": "6.2 -- joint vs independent hybrid forecasting comparison",
-        "decision_gate": "Task 6.0 chose path (b): infrastructure + honest limitation. "
-                          "See KNOWN_ISSUES.md #10 and examples/05_hybrid_forecasting.ipynb.",
+        "task": "joint vs independent hybrid forecasting comparison",
+        "decision_gate": "The hybrid deliverable is the infrastructure and an honest limitation. "
+                          "See KNOWN_ISSUES.md and examples/05_hybrid_forecasting.ipynb.",
         "split_version": "v1",
         "horizon": "1 step (1h)",
         "test_n": int(len(test_idx)),
@@ -120,7 +120,7 @@ def run():
                 "Joint RMSE ({:.4f}) vs. independent-summed-predictions RMSE ({:.4f}) against "
                 "the SAME true P_hybrid[kW] series: difference = {:+.4f} kW. Given test-split "
                 "wind is active on 24 of {} rows (0.81%) with ~zero solar-wind covariance "
-                "(0.0068, see KNOWN_ISSUES.md #10), ANY difference this small, in either "
+                "(0.0068, see KNOWN_ISSUES.md), ANY difference this small, in either "
                 "direction, is not distinguishable from noise/near-zero-target artifacts on a "
                 "target that is 96%+ solar by energy. This is NOT a demonstrated "
                 "'joint beats independent' or 'independent beats joint' finding -- it is what "

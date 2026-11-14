@@ -37,7 +37,7 @@ Scope (documented rather than silently assumed):
       v1.json's boundaries are plain calendar timestamps, so they slice
       cleanly at every resolution above; what's still genuinely missing is
       a *second split version*, e.g. a different train/val/test calendar
-      carve-up, which is a maintainer data decision -- ASK FIRST -- not a
+      carve-up, which is a maintainer data decision, not a
       parameter this class can safely default its way into).
     - horizon: an int number of native steps at the chosen resolution, or a
       pandas.Timedelta-parseable string (e.g. "1h", "30min", "1D") that is an

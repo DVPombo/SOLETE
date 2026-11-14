@@ -26,15 +26,15 @@ This entry is unbearably long because it describes a lot of work done over the s
 - Model-derived columns are recomputed per resolution and excluded from resampling. Removed redundant substitution indicators and QC aliases; `P_hybrid[kW]_qc_source` is now an `int8` code.
 
 ### Changed — repository structure and compatibility
-- Merged the dataset pipeline and forecasting platform into one repository. The `SOLETE/` package centralizes data handling, physics, QC, metrics and forecasting (see `CONTRIBUTING.md`'s "Code layout" section for the current structure).
-- Added `SOLETE/paths.py` for data and output resolution, `pyproject.toml`, `.gitignore` rules and installation documentation. Dataset files are expected under `data/hdf5/` and `data/parquet/`, not in Git.
-- Added v4 loading support and retained legacy import paths through a compatibility shim. Split the former monolithic `Functions.py` into modules for QC, physics, preprocessing, I/O, modeling and post-processing.
+- Merged the dataset pipeline and forecasting platform into one repository. The `solete/` package centralizes data handling, physics, QC, metrics and forecasting (see `CONTRIBUTING.md`'s "Code layout" section for the current structure).
+- Added `solete/paths.py` for data and output resolution, `pyproject.toml`, `.gitignore` rules and installation documentation. Dataset files are expected under `data/hdf5/` and `data/parquet/`, not in Git.
+- Added v4 loading support. **Breaking:** the former monolithic `Functions.py` was split into the `solete.*` modules (QC, physics, preprocessing, I/O, modeling, post-processing) and is no longer provided. Replace `from Functions import X` with `from solete.<module> import X` (see `CONTRIBUTING.md`'s "Code layout").
 
 ### Added — forecasting and interoperability
 - Added hybrid wind/solar forecasting and ramp-rate analyses, with an example notebook. Results are documented as methodological deliverables rather than evidence that joint forecasting improves performance.
 - Added probabilistic PV and wind forecasting using LightGBM quantile regression, with pinball loss, approximate CRPS, interval coverage and sharpness metrics. For giggles.
-- Added `r/load_solete.R` for loading the original HDF5 files in R. Tested against both source files; values and datetime indices match pandas output exactly.
-- Added tests for hybrid QC inheritance and package import isolation. The full suite passes: 62 tests.
+- Added `examples/R/load_solete.R` for loading the original HDF5 files in R. Tested against both source files; values and datetime indices match pandas output exactly.
+- Added tests for hybrid QC inheritance and package import isolation. The full suite passes: 122 passed, 35 skipped (the skips need the v3 hourly file).
 
 ### Fixed — legacy compatibility and numerical performance
 - Fixed the inverter-capacity clamp, pandas Series indexing in the thermodynamic model, and scikit-learn metric calls removed in newer versions. Updated the post-processing code to use explicit positional indexing.
@@ -53,7 +53,8 @@ This entry is unbearably long because it describes a lot of work done over the s
 - Restored the `[[SIZES-BEGIN]]`/`[[SIZES-END]]` markers in `data/figshare_README.txt` (the checked-in template `build_release.py`'s `write_manifest()` fills in with real file sizes on every build). A past real build's output — baked-in sizes for the full 39.48M-row dataset, no markers — had been committed over the reusable template, so `write_manifest()` silently skipped writing a fresh `figshare_README.txt`/adding it to `manifest.json`/`SHA256SUMS.txt` on every subsequent build (the code only acts "if markers in text"). Caught by `tests/test_release_build.py::test_build_release_end_to_end_resume_refuse_and_tamper`, which was failing for this reason; `pytest` was not installed in `solete-env` so this had gone unnoticed. Fixed by reinstating the markers around the (now-removed) hardcoded table; the real sizes are unchanged in git history and in `manifest.json`/`SHA256SUMS.txt` for anyone who needs that one snapshot.
 
 ### Added — development environment
-- Added `pytest==9.1.1` to `requirements.txt` (it was already listed, correctly, as an optional dependency in `dataset/requirements.txt`, but missing from the root one) and installed `pytest` and `pyarrow` into `solete-env`. Full suite now passes: 92 passed, 35 skipped (skips need the real data files, not present here).
+- Added `pytest==9.1.1` to `requirements.txt` (it was already listed, correctly, as an optional dependency in `dataset/requirements.txt`, but missing from the root one) and installed `pytest` and `pyarrow` into `solete-env`. Full suite now passes: 122 passed, 35 skipped (skips need the v3 hourly file).
+- Added `h5py`, `pyarrow`, `pvlib` and `psutil` to `requirements.txt`; they were used by scripts, the dataset pipeline and tests but missing from the root list.
 
 ### Changed — documentation navigation
 - Added a "What SOLETE actually is" summary and a full documentation map to `README.md`, listing every doc file in the repo by audience (start here / dataset / forecasting / historical).

@@ -119,8 +119,8 @@ def run():
     plt.close(fig)
 
     result = {
-        "task": "6.3 -- ramp-rate / volatility analysis",
-        "decision_gate": "Task 6.0 chose path (b). See KNOWN_ISSUES.md #10.",
+        "task": "ramp-rate / volatility analysis",
+        "decision_gate": "The hybrid deliverable is the infrastructure, not a complementarity finding. See KNOWN_ISSUES.md.",
         "part_1_test_split_wide": {
             "scope": "All 2,953 test-split rows, general characterization, "
                      "not gated on wind activity.",

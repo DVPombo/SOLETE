@@ -57,7 +57,7 @@ def real_pv_window():
     2019-05-01 to 2019-09-01). Not synthetic -- pulled directly from
     SOLETE_Pombo_60min.h5.
     """
-    df = pd.read_hdf(v3_60min_path()).sort_index()  # KNOWN_ISSUES.md #8: must sort
+    df = pd.read_hdf(v3_60min_path()).sort_index()  # the file's rows are not stored chronologically: must sort
     window = df.loc["2019-06-01":"2019-06-03", "P_Solar[kW]"]
     assert len(window) == 72
     return window

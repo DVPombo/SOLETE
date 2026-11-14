@@ -164,7 +164,7 @@ def nrmse(y_true, y_pred, capacity=None, method="capacity", mask=None):
         Required when method="capacity". The fixed denominator (e.g. from
         installed_capacity_kw()). Ignored for method in {"mean", "range"}.
     method : {"capacity", "mean", "range"}
-        "capacity" (DEFAULT, per maintainer decision): normalize by the
+        "capacity" (DEFAULT): normalize by the
             target's installed/rated capacity (a fixed denominator that does
             not depend on the evaluation window). This is the more common
             convention in solar/wind forecasting papers, and lets nRMSE be

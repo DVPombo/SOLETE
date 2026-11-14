@@ -43,7 +43,7 @@ from lightgbm import LGBMRegressor
 
 from solete.benchmark import common as bc
 from solete import metrics as M
-import baseline_gbm as gbm  # reuse Task 5.5's feature set, not a second one
+import baseline_gbm as gbm  # reuse its feature set, not a second one
 
 QUANTILE_LEVELS = [0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95]
 INTERVALS = {
@@ -160,7 +160,7 @@ def run():
         "description": (
             "LightGBM quantile regression (objective='quantile'), one model per "
             "quantile level, on the same lagged-target + same-timestamp-weather + "
-            "calendar feature set as benchmarks/baseline_gbm.py (Task 5.5) -- see that file's "
+            "calendar feature set as benchmarks/baseline_gbm.py -- see that file's "
             "own same-timestamp-weather caveat, which applies identically here."
         ),
         "split_version": "v1",
@@ -188,9 +188,9 @@ def run():
     wind_payload = dict(shared_meta)
     wind_payload["target"] = "wind_power"
     wind_payload["caveat"] = bc.WIND_CAVEAT + (
-        " ASK FIRST outcome (maintainer, 2026-09-18): this wind result was produced "
+        " This wind result was produced "
         "anyway, specifically so a working probabilistic pipeline exists to re-point "
-        "at better wind data later (KNOWN_ISSUES.md #10) -- it is not offered as a "
+        "at better wind data later (KNOWN_ISSUES.md) -- it is not offered as a "
         "meaningful forecast-skill result today."
     )
     wind_payload["result"] = run_target(df, train, val, test, "wind_power")

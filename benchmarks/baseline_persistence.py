@@ -10,7 +10,7 @@ definition used across the solar forecasting literature -- it captures the
 strong diurnal cycle that plain persistence misses, without needing any
 fitted parameters). No fitting is performed for either baseline; both need
 only historical lookback, which is allowed to reach across split boundaries
-per the continuation prompt (only which rows are *scored* respects the
+(only which rows are *scored* respects the
 split).
 
 Evaluated at horizon = 1 (single-step, 1 hour ahead at this dataset's 60min

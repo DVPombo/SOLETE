@@ -6,7 +6,7 @@
   "method": "chronological time-based blocks (NOT a random row shuffle) -- see CHANGELOG.md v3.0 corrigendum for why a shuffled split was historically a bug in this project",
   "preprocessing_before_splitting": [
     "loaded via Functions.import_SOLETE_data(Control_Var={'resolution':'60min','SOLETE_builvsimport':'Build', ...}, PVinfo, WTinfo)",
-    "df = df.sort_index()  # KNOWN_ISSUES.md #8: the 60min file's rows are NOT stored in chronological order on disk; import_SOLETE_data() does not sort internally, so this must be done by the caller before any split/rolling-window logic",
+    "df = df.sort_index()  # the 60min file's rows are NOT stored in chronological order on disk; import_SOLETE_data() does not sort internally, so this must be done by the caller before any split/rolling-window logic",
     "QC columns (<column>_qc) and PV-expansion columns (Pac, Pdc, P_Solar[kW]_qc, etc.) are already present at this point, produced by the same Build path used everywhere else in this repo"
   ],
   "full_dataset": {
@@ -50,7 +50,7 @@
     "val_end_inclusive": "2019-04-30T23:00:00",
     "test_start_inclusive": "2019-05-01T00:00:00"
   },
-  "boundary_choice_rationale": "Boundaries are NOT a plain 70/15/15 (or similar) proportional cut. A plain proportional cut (train 0-70%, val 70-85%, test 85-100%) was checked and rejected: it would have put the dataset's second wind-active day (2019-05-25, at the 78.3% mark of the full timeline) inside val instead of test, leaving test with ZERO rows where P_Gaia[kW] > 0 -- i.e. a wind-power test set that is trivially all-zero and would make every model's wind metrics meaningless (a persistence baseline would score a perfect 0.000 MAE/RMSE on wind for the wrong reason). Boundaries were moved to guarantee train contains the first wind-active day (2018-08-31) and test contains the second (2019-05-25), while keeping the split still purely chronological (no row-shuffling, no cherry-picked individual rows -- whole contiguous months were adjusted). The single-populated azimuth/elevation day (2019-01-16, KNOWN_ISSUES.md #7) falls in train either way and was not a factor in this decision, since Azimuth/Elevation are not benchmark targets.",
+  "boundary_choice_rationale": "Boundaries are NOT a plain 70/15/15 (or similar) proportional cut. A plain proportional cut (train 0-70%, val 70-85%, test 85-100%) was checked and rejected: it would have put the dataset's second wind-active day (2019-05-25, at the 78.3% mark of the full timeline) inside val instead of test, leaving test with ZERO rows where P_Gaia[kW] > 0 -- i.e. a wind-power test set that is trivially all-zero and would make every model's wind metrics meaningless (a persistence baseline would score a perfect 0.000 MAE/RMSE on wind for the wrong reason). Boundaries were moved to guarantee train contains the first wind-active day (2018-08-31) and test contains the second (2019-05-25), while keeping the split still purely chronological (no row-shuffling, no cherry-picked individual rows -- whole contiguous months were adjusted). The single-populated azimuth/elevation day (2019-01-16) falls in train either way and was not a factor in this decision, since Azimuth/Elevation are not benchmark targets.",
   "decisions": {
     "wind_benchmark_scope": {
       "decision": "INCLUDED -- v1 canonical benchmark covers both PV (P_Solar[kW]) and wind (P_Gaia[kW]) power targets.",

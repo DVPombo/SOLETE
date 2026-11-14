@@ -31,7 +31,7 @@ Two stacked halves in one repository:
 | `benchmarks/` | Fixed train/val/test split + stored, caveated leaderboard results |
 | `scripts/quickstart/` | Beginner entry point: explore the data, then configure/train a forecaster |
 | `examples/` | Five runnable notebooks on a tiny bundled sample (no download needed) |
-| `matlab/`, `R/` | Loaders for non-Python users |
+| `examples/matlab/`, `examples/R/` | Loaders for non-Python users |
 
 
 # What is where
@@ -57,8 +57,7 @@ SOLETE/
 ├── solete/        the importable package: paths, io, qc, physics, preprocessing, modeling, metrics, ...
 ├── benchmarks/    baselines and benchmark scripts, fixed splits, stored results
 ├── scripts/       quickstart/RunMe.py, quickstart/MLForecasting.py, quickstart/predict_with_saved_model.py, dataset inspection tools
-├── examples/      notebooks + tiny sample files
-├── matlab/  R/    loaders for MATLAB and R users
+├── examples/      notebooks + tiny sample files + matlab/ and R/ loaders for MATLAB and R users
 ├── tests/  docs/
 ```
 
@@ -137,7 +136,7 @@ New to SOLETE? The notebooks in `examples/` walk through the dataset on a small 
 - [`examples/02_data_quality.ipynb`](examples/02_data_quality.ipynb) — walks through the QC flag layer and the data-quality issues it catches.
 - [`examples/03_pv_forecasting.ipynb`](examples/03_pv_forecasting.ipynb) — a small persistence-vs-Random-Forest forecasting demo for solar PV power.
 - [`examples/04_wind_forecasting.ipynb`](examples/04_wind_forecasting.ipynb) — the same forecasting demo for wind power, including a data note on the turbine's near-zero output in this dataset.
-- [`examples/05_hybrid_forecasting.ipynb`](examples/05_hybrid_forecasting.ipynb) — hybrid wind+solar forecasting (`P_hybrid[kW]`). Honestly scoped: this dataset's wind record is too sparse to demonstrate wind-solar complementarity, so the notebook documents the infrastructure and methodology (derived column, joint-vs-independent comparison, ramp-rate tooling) for reuse once better-populated wind data is available, rather than a positive complementarity claim. Needs the full v3 hourly file in `data/hdf5/`. See `benchmarks/BENCHMARKS.md`'s hybrid section and `KNOWN_ISSUES.md` #10.
+- [`examples/05_hybrid_forecasting.ipynb`](examples/05_hybrid_forecasting.ipynb) — hybrid wind+solar forecasting (`P_hybrid[kW]`). Honestly scoped: this dataset's wind record is too sparse to demonstrate wind-solar complementarity, so the notebook documents the infrastructure and methodology (derived column, joint-vs-independent comparison, ramp-rate tooling) for reuse once better-populated wind data is available, rather than a positive complementarity claim. Needs the full v3 hourly file in `data/hdf5/`. See `benchmarks/BENCHMARKS.md`'s hybrid section.
   
 # How to Use the Forecasting Platform
 1. Put the SOLETE data in `data/` (see above). The first script works without it, on the small sample in `examples/`.
@@ -172,10 +171,10 @@ python dataset/pipeline/build_release.py --raw SOLETE_Pombo_1sec.h5 --skip-exist
 
 ### Notes for _MATLAB_ and _R_ users ###
 I have been reached out by several people complaining that hdf5 can't be imported in MATLAB. That is not true, they weren't doing properly. Nevertheless, worry not dear user. Your peers have asked and I answer:
-1. Open the file **matlab/RunMe_matlab.m** in MATLAB and hit F5. That will import SOLETE as a _table_ (it finds `data/hdf5/` by itself).
+1. Open the file **examples/matlab/RunMe_matlab.m** in MATLAB and hit F5. That will import SOLETE as a _table_ (it finds `data/hdf5/` by itself).
 2. Alternatively, you can run the Python scripts from MATLAB, which I find a bit weird... but hey! You do you baby!
 
-3. I also included and _R_ script, same reason as for MATLAB.
+3. I also included and _R_ script (`examples/R/load_solete.R`), same reason as for MATLAB.
 
 *I coded this using 2021b, so anything newer should work, but I haven't actually checked with older versions.
 

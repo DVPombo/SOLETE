@@ -124,7 +124,7 @@ def test_pressure_negative_synthetic():
 
 
 # ---------------------------------------------------------------------------
-# HUMIDITY[%] -- finding #2
+# HUMIDITY[%]
 # ---------------------------------------------------------------------------
 
 def test_humidity_over_one_real_row(real_60min):
@@ -154,7 +154,7 @@ def test_humidity_boundary_values_real_data():
 
 
 # ---------------------------------------------------------------------------
-# WIND_DIR[deg] -- finding #3
+# WIND_DIR[deg]
 # ---------------------------------------------------------------------------
 
 def test_winddir_over_360_real_row(real_60min):
@@ -192,7 +192,7 @@ def test_winddir_negative_synthetic():
 
 
 # ---------------------------------------------------------------------------
-# Azimuth[deg] / Elevation[deg] -- finding #4
+# Azimuth[deg] / Elevation[deg]
 # ---------------------------------------------------------------------------
 
 def test_azimuth_elevation_zero_real_row_flagged_missing(real_60min):

@@ -1,7 +1,7 @@
 {
   "model": "probabilistic_gbm",
   "library": "lightgbm",
-  "description": "LightGBM quantile regression (objective='quantile'), one model per quantile level, on the same lagged-target + same-timestamp-weather + calendar feature set as benchmarks/baseline_gbm.py (Task 5.5) -- see that file's own same-timestamp-weather caveat, which applies identically here.",
+  "description": "LightGBM quantile regression (objective='quantile'), one model per quantile level, on the same lagged-target + same-timestamp-weather + calendar feature set as benchmarks/baseline_gbm.py -- see that file's own same-timestamp-weather caveat, which applies identically here.",
   "split_version": "v1",
   "horizon": "1 step (1h)",
   "fitting": "fit on train; hyperparameters selected per-quantile on val by pinball loss",

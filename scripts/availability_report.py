@@ -55,7 +55,7 @@ def infer_resolution(index: pd.DatetimeIndex) -> pd.Timedelta:
     """
     Infer the nominal sample spacing from the data itself (the *mode* of
     consecutive gaps after sorting -- not the file's on-disk order, which
-    KNOWN_ISSUES.md/finding #5 established isn't always chronological, and
+    isn't always chronological, and
     not a hardcoded '60min' assumption, so this generalizes to whatever
     resolution file it's pointed at).
     """

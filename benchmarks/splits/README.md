@@ -1,7 +1,7 @@
 # `splits/` — canonical, versioned benchmark splits
 
 This directory holds versioned train/val/test split definitions for the SOLETE benchmark
-(Phase 5, Task 5.1). Each version is a small, self-documenting JSON file — the exact
+(canonical benchmark splits). Each version is a small, self-documenting JSON file — the exact
 boundary timestamps plus enough metadata (row counts, date ranges, and the checks that
 were run against those boundaries) that a reader doesn't need to re-derive anything to
 trust the numbers.
@@ -10,7 +10,7 @@ trust the numbers.
 
 Built from `SOLETE_Pombo_60min.h5` (the full 15-month, 10,969-row real file), loaded
 through the real pipeline (`solete.io.import_SOLETE_data(..., resolution="60min",
-SOLETE_builvsimport="Build")`, then `.sort_index()` — see `KNOWN_ISSUES.md` #8; the file's
+SOLETE_builvsimport="Build")`, then `.sort_index()`; the file's
 rows are **not** stored in chronological order on disk, and `import_SOLETE_data()` does
 not sort internally, so this must happen before anything order-sensitive, including a
 split).
@@ -36,7 +36,7 @@ block.)
 ### Why these particular boundaries, not a plain 70/15/15 cut
 
 A plain proportional cut (train = first 70%, val = next 15%, test = last 15%) was tried
-first and **rejected** after running Task 5.1.4's boundary check. The dataset's two
+first and **rejected** after running a boundary check. The dataset's two
 wind-active days (see below) sit at the 19.9% and 78.3% marks of the full timeline. Under
 a plain 70/15/15 split, the second active day (2019-05-25) lands in **val**, not test —
 which would leave the **test** split with zero rows where `P_Gaia[kW] > 0`. A wind-power
@@ -57,11 +57,11 @@ The boundaries above were chosen instead so that:
 - Whole contiguous months were moved to hit these targets — no individual rows were
   cherry-picked, and the split is still purely chronological.
 
-The single populated azimuth/elevation day (2019-01-16, `KNOWN_ISSUES.md` #7) falls inside
+The single populated azimuth/elevation day (2019-01-16) falls inside
 **train** either way and did not factor into the boundary choice — `Azimuth[deg]` /
 `Elevation[deg]` are not benchmark targets.
 
-### Decision — wind-power benchmark scope (Task 5.1.2, ASK FIRST)
+### Decision — wind-power benchmark scope
 
 **Decided: include wind.** The v1 canonical benchmark covers both PV (`P_Solar[kW]`) and
 wind (`P_Gaia[kW]`) as forecast targets, per the maintainer's explicit choice.
@@ -75,31 +75,31 @@ overwhelmingly a score on an all-zero target.** Near-perfect wind metrics are ex
 from that alone and should not be read as forecasting skill until/unless this is
 revisited.
 
-**Why the readings are near-zero is not established — see `KNOWN_ISSUES.md` finding #10
+**Why the readings are near-zero is not established — see `KNOWN_ISSUES.md`
 for the full discussion.** Two explanations are on the table, neither confirmed nor ruled
 out by anything in this repo: the turbine could have been physically out of service for
 nearly the whole record, or the near-zero pattern could be a resolution/aggregation
 pipeline artifact — the latter has real precedent, since `docs/legacy/RESOLUTIONS_v3_investigation.md`
 already found a related, confirmed-symptom problem (an angle-wrapping bug pattern in `WIND_DIR[deg]`) in
 the same aggregation pipeline, with no aggregation code or finer-resolution source file in
-this repo to check either issue against directly. Phase 6 (`examples/05_hybrid_forecasting.ipynb`,
-`KNOWN_ISSUES.md` #10) treats this as open and is scoped accordingly — its wind/hybrid
+this repo to check either issue against directly. The hybrid analysis (`examples/05_hybrid_forecasting.ipynb`)
+treats this as open and is scoped accordingly — its wind/hybrid
 results are infrastructure and methodology, not a demonstrated finding about the turbine
 or about wind-solar complementarity, pending either explanation being resolved (e.g. via
 raw/finer-resolution data from the original project, which the maintainer intends to
 pursue).
 
-### Decision — `P_Solar[kW]_qc == 6` (model-substituted) rows (Task 5.1.3, ASK FIRST)
+### Decision — `P_Solar[kW]_qc == 6` (model-substituted) rows
 
 **Decided: flagged, not auto-excluded.** Rows where `P_Solar[kW]_qc == 6` (King's PV
-model substituted for the raw sensor reading — see `docs/legacy/QC_SCHEMA_platform_v3.md` finding #6, ~38% of the
+model substituted for the raw sensor reading — see `docs/legacy/QC_SCHEMA_platform_v3.md`, ~38% of the
 full record under the old rule; since v4 the rule also requires `Pac > 0` and no row of the hourly file is flagged, see `dataset/docs/QC_SCHEMA.md` §1 "What code 6 means") are kept in **train, val, and test alike**. The split does not remove or
 relabel them; the `P_Solar[kW]_qc` column is preserved on every row so that each
 baseline/model/metric call decides for itself whether to apply a QC-exclusion mask.
 
 This is a deliberate difference from `examples/03_pv_forecasting.ipynb`'s own convention
 (which excludes `qc == 6` rows from its evaluation cells) — that notebook's approach still
-applies as one *valid way to use* `metrics.py`'s exclusion mask (Task 5.2), it's just not
+applies as one *valid way to use* `metrics.py`'s exclusion mask, it's just not
 baked into the split itself. Keeping the split raw/unfiltered means it supports both a
 strict "sensor-only" evaluation and a "score everything, note the caveat" evaluation
 without needing a second split version for the difference.

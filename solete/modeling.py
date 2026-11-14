@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Part of the solete_pipeline package independent testability.
-See solete/ (kept as a re-export shim) and CONTRIBUTING.md for
-why this split happened and how the modules relate to each other.
+Part of the solete package. See CONTRIBUTING.md for how the modules relate to each other.
 
 Original author: Daniel Vázquez Pombo
 email: daniel.vazquez.pombo@gmail.com

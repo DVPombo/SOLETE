@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solete"
-version = "4.0.0"
+version = "4.0"
 description = "SOLETE: co-located Wind + PV + meteorological dataset, its cleaning pipeline, and a forecasting platform"
 readme = "README.md"
 license = { text = "MIT" }

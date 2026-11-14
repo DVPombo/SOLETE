@@ -7,7 +7,7 @@ chosen specifically to contain real examples of the QC issues documented in
 `QC_SCHEMA.md`/`KNOWN_ISSUES.md`, which `SOLETE_short.h5` (see below) does not.
 
 Both files are produced by slicing `SOLETE_Pombo_60min.h5` **after** sorting its index
-(`KNOWN_ISSUES.md` finding #8: the file's rows are not stored in chronological order on
+(the file's rows are not stored in chronological order on
 disk). Both keep the raw, as-delivered columns only — the QC `_qc` columns and PV-model
 expansion columns (`Pac`, `Pdc`, `P_Solar_clean[kW]`, etc.) are added at load time
 by `Functions.py::import_SOLETE_sample()` (a new convenience wrapper, see below),
@@ -21,7 +21,7 @@ saved file.
   covered every QC issue type, since `Pressure[mbar]`'s sentinel problem and the
   `HUMIDITY[%]`/`WIND_DIR[deg]` out-of-range rows are spread across essentially every
   month of the 15-month record, and the one populated azimuth/elevation day
-  (2019-01-16, `KNOWN_ISSUES.md` finding #7) falls naturally inside any window spanning
+  (2019-01-16) falls naturally inside any window spanning
   January 2019. Given that, the deciding factor was the notebook use case: Dec–Feb gives
   the forecasting notebooks (Tasks 3.4/3.5) the most history of the options considered,
   while staying small enough to load and run in well under a minute.

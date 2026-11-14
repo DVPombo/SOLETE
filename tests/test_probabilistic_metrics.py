@@ -59,7 +59,7 @@ def real_quantile_forecast():
     benchmarks/probabilistic_forecast.py's job) -- good enough to exercise the
     metrics against real numbers rather than invented ones.
     """
-    df = pd.read_hdf(v3_60min_path()).sort_index()  # KNOWN_ISSUES.md #8: must sort
+    df = pd.read_hdf(v3_60min_path()).sort_index()  # the file's rows are not stored chronologically: must sort
     window = df.loc["2019-06-01":"2019-06-03", "P_Solar[kW]"]
     assert len(window) == 72
 
