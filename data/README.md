@@ -1,4 +1,5 @@
 Get the associated code in https://github.com/DVPombo/SOLETE
+Download the associated data files from Figshare: https://doi.org/10.11583/DTU.17040767
 
 # data/ — put the SOLETE data files there
 
