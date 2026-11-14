@@ -1,18 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-benchmarks/baseline_gbm.py -- SOLETE Phase 5 continuation, Task 5.5
-
-ASK FIRST (library choice): LightGBM was picked over XGBoost. Reasoning,
-for the maintainer to override if preferred: LightGBM's default
+LightGBM was picked over XGBoost since LightGBM's default
 histogram-based split-finding trains noticeably faster on this feature
 count/row count with no accuracy trade-off worth caring about at this
 dataset size (~10^4 rows), pip-installs a smaller wheel, and its sklearn-
 style API (LGBMRegressor) is a drop-in match for the rest of this codebase's
-sklearn conventions (see benchmarks/baseline_climatology_ar.py's LinearRegression
-usage). If the maintainer prefers XGBoost for ecosystem-consistency reasons,
-swapping is a small, isolated change confined to this file (fit_one() below)
--- nothing else in Tasks 5.6-5.8 depends on which library was used here.
-`requirements.txt` gets a new `lightgbm` line for this.
+sklearn conventions.
 
 Feature set (documented per the task -- kept simple/legible, this is a
 benchmark baseline, not a competition entry):
@@ -21,8 +14,7 @@ benchmark baseline, not a competition entry):
       POA Irr[kW1m2], WIND_SPEED[m1s], TEMPERATURE[degC]
     - Calendar features: hour-of-day, month, hour sin/cos, day-of-year sin/cos
 
-IMPORTANT ASSUMPTION carried over from the task's own feature-set spec:
-"same-timestamp" meteorological readings means the model is given the
+IMPORTANT ASSUMPTION "same-timestamp" meteorological readings means the model is given the
 *measured* weather at the target timestamp t, not a t-1 lookback of it. In a
 real deployed forecast this would have to come from an actual NWP forecast,
 not a measurement -- using the measurement is a common simplifying
