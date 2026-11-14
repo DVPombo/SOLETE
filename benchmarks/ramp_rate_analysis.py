@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-benchmarks/ramp_rate_analysis.py -- SOLETE Phase 6, Task 6.3
-
 Ramp-rate (period-to-period change) characterization of P_hybrid[kW] vs.
-P_Solar[kW] alone. Scoped per Task 6.0's decision (path (b)): the
-test-split-wide distribution comparison is a legitimate, general
+P_Solar[kW] alone. The test-split-wide distribution comparison is a legitimate, general
 "how much, and how rarely" characterization regardless of the wind-
-complementarity question (KNOWN_ISSUES.md #10) -- it describes the data as
+complementarity question (KNOWN_ISSUES.md) -- it describes the data as
 it is. The narrower "did the two known wind-active days show smoothing"
 question is kept explicitly separate and scoped to n=2 calendar days: an
 observation, not a general claim about wind-solar ramp smoothing.
@@ -58,7 +55,6 @@ def run():
     train, val, test = bc.split_df(df)
 
     # --- Part 1: test-split-wide ramp distribution (the general, non-caveat-
-    # gated characterization Task 6.3.1 asks for) ---
     d_hybrid = test[HYBRID_COL].diff().abs()
     d_solar = test[SOLAR_COL].diff().abs()
 
